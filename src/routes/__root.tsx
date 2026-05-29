@@ -14,6 +14,8 @@ import { reportLovableError } from "../lib/lovable-error-reporting";
 import "@/lib/i18n";
 import { supabase } from "@/integrations/supabase/client";
 import { Toaster } from "@/components/ui/sonner";
+import { toast } from "sonner";
+import { consumeAuthHashError } from "@/lib/auth-hash-error";
 
 function NotFoundComponent() {
   return (
@@ -136,6 +138,23 @@ function RootComponent() {
     });
     return () => subscription.unsubscribe();
   }, [queryClient]);
+
+  useEffect(() => {
+    const err = consumeAuthHashError();
+    if (!err) return;
+    const expired = err.errorCode === "otp_expired" || err.error === "access_denied";
+    if (expired) {
+      toast.error("Seu link de confirmação expirou ou já foi usado. Reenvie abaixo.");
+      const target = `/login?reason=otp_expired`;
+      if (window.location.pathname !== "/login") {
+        window.history.replaceState(null, "", target);
+        // Force router to pick up new URL.
+        window.location.assign(target);
+      }
+    } else if (err.description) {
+      toast.error(err.description);
+    }
+  }, []);
 
   return (
     <QueryClientProvider client={queryClient}>
