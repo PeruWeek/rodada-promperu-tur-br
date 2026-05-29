@@ -51,7 +51,15 @@
     "switchToLogin": "Já tem conta? Entrar",
     "errorInvalid": "E-mail ou senha incorretos.",
     "errorGeneric": "Não foi possível concluir. Tente novamente.",
-    "checkEmail": "Verifique seu e-mail para confirmar a conta."
+    "checkEmail": "Verifique seu e-mail para confirmar a conta.",
+    "linkExpiredTitle": "Link expirado",
+    "linkExpiredBody": "Seu link de confirmação expirou ou já foi usado. Informe seu e-mail abaixo e clique em Reenviar confirmação.",
+    "resendConfirmation": "Reenviar confirmação",
+    "resendNeedEmail": "Informe seu e-mail para reenviar.",
+    "resendSuccess": "Enviamos um novo e-mail de confirmação. Verifique sua caixa de entrada.",
+    "checkEmailTitle": "Verifique seu e-mail",
+    "checkEmailBody": "Enviamos um link de confirmação para {{email}}. Clique no link para ativar sua conta.",
+    "checkEmailHint": "O link expira em 1 hora e só pode ser usado uma vez. Se não chegar, verifique a pasta de spam."
   },
   "onboarding": {
     "title": "Conte-nos quem você é",
@@ -184,7 +192,12 @@
     "title": "Administração",
     "subtitle": "Gerencie mesas, check-in e papéis dos usuários.",
     "forbidden": "Acesso restrito a administradores.",
-    "tabs": { "tables": "Mesas", "checkin": "Check-in", "users": "Usuários", "requests": "Solicitações" },
+    "tabs": {
+      "tables": "Mesas",
+      "checkin": "Check-in",
+      "users": "Usuários",
+      "requests": "Solicitações"
+    },
     "tables": {
       "help": "Atribua um expositor a cada mesa. Use 'Regenerar slots' após mudanças.",
       "unassigned": "— Sem expositor —",
