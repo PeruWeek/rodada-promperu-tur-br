@@ -1,16 +1,8 @@
 import * as React from 'react'
-
 import {
-  Body,
-  Button,
-  Container,
-  Head,
-  Heading,
-  Html,
-  Link,
-  Preview,
-  Text,
+  Body, Button, Container, Head, Heading, Hr, Html, Link, Preview, Text,
 } from '@react-email/components'
+import { main, container, h1, text, button, footer, PRIMARY } from './_shared'
 
 interface SignupEmailProps {
   siteName: string
@@ -19,66 +11,38 @@ interface SignupEmailProps {
   confirmationUrl: string
 }
 
-export const SignupEmail = ({
-  siteName,
-  siteUrl,
-  recipient,
-  confirmationUrl,
-}: SignupEmailProps) => (
-  <Html lang="en" dir="ltr">
+export const SignupEmail = ({ siteName, siteUrl, recipient, confirmationUrl }: SignupEmailProps) => (
+  <Html lang="pt-BR" dir="ltr">
     <Head />
-    <Preview>Confirm your email for {siteName}</Preview>
+    <Preview>Confirme seu e-mail · Confirma tu correo — {siteName}</Preview>
     <Body style={main}>
       <Container style={container}>
-        <Heading style={h1}>Confirm your email</Heading>
+        <Heading style={h1}>Confirme seu e-mail</Heading>
         <Text style={text}>
-          Thanks for signing up for{' '}
-          <Link href={siteUrl} style={link}>
-            <strong>{siteName}</strong>
-          </Link>
-          !
+          Obrigado por se cadastrar em{' '}
+          <Link href={siteUrl} style={{ color: PRIMARY }}><strong>{siteName}</strong></Link>. Confirme seu endereço de e-mail ({recipient}) clicando no botão abaixo:
         </Text>
+        <Button style={button} href={confirmationUrl}>Confirmar e-mail</Button>
+        <Text style={{ ...text, marginTop: '16px' }}>
+          Se você não criou esta conta, pode ignorar este e-mail com segurança.
+        </Text>
+
+        <Hr style={{ borderColor: '#eeeeee', margin: '32px 0' }} />
+
+        <Heading style={h1}>Confirma tu correo</Heading>
         <Text style={text}>
-          Please confirm your email address (
-          <Link href={`mailto:${recipient}`} style={link}>
-            {recipient}
-          </Link>
-          ) by clicking the button below:
+          Gracias por registrarte en{' '}
+          <Link href={siteUrl} style={{ color: PRIMARY }}><strong>{siteName}</strong></Link>. Confirma tu dirección de correo ({recipient}) haciendo clic en el botón:
         </Text>
-        <Button style={button} href={confirmationUrl}>
-          Verify Email
-        </Button>
-        <Text style={footer}>
-          If you didn't create an account, you can safely ignore this email.
+        <Button style={button} href={confirmationUrl}>Confirmar correo</Button>
+        <Text style={{ ...text, marginTop: '16px' }}>
+          Si no creaste esta cuenta, puedes ignorar este correo con seguridad.
         </Text>
+
+        <Text style={footer}>Rodada de Negócios MICE · Peru × Brasil — 08/07/2026</Text>
       </Container>
     </Body>
   </Html>
 )
 
 export default SignupEmail
-
-const main = { backgroundColor: '#ffffff', fontFamily: 'Arial, sans-serif' }
-const container = { padding: '20px 25px' }
-const h1 = {
-  fontSize: '22px',
-  fontWeight: 'bold' as const,
-  color: '#000000',
-  margin: '0 0 20px',
-}
-const text = {
-  fontSize: '14px',
-  color: '#55575d',
-  lineHeight: '1.5',
-  margin: '0 0 25px',
-}
-const link = { color: 'inherit', textDecoration: 'underline' }
-const button = {
-  backgroundColor: '#000000',
-  color: '#ffffff',
-  fontSize: '14px',
-  borderRadius: '8px',
-  padding: '12px 20px',
-  textDecoration: 'none',
-}
-const footer = { fontSize: '12px', color: '#999999', margin: '30px 0 0' }
