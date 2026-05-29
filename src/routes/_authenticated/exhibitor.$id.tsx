@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { ArrowLeft, Calendar, ExternalLink, Globe, Instagram, Linkedin, MapPin, Table2 } from "lucide-react";
+import { ArrowLeft, ExternalLink, Globe, Instagram, Linkedin, MapPin, Table2 } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { COUNTRIES, taxonomyLabel } from "@/lib/taxonomy";
+import { BookingDialog } from "@/components/booking-dialog";
 
 export const Route = createFileRoute("/_authenticated/exhibitor/$id")({
   component: ExhibitorDetailPage,
@@ -88,9 +89,7 @@ function ExhibitorDetailPage() {
             )}
           </div>
         </div>
-        <Button size="lg" disabled className="shrink-0">
-          <Calendar size={16} /> {t("explore.scheduleSoon")}
-        </Button>
+        <BookingDialog exhibitorProfileId={id} exhibitorName={comp?.trade_name ?? prof?.full_name ?? undefined} />
       </div>
 
       <div className="mt-8 grid gap-4 md:grid-cols-2">
