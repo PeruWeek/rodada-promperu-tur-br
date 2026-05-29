@@ -73,7 +73,7 @@ export const rebuildSlots = createServerFn({ method: "POST" })
     await assertAdmin(context.userId);
     const { error } = await supabaseAdmin.rpc("rebuild_event_time_slots", {
       p_event_id: data.eventId,
-      p_deactivate_existing: true,
+      p_deactivate_previous: true,
     });
     if (error) throw new Error(error.message);
     return { ok: true };
