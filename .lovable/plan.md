@@ -1,37 +1,41 @@
-## Fase 2 — Perfis + Descoberta de Expositores
+## Objetivo
+Enviar e-mail transacional ao **visitante** quando uma reunião é agendada ou cancelada, usando a infraestrutura já provisionada em `rsvp.promperu.tur.br`. Bilíngue (PT-BR / ES) conforme `preferred_language` do perfil.
 
-Objetivo: completar os perfis de visitante e expositor, e entregar a tela de descoberta (lista + busca + filtros + detalhe) que alimenta o agendamento da Fase 3.
+> Nota: o expositor já recebe notificação in-app a cada agendamento/cancelamento. Se quiser e-mail para o expositor também, me avise — por padrão, fica só in-app.
 
-### 1. Perfil — Visitante (`/profile`)
-- Editar dados pessoais (`profiles`: full_name, preferred_language) e empresa (`companies`: trade_name, country_code, city, website, whatsapp, phone, linkedin, instagram).
-- Editar `visitor_profiles`: buyer_type, interests_segments[], interests_services[], interests_destinations[], portfolio_pt, portfolio_es, notes.
-- Multi-select com chips para arrays; valores controlados (segmentos/serviços/destinos) em constantes i18n.
+## Templates a criar
+Em `src/lib/email-templates/`:
 
-### 2. Perfil — Expositor (`/profile`, mesma rota condicional por role)
-- Mesma seção de empresa.
-- Editar `exhibitor_profiles`: segments[], services[], destinations[], target_buyers[], pitch_pt, pitch_es, portfolio_pt, portfolio_es, materials_links[].
-- Campo materials_links como lista dinâmica de URLs.
+1. **`meeting-confirmation.tsx`** — confirmação ao visitante
+   - Props: `language` ("pt-BR"|"es"), `visitorName`, `exhibitorCompany`, `tableNumber`, `slotStart` (ISO), `slotEnd` (ISO), `agendaUrl`
+   - Assunto: PT "Reunião confirmada — {exhibitorCompany}" / ES "Reunión confirmada — {exhibitorCompany}"
+   - Conteúdo: saudação, dados (empresa, mesa, horário formatado em `America/Sao_Paulo`), CTA "Ver minha agenda" → `agendaUrl`
 
-### 3. Descoberta — `/explore` (visitante)
-- Lista de expositores (`exhibitor_profiles` + `profiles` + `companies` + `event_tables` para nº de mesa).
-- Busca por nome/empresa (client-side sobre query inicial).
-- Filtros por segments, services, destinations (multi-select).
-- Cards com: empresa, país/cidade, mesa nº, chips de segmentos, CTA "Ver detalhes".
-- Vazio/erro/skeleton states.
+2. **`meeting-cancelled.tsx`** — cancelamento ao visitante
+   - Props iguais
+   - Assunto: PT "Reunião cancelada — {exhibitorCompany}" / ES "Reunión cancelada — {exhibitorCompany}"
+   - Conteúdo: aviso de cancelamento, dados da reunião, CTA "Agendar outro horário" → `/explore`
 
-### 4. Detalhe do Expositor — `/exhibitor/$id`
-- Header: empresa, país, mesa, idiomas.
-- Seções: pitch (PT/ES conforme idioma do usuário), portfolio, segmentos/serviços/destinos, materiais (links), contato (site/linkedin/instagram).
-- CTA "Agendar reunião" (desabilitado nesta fase, ativado na Fase 3).
+Registrar ambos em `src/lib/email-templates/registry.ts` com `previewData`.
 
-### 5. Infra de suporte
-- Server functions em `src/lib/profiles.functions.ts` e `src/lib/exhibitors.functions.ts` para reads/writes com `requireSupabaseAuth`.
-- Hook `useExhibitors({ search, filters })` via TanStack Query.
-- Constantes compartilhadas `src/lib/taxonomy.ts` (segments/services/destinations/buyer_types) com labels PT/ES.
-- Componentes reutilizáveis: `MultiSelectChips`, `ExhibitorCard`, `FilterPanel`.
-- Strings novas em `pt-BR.json` e `es.json`.
+## Helper de envio
+Criar `src/lib/email/send.ts` com `sendTransactionalEmail()` chamando `POST /lovable/email/transactional/send` com JWT do usuário (padrão da documentação).
 
-### Fora de escopo (Fase 3+)
-- Agendamento, slots, conflitos, notificações, PDF, check-in, admin.
+## Wiring nos server functions
+Em `src/lib/booking.functions.ts`:
 
-Confirma que sigo nessa direção?
+- **`bookMeeting`**: após inserir a reunião com sucesso, buscar dados do visitante (nome, e-mail, `preferred_language`), do expositor (`companies.trade_name`), do `event_tables.table_number` e do `time_slot` (start/end). Disparar `sendTransactionalEmail` com `templateName: 'meeting-confirmation'` e `idempotencyKey: meeting-confirm-{meetingId}`. Erro de e-mail **não** deve falhar o agendamento (try/catch + log).
+- **`cancelMeeting`**: idem com `meeting-cancelled` e `idempotencyKey: meeting-cancel-{meetingId}`.
+
+Como o `send-transactional-email` valida JWT do chamador autenticado, e estamos chamando server-to-server, vou usar a abordagem recomendada: chamar via `fetch` para a própria origem usando o token do usuário já disponível no `requireSupabaseAuth` middleware (cabeçalho repassado), evitando criar rota pública. URL base via `request.url` / variável de ambiente do site.
+
+## i18n e estilo
+- Strings dos e-mails ficam dentro do próprio `.tsx` (branch por `language`), não nos JSONs do app — templates são server-rendered.
+- Visual alinhado ao app: tipografia Source Sans 3, fundo `#ffffff`, accent na cor primária do projeto (vou ler `src/styles.css` para extrair). Sem links de unsubscribe (o sistema injeta automaticamente).
+
+## Fora de escopo
+- E-mail para o expositor (continua só in-app).
+- E-mail de lembrete pré-evento, PDF anexo (não há suporte a anexos — link para agenda já cobre).
+- Reenvio em lote / campanhas.
+
+Confirma que sigo assim?
