@@ -14,6 +14,95 @@ export type Database = {
   }
   public: {
     Tables: {
+      agent_skills: {
+        Row: {
+          agent_id: string
+          skill_id: string
+        }
+        Insert: {
+          agent_id: string
+          skill_id: string
+        }
+        Update: {
+          agent_id?: string
+          skill_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_skills_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_skills_skill_id_fkey"
+            columns: ["skill_id"]
+            isOneToOne: false
+            referencedRelation: "skills"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agents: {
+        Row: {
+          base_url_mode: Database["public"]["Enums"]["agent_base_url_mode"]
+          created_at: string
+          event_id: string
+          id: string
+          is_active: boolean
+          is_default: boolean
+          max_tokens: number | null
+          model: string
+          name: string
+          provider: string
+          rag_enabled: boolean
+          system_prompt: string | null
+          temperature: number | null
+          updated_at: string
+        }
+        Insert: {
+          base_url_mode?: Database["public"]["Enums"]["agent_base_url_mode"]
+          created_at?: string
+          event_id: string
+          id?: string
+          is_active?: boolean
+          is_default?: boolean
+          max_tokens?: number | null
+          model: string
+          name: string
+          provider?: string
+          rag_enabled?: boolean
+          system_prompt?: string | null
+          temperature?: number | null
+          updated_at?: string
+        }
+        Update: {
+          base_url_mode?: Database["public"]["Enums"]["agent_base_url_mode"]
+          created_at?: string
+          event_id?: string
+          id?: string
+          is_active?: boolean
+          is_default?: boolean
+          max_tokens?: number | null
+          model?: string
+          name?: string
+          provider?: string
+          rag_enabled?: boolean
+          system_prompt?: string | null
+          temperature?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agents_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       audit_logs: {
         Row: {
           action: string
@@ -97,6 +186,99 @@ export type Database = {
           whatsapp?: string | null
         }
         Relationships: []
+      }
+      conversation_messages: {
+        Row: {
+          content: string | null
+          conversation_id: string
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["conversation_message_role"]
+          tool_call_id: string | null
+          tool_calls: Json | null
+          tool_name: string | null
+        }
+        Insert: {
+          content?: string | null
+          conversation_id: string
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["conversation_message_role"]
+          tool_call_id?: string | null
+          tool_calls?: Json | null
+          tool_name?: string | null
+        }
+        Update: {
+          content?: string | null
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["conversation_message_role"]
+          tool_call_id?: string | null
+          tool_calls?: Json | null
+          tool_name?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversation_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      conversations: {
+        Row: {
+          agent_id: string | null
+          created_at: string
+          event_id: string
+          id: string
+          owner_profile_id: string
+          title: string | null
+          updated_at: string
+        }
+        Insert: {
+          agent_id?: string | null
+          created_at?: string
+          event_id: string
+          id?: string
+          owner_profile_id: string
+          title?: string | null
+          updated_at?: string
+        }
+        Update: {
+          agent_id?: string | null
+          created_at?: string
+          event_id?: string
+          id?: string
+          owner_profile_id?: string
+          title?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversations_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversations_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversations_owner_profile_id_fkey"
+            columns: ["owner_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       email_delivery_logs: {
         Row: {
@@ -635,6 +817,128 @@ export type Database = {
           },
         ]
       }
+      rag_chunks: {
+        Row: {
+          chunk_index: number
+          content: string
+          created_at: string
+          document_id: string
+          embedding: string | null
+          event_id: string
+          id: string
+          metadata: Json
+        }
+        Insert: {
+          chunk_index: number
+          content: string
+          created_at?: string
+          document_id: string
+          embedding?: string | null
+          event_id: string
+          id?: string
+          metadata?: Json
+        }
+        Update: {
+          chunk_index?: number
+          content?: string
+          created_at?: string
+          document_id?: string
+          embedding?: string | null
+          event_id?: string
+          id?: string
+          metadata?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rag_chunks_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "rag_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rag_chunks_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rag_documents: {
+        Row: {
+          created_at: string
+          event_id: string
+          id: string
+          mime: string | null
+          raw_text: string
+          source_url: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          event_id: string
+          id?: string
+          mime?: string | null
+          raw_text: string
+          source_url?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          event_id?: string
+          id?: string
+          mime?: string | null
+          raw_text?: string
+          source_url?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rag_documents_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      skills: {
+        Row: {
+          created_at: string
+          description: string
+          id: string
+          is_active: boolean
+          key: string
+          name: string
+          params_schema: Json
+          scope: Database["public"]["Enums"]["skill_scope"]
+        }
+        Insert: {
+          created_at?: string
+          description: string
+          id?: string
+          is_active?: boolean
+          key: string
+          name: string
+          params_schema?: Json
+          scope?: Database["public"]["Enums"]["skill_scope"]
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          id?: string
+          is_active?: boolean
+          key?: string
+          name?: string
+          params_schema?: Json
+          scope?: Database["public"]["Enums"]["skill_scope"]
+        }
+        Relationships: []
+      }
       time_slots: {
         Row: {
           created_at: string
@@ -685,6 +989,30 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      user_llm_credentials: {
+        Row: {
+          api_key_encrypted: string
+          created_at: string
+          provider: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          api_key_encrypted: string
+          created_at?: string
+          provider?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          api_key_encrypted?: string
+          created_at?: string
+          provider?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       user_roles: {
         Row: {
@@ -762,15 +1090,26 @@ export type Database = {
         Returns: boolean
       }
       is_admin_or_staff: { Args: { _user_id: string }; Returns: boolean }
+      match_rag_chunks: {
+        Args: { p_event_id: string; p_query: string; p_top_k?: number }
+        Returns: {
+          content: string
+          id: string
+          metadata: Json
+          similarity: number
+        }[]
+      }
       rebuild_event_time_slots: {
         Args: { p_deactivate_previous?: boolean; p_event_id: string }
         Returns: string
       }
     }
     Enums: {
+      agent_base_url_mode: "api" | "free"
       app_language: "pt-BR" | "es"
       app_role: "admin" | "staff" | "exhibitor" | "visitor"
       checkin_method: "qr" | "manual"
+      conversation_message_role: "user" | "assistant" | "tool" | "system"
       meeting_checkin_by_role: "staff" | "exhibitor" | "visitor"
       meeting_checkin_status: "present" | "no_show" | "late"
       meeting_outcome: "hot" | "warm" | "cold"
@@ -788,6 +1127,7 @@ export type Database = {
         | "meeting_rescheduled"
         | "meeting_reminder"
         | "system"
+      skill_scope: "public" | "staff"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -915,9 +1255,11 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      agent_base_url_mode: ["api", "free"],
       app_language: ["pt-BR", "es"],
       app_role: ["admin", "staff", "exhibitor", "visitor"],
       checkin_method: ["qr", "manual"],
+      conversation_message_role: ["user", "assistant", "tool", "system"],
       meeting_checkin_by_role: ["staff", "exhibitor", "visitor"],
       meeting_checkin_status: ["present", "no_show", "late"],
       meeting_outcome: ["hot", "warm", "cold"],
@@ -937,6 +1279,7 @@ export const Constants = {
         "meeting_reminder",
         "system",
       ],
+      skill_scope: ["public", "staff"],
     },
   },
 } as const
