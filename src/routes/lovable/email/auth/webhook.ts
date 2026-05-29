@@ -12,12 +12,12 @@ import { EmailChangeEmail } from '@/lib/email-templates/email-change'
 import { ReauthenticationEmail } from '@/lib/email-templates/reauthentication'
 
 const EMAIL_SUBJECTS: Record<string, string> = {
-  signup: 'Confirm your email',
-  invite: "You've been invited",
-  magiclink: 'Your login link',
-  recovery: 'Reset your password',
-  email_change: 'Confirm your new email',
-  reauthentication: 'Your verification code',
+  signup: 'Confirme seu e-mail · Confirma tu correo',
+  invite: 'Você foi convidado · Has sido invitado',
+  magiclink: 'Seu link de acesso · Tu enlace de acceso',
+  recovery: 'Redefinir senha · Restablecer contraseña',
+  email_change: 'Confirme seu novo e-mail · Confirma tu nuevo correo',
+  reauthentication: 'Seu código de verificação · Tu código de verificación',
 }
 
 // Template mapping
@@ -31,10 +31,10 @@ const EMAIL_TEMPLATES: Record<string, React.ComponentType<any>> = {
 }
 
 // Configuration
-const SITE_NAME = "rodada-promperu-tur-br"
+const SITE_NAME = "Rodada Peru 2026"
 const SENDER_DOMAIN = "rsvp.promperu.tur.br"
 const ROOT_DOMAIN = "promperu.tur.br"
-const FROM_DOMAIN = "promperu.tur.br"
+const FROM_ADDRESS = "rodada@promperu.tur.br"
 
 function redactEmail(email: string | null | undefined): string {
   if (!email) return '***'
@@ -177,7 +177,7 @@ export const Route = createFileRoute("/lovable/email/auth/webhook")({
             run_id,
             message_id: messageId,
             to: payload.data.email,
-            from: `${SITE_NAME} <noreply@${FROM_DOMAIN}>`,
+            from: `${SITE_NAME} <${FROM_ADDRESS}>`,
             sender_domain: SENDER_DOMAIN,
             subject: EMAIL_SUBJECTS[emailType] || 'Notification',
             html,
