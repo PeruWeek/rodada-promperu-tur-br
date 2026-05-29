@@ -246,7 +246,7 @@ export const sendChatMessage = createServerFn({ method: "POST" })
           conversation_id: data.conversation_id,
           role: "assistant",
           content: choice.content ?? null,
-          tool_calls: choice.tool_calls as unknown as Record<string, unknown>,
+          tool_calls: choice.tool_calls as unknown as never,
         });
         messages.push({
           role: "assistant",
@@ -306,11 +306,14 @@ export const sendChatMessage = createServerFn({ method: "POST" })
     }
 
     // Touch conversation + auto-title from first user message
-    const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
-    if (!conv.title || conv.title === "Nova conversa") {
-      updates.title = data.user_message.slice(0, 60);
-    }
-    await supabaseAdmin.from("conversations").update(updates).eq("id", data.conversation_id);
+    const shouldRename = !conv.title || conv.title === "Nova conversa";
+    await supabaseAdmin
+      .from("conversations")
+      .update({
+        updated_at: new Date().toISOString(),
+        ...(shouldRename ? { title: data.user_message.slice(0, 60) } : {}),
+      })
+      .eq("id", data.conversation_id);
 
     return { rag_active: ragActive, assistant: finalAssistant.content };
   });
