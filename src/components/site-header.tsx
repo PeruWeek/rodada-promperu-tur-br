@@ -35,6 +35,7 @@ export function SiteHeader() {
         ...(hasRole(profile?.roles, "admin", "staff")
           ? [{ to: "/admin", label: t("nav.admin") }]
           : []),
+        { to: "/profile", label: t("nav.profile") },
       ]
     : [];
 
