@@ -30,7 +30,11 @@ function ExhibitorDetailPage() {
         .maybeSingle();
       if (exhErr) throw exhErr;
       if (!exh) return null;
-      const { data: prof } = await supabase.from("profiles").select("*").eq("id", id).maybeSingle();
+      const { data: prof } = await supabase
+        .from("profiles")
+        .select("id, auth_user_id, full_name, company_id, preferred_language, is_active")
+        .eq("id", id)
+        .maybeSingle();
       const { data: comp } = prof?.company_id
         ? await supabase.from("companies").select("*").eq("id", prof.company_id).maybeSingle()
         : { data: null };
