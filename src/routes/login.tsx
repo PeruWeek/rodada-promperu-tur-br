@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
@@ -28,7 +28,14 @@ function LoginPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
   const linkExpired = reason === "otp_expired";
+
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const id = window.setTimeout(() => setCooldown((c) => c - 1), 1000);
+    return () => window.clearTimeout(id);
+  }, [cooldown]);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -59,6 +66,7 @@ function LoginPage() {
       return;
     }
     toast.success(t("auth.resendSuccess"));
+    setCooldown(60);
   };
 
   return (
@@ -86,8 +94,8 @@ function LoginPage() {
             {t("auth.submitLogin")}
           </Button>
           {linkExpired && (
-            <Button type="button" variant="outline" className="w-full" size="lg" onClick={onResend} disabled={resending}>
-              {resending ? "…" : t("auth.resendConfirmation")}
+            <Button type="button" variant="outline" className="w-full" size="lg" onClick={onResend} disabled={resending || cooldown > 0}>
+              {resending ? "…" : cooldown > 0 ? `${t("auth.resendConfirmation")} (${cooldown}s)` : t("auth.resendConfirmation")}
             </Button>
           )}
           <p className="text-center text-sm text-muted-foreground">
