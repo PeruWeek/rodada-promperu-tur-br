@@ -1,8 +1,37 @@
 import { createServerFn } from "@tanstack/react-start";
+import { getRequest } from "@tanstack/react-start/server";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+
+async function sendMeetingEmail(params: {
+  templateName: "meeting-confirmation" | "meeting-cancelled";
+  recipientEmail: string;
+  idempotencyKey: string;
+  templateData: Record<string, unknown>;
+}) {
+  try {
+    const request = getRequest();
+    const authHeader = request?.headers.get("authorization");
+    if (!authHeader || !request) return;
+    const origin = new URL(request.url).origin;
+    const res = await fetch(`${origin}/lovable/email/transactional/send`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: authHeader,
+      },
+      body: JSON.stringify(params),
+    });
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      console.warn("[email] send failed", res.status, body.slice(0, 200));
+    }
+  } catch (err) {
+    console.warn("[email] send threw", err);
+  }
+}
 
 // Book a meeting: insert into meetings (as authenticated user, RLS applies),
 // then notify exhibitor via admin client.
@@ -22,7 +51,7 @@ export const bookMeeting = createServerFn({ method: "POST" })
 
     const { data: profile, error: profErr } = await supabase
       .from("profiles")
-      .select("id, full_name, company_id")
+      .select("id, full_name, company_id, email, preferred_language")
       .eq("auth_user_id", userId)
       .maybeSingle();
     if (profErr) throw profErr;
@@ -44,13 +73,15 @@ export const bookMeeting = createServerFn({ method: "POST" })
     // Notify exhibitor (admin client, bypasses RLS)
     const { data: tableRow } = await supabaseAdmin
       .from("event_tables")
-      .select("table_number, exhibitor_profile_id")
+      .select(
+        "table_number, exhibitor_profile_id, exhibitor_profiles!inner(profiles!inner(company_id, companies(trade_name)))",
+      )
       .eq("id", data.tableId)
       .maybeSingle();
 
     const { data: slot } = await supabaseAdmin
       .from("time_slots")
-      .select("start_at")
+      .select("start_at, end_at")
       .eq("id", data.slotId)
       .maybeSingle();
 
@@ -61,6 +92,10 @@ export const bookMeeting = createServerFn({ method: "POST" })
           .eq("id", profile.company_id)
           .maybeSingle()
       : { data: null };
+
+    const exhibitorCompany =
+      (tableRow as any)?.exhibitor_profiles?.profiles?.companies?.trade_name ??
+      "—";
 
     if (tableRow?.exhibitor_profile_id) {
       await supabaseAdmin.from("notifications").insert({
@@ -80,6 +115,23 @@ export const bookMeeting = createServerFn({ method: "POST" })
       });
     }
 
+    if (profile.email && slot?.start_at && slot?.end_at) {
+      await sendMeetingEmail({
+        templateName: "meeting-confirmation",
+        recipientEmail: profile.email,
+        idempotencyKey: `meeting-confirm-${meeting.id}`,
+        templateData: {
+          language: profile.preferred_language ?? "pt-BR",
+          visitorName: profile.full_name,
+          exhibitorCompany,
+          tableNumber: tableRow?.table_number ?? "—",
+          slotStart: slot.start_at,
+          slotEnd: slot.end_at,
+          agendaUrl: "https://rodada.promperu.tur.br/agenda",
+        },
+      });
+    }
+
     return { id: meeting.id };
   });
 
@@ -93,7 +145,7 @@ export const cancelMeeting = createServerFn({ method: "POST" })
 
     const { data: profile } = await supabase
       .from("profiles")
-      .select("id, full_name")
+      .select("id, full_name, email, preferred_language")
       .eq("auth_user_id", userId)
       .maybeSingle();
     if (!profile) throw new Error("Profile not found");
@@ -108,14 +160,20 @@ export const cancelMeeting = createServerFn({ method: "POST" })
 
     const { data: tableRow } = await supabaseAdmin
       .from("event_tables")
-      .select("table_number, exhibitor_profile_id")
+      .select(
+        "table_number, exhibitor_profile_id, exhibitor_profiles!inner(profiles!inner(company_id, companies(trade_name)))",
+      )
       .eq("id", updated.table_id)
       .maybeSingle();
     const { data: slot } = await supabaseAdmin
       .from("time_slots")
-      .select("start_at")
+      .select("start_at, end_at")
       .eq("id", updated.slot_id)
       .maybeSingle();
+
+    const exhibitorCompany =
+      (tableRow as any)?.exhibitor_profiles?.profiles?.companies?.trade_name ??
+      "—";
 
     if (tableRow?.exhibitor_profile_id) {
       await supabaseAdmin.from("notifications").insert({
@@ -130,6 +188,23 @@ export const cancelMeeting = createServerFn({ method: "POST" })
           meeting_id: updated.id,
           slot_start: slot?.start_at,
           table_number: tableRow.table_number,
+        },
+      });
+    }
+
+    if (profile.email && slot?.start_at && slot?.end_at) {
+      await sendMeetingEmail({
+        templateName: "meeting-cancelled",
+        recipientEmail: profile.email,
+        idempotencyKey: `meeting-cancel-${updated.id}`,
+        templateData: {
+          language: profile.preferred_language ?? "pt-BR",
+          visitorName: profile.full_name,
+          exhibitorCompany,
+          tableNumber: tableRow?.table_number ?? "—",
+          slotStart: slot.start_at,
+          slotEnd: slot.end_at,
+          exploreUrl: "https://rodada.promperu.tur.br/explore",
         },
       });
     }
