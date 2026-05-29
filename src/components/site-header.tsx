@@ -9,6 +9,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useProfile, hasRole } from "@/hooks/use-profile";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
+import promperuLogo from "@/assets/promperu-logo.png";
 
 export function SiteHeader() {
   const { t } = useTranslation();
@@ -43,7 +44,7 @@ export function SiteHeader() {
     <header className="sticky top-0 z-40 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4">
         <Link to="/" className="flex items-center gap-2 font-bold text-foreground">
-          <span className="inline-block h-3 w-3 rounded-sm bg-primary" aria-hidden />
+          <img src={promperuLogo} alt="PromPerú" className="h-8 w-8 rounded-sm object-contain" />
           <span className="text-sm sm:text-base">{t("common.appName")}</span>
         </Link>
 
