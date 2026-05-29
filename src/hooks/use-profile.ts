@@ -23,7 +23,11 @@ export function useProfile() {
     queryFn: async (): Promise<ProfileWithRoles | null> => {
       if (!user) return null;
       const [{ data: profile, error: profErr }, { data: rolesData }] = await Promise.all([
-        supabase.from("profiles").select("*").eq("auth_user_id", user.id).maybeSingle(),
+        supabase
+          .from("profiles")
+          .select("id, auth_user_id, full_name, company_id, preferred_language, is_active")
+          .eq("auth_user_id", user.id)
+          .maybeSingle(),
         supabase.from("user_roles").select("role").eq("user_id", user.id),
       ]);
       if (profErr) throw profErr;
@@ -32,7 +36,7 @@ export function useProfile() {
         id: profile.id,
         auth_user_id: profile.auth_user_id!,
         full_name: profile.full_name,
-        email: profile.email,
+        email: user.email ?? null,
         preferred_language: profile.preferred_language,
         company_id: profile.company_id,
         roles: (rolesData ?? []).map((r) => r.role as AppRole),
