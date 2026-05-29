@@ -66,7 +66,7 @@ export const bookMeeting = createServerFn({ method: "POST" })
       await supabaseAdmin.from("notifications").insert({
         event_id: data.eventId,
         recipient_profile_id: tableRow.exhibitor_profile_id,
-        type: "meeting_scheduled",
+        type: "meeting_created",
         channel: "in_app",
         status: "sent",
         title: "Nova reunião agendada",
