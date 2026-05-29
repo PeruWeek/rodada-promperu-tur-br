@@ -63,7 +63,10 @@
     "companyName": "Nome da empresa",
     "country": "País",
     "city": "Cidade",
-    "continue": "Continuar para o perfil"
+    "continue": "Continuar para o perfil",
+    "requiresApproval": "Requer aprovação",
+    "savedVisitor": "Cadastro concluído!",
+    "requestedExhibitor": "Solicitação enviada para análise."
   },
   "dashboard": {
     "welcome": "Bem-vindo, {{name}}",
@@ -72,7 +75,8 @@
     "exploreCta": "Explorar expositores",
     "completeProfile": "Complete seu perfil para começar a agendar.",
     "myAgenda": "Minha agenda",
-    "tableAgenda": "Agenda da mesa"
+    "tableAgenda": "Agenda da mesa",
+    "awaitingTable": "Sua conta de expositor foi aprovada. Aguardando atribuição de mesa pela organização."
   },
   "profile": {
     "title": "Meu perfil",
@@ -180,7 +184,7 @@
     "title": "Administração",
     "subtitle": "Gerencie mesas, check-in e papéis dos usuários.",
     "forbidden": "Acesso restrito a administradores.",
-    "tabs": { "tables": "Mesas", "checkin": "Check-in", "users": "Usuários" },
+    "tabs": { "tables": "Mesas", "checkin": "Check-in", "users": "Usuários", "requests": "Solicitações" },
     "tables": {
       "help": "Atribua um expositor a cada mesa. Use 'Regenerar slots' após mudanças.",
       "unassigned": "— Sem expositor —",
@@ -200,6 +204,24 @@
       "searchPlaceholder": "Buscar usuário...",
       "empty": "Nenhum usuário encontrado.",
       "saved": "Papéis atualizados."
+    },
+    "requests": {
+      "empty": "Nenhuma solicitação.",
+      "approve": "Aprovar",
+      "reject": "Rejeitar",
+      "reviewed": "Solicitação atualizada.",
+      "notePlaceholder": "Observação (opcional)",
+      "filter": {
+        "pending": "Pendentes",
+        "approved": "Aprovadas",
+        "rejected": "Rejeitadas",
+        "all": "Todas"
+      },
+      "status": {
+        "pending": "Pendente",
+        "approved": "Aprovada",
+        "rejected": "Rejeitada"
+      }
     }
   },
   "roles": {
@@ -207,5 +229,16 @@
     "staff": "Staff",
     "exhibitor": "Expositor",
     "visitor": "Visitante"
+  },
+  "pendingExhibitor": {
+    "pendingTitle": "Solicitação em análise",
+    "pendingBody": "Sua solicitação de acesso como expositor está aguardando aprovação da organização. Você receberá um aviso assim que for aprovada.",
+    "rejectedTitle": "Solicitação não aprovada",
+    "rejectedBody": "Sua solicitação foi rejeitada. Em caso de dúvidas, entre em contato com a organização.",
+    "approvedTitle": "Aprovado!",
+    "approvedBody": "Redirecionando para seu painel...",
+    "reviewNote": "Observação",
+    "noRequest": "Você ainda não enviou uma solicitação.",
+    "goOnboarding": "Voltar ao cadastro"
   }
 }
