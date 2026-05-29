@@ -10,10 +10,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { useProfile, hasRole, type AppRole } from "@/hooks/use-profile";
 import { adminSearchProfiles, assignExhibitorToTable, rebuildSlots, setUserRole } from "@/lib/admin.functions";
 import { generalCheckIn } from "@/lib/checkin.functions";
+import { listExhibitorRequests, reviewExhibitorRequest } from "@/lib/exhibitor-requests.functions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -59,12 +61,119 @@ function AdminPage() {
           <TabsTrigger value="tables">{t("admin.tabs.tables")}</TabsTrigger>
           <TabsTrigger value="checkin">{t("admin.tabs.checkin")}</TabsTrigger>
           <TabsTrigger value="users">{t("admin.tabs.users")}</TabsTrigger>
+          <TabsTrigger value="requests">{t("admin.tabs.requests")}</TabsTrigger>
         </TabsList>
         <TabsContent value="tables" className="mt-4"><TablesTab /></TabsContent>
         <TabsContent value="checkin" className="mt-4"><CheckinTab /></TabsContent>
         <TabsContent value="users" className="mt-4"><UsersTab /></TabsContent>
+        <TabsContent value="requests" className="mt-4"><RequestsTab /></TabsContent>
       </Tabs>
     </div>
+  );
+}
+
+function RequestsTab() {
+  const { t } = useTranslation();
+  const qc = useQueryClient();
+  const listFn = useServerFn(listExhibitorRequests);
+  const reviewFn = useServerFn(reviewExhibitorRequest);
+  const [filter, setFilter] = useState<"pending" | "approved" | "rejected" | "all">("pending");
+  const [noteById, setNoteById] = useState<Record<string, string>>({});
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["admin-exh-requests", filter],
+    queryFn: () => listFn({ data: { status: filter } }),
+  });
+
+  const mut = useMutation({
+    mutationFn: async (v: { id: string; action: "approve" | "reject"; note?: string }) =>
+      reviewFn({ data: v }),
+    onSuccess: () => {
+      toast.success(t("admin.requests.reviewed"));
+      qc.invalidateQueries({ queryKey: ["admin-exh-requests"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  return (
+    <Card className="p-5">
+      <div className="mb-3">
+        <Select value={filter} onValueChange={(v) => setFilter(v as typeof filter)}>
+          <SelectTrigger className="w-full sm:w-56">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="pending">{t("admin.requests.filter.pending")}</SelectItem>
+            <SelectItem value="approved">{t("admin.requests.filter.approved")}</SelectItem>
+            <SelectItem value="rejected">{t("admin.requests.filter.rejected")}</SelectItem>
+            <SelectItem value="all">{t("admin.requests.filter.all")}</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      {isLoading ? (
+        <Skeleton className="h-40 w-full" />
+      ) : (data?.requests ?? []).length === 0 ? (
+        <p className="py-4 text-sm text-muted-foreground">{t("admin.requests.empty")}</p>
+      ) : (
+        <div className="space-y-3">
+          {data!.requests.map((r) => (
+            <div key={r.id} className="rounded-md border border-border p-3">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold">{r.full_name}</p>
+                  <p className="text-xs text-muted-foreground">{r.email}</p>
+                  {r.company && (
+                    <p className="text-xs text-muted-foreground">
+                      {r.company.trade_name}
+                      {r.company.city ? ` · ${r.company.city}` : ""} · {r.company.country_code}
+                    </p>
+                  )}
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {new Date(r.created_at).toLocaleString()}
+                  </p>
+                </div>
+                <Badge
+                  variant={r.status === "pending" ? "secondary" : r.status === "approved" ? "default" : "destructive"}
+                  className="shrink-0"
+                >
+                  {t(`admin.requests.status.${r.status}`)}
+                </Badge>
+              </div>
+              {r.status === "pending" && (
+                <div className="mt-3 space-y-2">
+                  <Textarea
+                    placeholder={t("admin.requests.notePlaceholder")}
+                    value={noteById[r.id] ?? ""}
+                    onChange={(e) => setNoteById((s) => ({ ...s, [r.id]: e.target.value }))}
+                    rows={2}
+                  />
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      onClick={() => mut.mutate({ id: r.id, action: "approve", note: noteById[r.id] })}
+                      disabled={mut.isPending}
+                    >
+                      {t("admin.requests.approve")}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => mut.mutate({ id: r.id, action: "reject", note: noteById[r.id] })}
+                      disabled={mut.isPending}
+                    >
+                      {t("admin.requests.reject")}
+                    </Button>
+                  </div>
+                </div>
+              )}
+              {r.status !== "pending" && r.review_note && (
+                <p className="mt-2 rounded-md bg-muted/40 p-2 text-xs">{r.review_note}</p>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
   );
 }
 
