@@ -1,6 +1,8 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useServerFn } from "@tanstack/react-start";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import { SiteHeader } from "@/components/site-header";
@@ -10,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useProfile } from "@/hooks/use-profile";
+import { requestExhibitorAccess } from "@/lib/exhibitor-requests.functions";
 
 export const Route = createFileRoute("/onboarding")({ component: OnboardingPage });
 
@@ -18,8 +21,10 @@ type Kind = "visitor" | "exhibitor";
 function OnboardingPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const qc = useQueryClient();
   const { user, loading: authLoading } = useAuth();
   const { data: profile } = useProfile();
+  const requestExhibitorFn = useServerFn(requestExhibitorAccess);
   const [kind, setKind] = useState<Kind | null>(null);
   const [companyName, setCompanyName] = useState("");
   const [country, setCountry] = useState("");
@@ -34,18 +39,29 @@ function OnboardingPage() {
     setSaving(true);
     try {
       const finalCountry = country || (kind === "exhibitor" ? "PE" : "BR");
-      const { data: company, error: cErr } = await supabase.from("companies").insert({ trade_name: companyName, country_code: finalCountry, city: city || null }).select().single();
+      const { data: company, error: cErr } = await supabase
+        .from("companies")
+        .insert({ trade_name: companyName, country_code: finalCountry, city: city || null })
+        .select()
+        .single();
       if (cErr) throw cErr;
-      const { error: pErr } = await supabase.from("profiles").update({ company_id: company.id }).eq("id", profile.id);
+      const { error: pErr } = await supabase
+        .from("profiles")
+        .update({ company_id: company.id })
+        .eq("id", profile.id);
       if (pErr) throw pErr;
+
       if (kind === "visitor") {
         await supabase.from("visitor_profiles").upsert({ profile_id: profile.id });
+        await qc.invalidateQueries();
+        toast.success(t("onboarding.savedVisitor"));
+        navigate({ to: "/dashboard" });
       } else {
-        await supabase.from("exhibitor_profiles").upsert({ profile_id: profile.id });
-        await supabase.from("user_roles").upsert({ user_id: user.id, role: "exhibitor" });
+        await requestExhibitorFn();
+        await qc.invalidateQueries();
+        toast.success(t("onboarding.requestedExhibitor"));
+        navigate({ to: "/pending-exhibitor" });
       }
-      toast.success("OK");
-      navigate({ to: "/dashboard" });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "erro");
     } finally { setSaving(false); }
@@ -62,6 +78,11 @@ function OnboardingPage() {
             <button key={k} type="button" onClick={() => setKind(k)} className={`text-left rounded-xl border-2 p-5 transition-colors ${kind === k ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"}`}>
               <div className="font-bold">{t(`onboarding.${k}`)}</div>
               <div className="mt-1 text-sm text-muted-foreground">{t(`onboarding.${k}Desc`)}</div>
+              {k === "exhibitor" && (
+                <div className="mt-2 inline-block rounded-full bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-400">
+                  {t("onboarding.requiresApproval")}
+                </div>
+              )}
             </button>
           ))}
         </div>

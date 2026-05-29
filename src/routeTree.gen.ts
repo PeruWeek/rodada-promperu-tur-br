@@ -18,6 +18,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as EmailUnsubscribeRouteImport } from './routes/email/unsubscribe'
 import { Route as AuthenticatedTableAgendaRouteImport } from './routes/_authenticated/table-agenda'
 import { Route as AuthenticatedProfileRouteImport } from './routes/_authenticated/profile'
+import { Route as AuthenticatedPendingExhibitorRouteImport } from './routes/_authenticated/pending-exhibitor'
 import { Route as AuthenticatedExploreRouteImport } from './routes/_authenticated/explore'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedCredenciaisLlmRouteImport } from './routes/_authenticated/credenciais-llm'
@@ -74,6 +75,12 @@ const AuthenticatedProfileRoute = AuthenticatedProfileRouteImport.update({
   path: '/profile',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedPendingExhibitorRoute =
+  AuthenticatedPendingExhibitorRouteImport.update({
+    id: '/pending-exhibitor',
+    path: '/pending-exhibitor',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedExploreRoute = AuthenticatedExploreRouteImport.update({
   id: '/explore',
   path: '/explore',
@@ -141,6 +148,7 @@ export interface FileRoutesByFullPath {
   '/credenciais-llm': typeof AuthenticatedCredenciaisLlmRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/explore': typeof AuthenticatedExploreRoute
+  '/pending-exhibitor': typeof AuthenticatedPendingExhibitorRoute
   '/profile': typeof AuthenticatedProfileRoute
   '/table-agenda': typeof AuthenticatedTableAgendaRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
@@ -161,6 +169,7 @@ export interface FileRoutesByTo {
   '/credenciais-llm': typeof AuthenticatedCredenciaisLlmRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/explore': typeof AuthenticatedExploreRoute
+  '/pending-exhibitor': typeof AuthenticatedPendingExhibitorRoute
   '/profile': typeof AuthenticatedProfileRoute
   '/table-agenda': typeof AuthenticatedTableAgendaRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
@@ -183,6 +192,7 @@ export interface FileRoutesById {
   '/_authenticated/credenciais-llm': typeof AuthenticatedCredenciaisLlmRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/explore': typeof AuthenticatedExploreRoute
+  '/_authenticated/pending-exhibitor': typeof AuthenticatedPendingExhibitorRoute
   '/_authenticated/profile': typeof AuthenticatedProfileRoute
   '/_authenticated/table-agenda': typeof AuthenticatedTableAgendaRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
@@ -205,6 +215,7 @@ export interface FileRouteTypes {
     | '/credenciais-llm'
     | '/dashboard'
     | '/explore'
+    | '/pending-exhibitor'
     | '/profile'
     | '/table-agenda'
     | '/email/unsubscribe'
@@ -225,6 +236,7 @@ export interface FileRouteTypes {
     | '/credenciais-llm'
     | '/dashboard'
     | '/explore'
+    | '/pending-exhibitor'
     | '/profile'
     | '/table-agenda'
     | '/email/unsubscribe'
@@ -246,6 +258,7 @@ export interface FileRouteTypes {
     | '/_authenticated/credenciais-llm'
     | '/_authenticated/dashboard'
     | '/_authenticated/explore'
+    | '/_authenticated/pending-exhibitor'
     | '/_authenticated/profile'
     | '/_authenticated/table-agenda'
     | '/email/unsubscribe'
@@ -333,6 +346,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedProfileRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/pending-exhibitor': {
+      id: '/_authenticated/pending-exhibitor'
+      path: '/pending-exhibitor'
+      fullPath: '/pending-exhibitor'
+      preLoaderRoute: typeof AuthenticatedPendingExhibitorRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/explore': {
       id: '/_authenticated/explore'
       path: '/explore'
@@ -413,6 +433,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedCredenciaisLlmRoute: typeof AuthenticatedCredenciaisLlmRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedExploreRoute: typeof AuthenticatedExploreRoute
+  AuthenticatedPendingExhibitorRoute: typeof AuthenticatedPendingExhibitorRoute
   AuthenticatedProfileRoute: typeof AuthenticatedProfileRoute
   AuthenticatedTableAgendaRoute: typeof AuthenticatedTableAgendaRoute
   AuthenticatedExhibitorIdRoute: typeof AuthenticatedExhibitorIdRoute
@@ -425,6 +446,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedCredenciaisLlmRoute: AuthenticatedCredenciaisLlmRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedExploreRoute: AuthenticatedExploreRoute,
+  AuthenticatedPendingExhibitorRoute: AuthenticatedPendingExhibitorRoute,
   AuthenticatedProfileRoute: AuthenticatedProfileRoute,
   AuthenticatedTableAgendaRoute: AuthenticatedTableAgendaRoute,
   AuthenticatedExhibitorIdRoute: AuthenticatedExhibitorIdRoute,
@@ -449,3 +471,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
