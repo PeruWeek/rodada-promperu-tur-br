@@ -468,6 +468,51 @@ export type Database = {
           },
         ]
       }
+      exhibitor_requests: {
+        Row: {
+          created_at: string
+          id: string
+          profile_id: string
+          review_note: string | null
+          reviewed_at: string | null
+          reviewed_by_profile_id: string | null
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          profile_id: string
+          review_note?: string | null
+          reviewed_at?: string | null
+          reviewed_by_profile_id?: string | null
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          profile_id?: string
+          review_note?: string | null
+          reviewed_at?: string | null
+          reviewed_by_profile_id?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "exhibitor_requests_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "exhibitor_requests_reviewed_by_profile_id_fkey"
+            columns: ["reviewed_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       general_checkins: {
         Row: {
           checkin_at: string
