@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -16,11 +16,11 @@ export const Route = createFileRoute("/signup")({
 
 function SignupPage() {
   const { t, i18n } = useTranslation();
-  const navigate = useNavigate();
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [sent, setSent] = useState(false);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,8 +38,7 @@ function SignupPage() {
     });
     setLoading(false);
     if (error) { toast.error(error.message); return; }
-    toast.success(t("auth.checkEmail"));
-    navigate({ to: "/onboarding" });
+    setSent(true);
   };
 
   return (
@@ -48,6 +47,22 @@ function SignupPage() {
       <div className="mx-auto max-w-md px-4 py-12">
         <h1 className="text-3xl font-bold">{t("auth.signupTitle")}</h1>
         <p className="mt-2 text-sm text-muted-foreground">{t("auth.signupSubtitle")}</p>
+        {sent ? (
+          <div className="mt-8 space-y-4 rounded-lg border bg-card p-6">
+            <h2 className="text-lg font-semibold">{t("auth.checkEmailTitle")}</h2>
+            <p className="text-sm text-muted-foreground">
+              {t("auth.checkEmailBody", { email })}
+            </p>
+            <p className="text-xs text-muted-foreground">{t("auth.checkEmailHint")}</p>
+            <Link
+              to="/login"
+              search={{ reason: "otp_expired" }}
+              className="inline-block text-sm font-medium text-primary hover:underline"
+            >
+              {t("auth.resendConfirmation")}
+            </Link>
+          </div>
+        ) : (
         <form onSubmit={onSubmit} className="mt-8 space-y-4">
           <div><Label htmlFor="name">{t("auth.fullName")}</Label><Input id="name" required value={fullName} onChange={(e) => setFullName(e.target.value)} className="mt-1.5" /></div>
           <div><Label htmlFor="email">{t("auth.email")}</Label><Input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="mt-1.5" /></div>
@@ -55,6 +70,7 @@ function SignupPage() {
           <Button type="submit" className="w-full" size="lg" disabled={loading}>{t("auth.submitSignup")}</Button>
           <p className="text-center text-sm text-muted-foreground"><Link to="/login" className="font-medium text-primary hover:underline">{t("auth.switchToLogin")}</Link></p>
         </form>
+        )}
       </div>
     </div>
   );
