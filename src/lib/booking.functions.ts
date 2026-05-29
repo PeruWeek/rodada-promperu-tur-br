@@ -73,9 +73,7 @@ export const bookMeeting = createServerFn({ method: "POST" })
     // Notify exhibitor (admin client, bypasses RLS)
     const { data: tableRow } = await supabaseAdmin
       .from("event_tables")
-      .select(
-        "table_number, exhibitor_profile_id, exhibitor_profiles!inner(profiles!inner(company_id, companies(trade_name)))",
-      )
+      .select("table_number, exhibitor_profile_id")
       .eq("id", data.tableId)
       .maybeSingle();
 
@@ -93,9 +91,16 @@ export const bookMeeting = createServerFn({ method: "POST" })
           .maybeSingle()
       : { data: null };
 
-    const exhibitorCompany =
-      (tableRow as any)?.exhibitor_profiles?.profiles?.companies?.trade_name ??
-      "—";
+    let exhibitorCompany = "—";
+    if (tableRow?.exhibitor_profile_id) {
+      const { data: exhibProfile } = await supabaseAdmin
+        .from("profiles")
+        .select("company_id, companies(trade_name)")
+        .eq("id", tableRow.exhibitor_profile_id)
+        .maybeSingle();
+      exhibitorCompany =
+        (exhibProfile as any)?.companies?.trade_name ?? exhibitorCompany;
+    }
 
     if (tableRow?.exhibitor_profile_id) {
       await supabaseAdmin.from("notifications").insert({
@@ -160,9 +165,7 @@ export const cancelMeeting = createServerFn({ method: "POST" })
 
     const { data: tableRow } = await supabaseAdmin
       .from("event_tables")
-      .select(
-        "table_number, exhibitor_profile_id, exhibitor_profiles!inner(profiles!inner(company_id, companies(trade_name)))",
-      )
+      .select("table_number, exhibitor_profile_id")
       .eq("id", updated.table_id)
       .maybeSingle();
     const { data: slot } = await supabaseAdmin
@@ -171,9 +174,16 @@ export const cancelMeeting = createServerFn({ method: "POST" })
       .eq("id", updated.slot_id)
       .maybeSingle();
 
-    const exhibitorCompany =
-      (tableRow as any)?.exhibitor_profiles?.profiles?.companies?.trade_name ??
-      "—";
+    let exhibitorCompany = "—";
+    if (tableRow?.exhibitor_profile_id) {
+      const { data: exhibProfile } = await supabaseAdmin
+        .from("profiles")
+        .select("company_id, companies(trade_name)")
+        .eq("id", tableRow.exhibitor_profile_id)
+        .maybeSingle();
+      exhibitorCompany =
+        (exhibProfile as any)?.companies?.trade_name ?? exhibitorCompany;
+    }
 
     if (tableRow?.exhibitor_profile_id) {
       await supabaseAdmin.from("notifications").insert({
