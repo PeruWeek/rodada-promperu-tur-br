@@ -59,9 +59,9 @@ export const meetingCheckIn = createServerFn({ method: "POST" })
 
     // verify caller is admin/staff OR exhibitor at this meeting's table
     const isAdmin = await isAdminOrStaff(userId);
-    let byRole: "admin" | "staff" | "exhibitor" = "exhibitor";
+    let byRole: "staff" | "exhibitor" | "visitor" = "exhibitor";
     if (isAdmin) {
-      byRole = "admin";
+      byRole = "staff";
     } else {
       const { data: prof } = await supabase
         .from("profiles")
@@ -110,7 +110,7 @@ export const meetingCheckIn = createServerFn({ method: "POST" })
 
     // mark meeting completed if present
     if (data.status === "present" || data.status === "late") {
-      await supabaseAdmin.from("meetings").update({ status: "completed" }).eq("id", data.meetingId);
+      await supabaseAdmin.from("meetings").update({ status: "done" }).eq("id", data.meetingId);
     } else if (data.status === "no_show") {
       await supabaseAdmin.from("meetings").update({ status: "no_show" }).eq("id", data.meetingId);
     }
