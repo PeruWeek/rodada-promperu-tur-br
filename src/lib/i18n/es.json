@@ -124,6 +124,44 @@
     "contact": "Contacto",
     "scheduleSoon": "Agendar (pronto)"
   },
+  "booking": {
+    "schedule": "Agendar reunión",
+    "title": "Agendar reunión",
+    "subtitle": "Elige un horario disponible con {{name}}.",
+    "subtitleGeneric": "Elige un horario disponible.",
+    "morning": "Mañana",
+    "afternoon": "Tarde",
+    "confirm": "Confirmar reserva",
+    "noTable": "Este expositor aún no tiene mesa asignada.",
+    "noSlots": "Sin horarios disponibles.",
+    "taken": "Horario ocupado",
+    "alreadyBookedSelf": "Ya tienes una reunión en ese horario",
+    "success": "¡Reunión agendada!",
+    "conflict": "Conflicto: ese horario ya está ocupado.",
+    "error": "No fue posible agendar. Intenta de nuevo."
+  },
+  "agenda": {
+    "title": "Mi Agenda",
+    "subtitle": "Tus reuniones confirmadas en la Rueda Perú 2026.",
+    "empty": "Aún no tienes reuniones agendadas.",
+    "exploreCta": "Explorar expositores",
+    "cancel": "Cancelar",
+    "cancelled": "Reunión cancelada.",
+    "cancelError": "No fue posible cancelar.",
+    "history": "Historial",
+    "status": {
+      "scheduled": "Agendada",
+      "cancelled": "Cancelada",
+      "completed": "Completada",
+      "no_show": "No asistió"
+    }
+  },
+  "tableAgenda": {
+    "title": "Agenda de la Mesa",
+    "subtitle": "Tus reuniones confirmadas en el evento.",
+    "noTable": "Aún no se te asignó una mesa. Espera la confirmación de la organización.",
+    "empty": "Aún no hay reuniones agendadas en tu mesa."
+  },
   "roles": {
     "admin": "Admin",
     "staff": "Staff",
