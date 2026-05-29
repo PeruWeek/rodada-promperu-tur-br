@@ -1,0 +1,83 @@
+{
+  "common": {
+    "appName": "Rodada Peru 2026",
+    "tagline": "Rodada de Negócios MICE — Peru × Brasil",
+    "loading": "Carregando...",
+    "save": "Salvar",
+    "cancel": "Cancelar",
+    "back": "Voltar",
+    "continue": "Continuar",
+    "signOut": "Sair",
+    "language": "Idioma"
+  },
+  "nav": {
+    "home": "Início",
+    "dashboard": "Painel",
+    "explore": "Explorar",
+    "agenda": "Minha Agenda",
+    "tableAgenda": "Agenda da Mesa",
+    "profile": "Perfil",
+    "admin": "Admin",
+    "login": "Entrar",
+    "signup": "Cadastrar"
+  },
+  "landing": {
+    "heroEyebrow": "08 de julho de 2026 · Brasil",
+    "heroTitle": "Encontros estratégicos entre operadores peruanos e compradores brasileiros.",
+    "heroSubtitle": "Plataforma oficial de matchmaking e agendamento da Rodada de Negócios MICE Peru × Brasil. Agende reuniões de 15 minutos com as principais empresas do setor.",
+    "ctaSignup": "Inscreva-se agora",
+    "ctaLogin": "Já tenho conta",
+    "howTitle": "Como funciona",
+    "step1Title": "Cadastre-se",
+    "step1Body": "Crie sua conta como visitante (comprador brasileiro) ou expositor (operador peruano).",
+    "step2Title": "Complete seu perfil",
+    "step2Body": "Descreva sua empresa, interesses e portfólio em português e espanhol.",
+    "step3Title": "Agende reuniões",
+    "step3Body": "Encontre parceiros e reserve slots de 15 minutos. Confirmação instantânea, sem conflito.",
+    "step4Title": "Compareça e gere negócios",
+    "step4Body": "Acesse sua agenda no app ou em PDF. Check-in rápido no dia do evento."
+  },
+  "auth": {
+    "loginTitle": "Entrar",
+    "loginSubtitle": "Acesse sua conta para gerenciar reuniões.",
+    "signupTitle": "Criar conta",
+    "signupSubtitle": "Inscreva-se para participar da Rodada Peru 2026.",
+    "email": "E-mail",
+    "password": "Senha",
+    "fullName": "Nome completo",
+    "submitLogin": "Entrar",
+    "submitSignup": "Criar conta",
+    "switchToSignup": "Não tem conta? Cadastre-se",
+    "switchToLogin": "Já tem conta? Entrar",
+    "errorInvalid": "E-mail ou senha incorretos.",
+    "errorGeneric": "Não foi possível concluir. Tente novamente.",
+    "checkEmail": "Verifique seu e-mail para confirmar a conta."
+  },
+  "onboarding": {
+    "title": "Conte-nos quem você é",
+    "subtitle": "Escolha o tipo de participação. Você poderá completar o perfil em seguida.",
+    "visitor": "Sou Visitante (Comprador Brasil)",
+    "visitorDesc": "Quero conhecer operadores peruanos e agendar reuniões.",
+    "exhibitor": "Sou Expositor (Operador Peru)",
+    "exhibitorDesc": "Quero apresentar minha empresa aos compradores brasileiros.",
+    "companyName": "Nome da empresa",
+    "country": "País",
+    "city": "Cidade",
+    "continue": "Continuar para o perfil"
+  },
+  "dashboard": {
+    "welcome": "Bem-vindo, {{name}}",
+    "nextMeetingTitle": "Próxima reunião",
+    "noMeetings": "Você ainda não tem reuniões agendadas.",
+    "exploreCta": "Explorar expositores",
+    "completeProfile": "Complete seu perfil para começar a agendar.",
+    "myAgenda": "Minha agenda",
+    "tableAgenda": "Agenda da mesa"
+  },
+  "roles": {
+    "admin": "Admin",
+    "staff": "Staff",
+    "exhibitor": "Expositor",
+    "visitor": "Visitante"
+  }
+}

@@ -1,0 +1,47 @@
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "./use-auth";
+
+export type AppRole = "admin" | "staff" | "exhibitor" | "visitor";
+
+export type ProfileWithRoles = {
+  id: string;
+  auth_user_id: string;
+  full_name: string;
+  email: string | null;
+  preferred_language: "pt-BR" | "es";
+  company_id: string | null;
+  roles: AppRole[];
+};
+
+export function useProfile() {
+  const { user, loading: authLoading } = useAuth();
+
+  return useQuery({
+    queryKey: ["profile", user?.id ?? "anon"],
+    enabled: !!user && !authLoading,
+    queryFn: async (): Promise<ProfileWithRoles | null> => {
+      if (!user) return null;
+      const [{ data: profile, error: profErr }, { data: rolesData }] = await Promise.all([
+        supabase.from("profiles").select("*").eq("auth_user_id", user.id).maybeSingle(),
+        supabase.from("user_roles").select("role").eq("user_id", user.id),
+      ]);
+      if (profErr) throw profErr;
+      if (!profile) return null;
+      return {
+        id: profile.id,
+        auth_user_id: profile.auth_user_id!,
+        full_name: profile.full_name,
+        email: profile.email,
+        preferred_language: profile.preferred_language,
+        company_id: profile.company_id,
+        roles: (rolesData ?? []).map((r) => r.role as AppRole),
+      };
+    },
+  });
+}
+
+export function hasRole(roles: AppRole[] | undefined, ...accepted: AppRole[]): boolean {
+  if (!roles) return false;
+  return roles.some((r) => accepted.includes(r));
+}
