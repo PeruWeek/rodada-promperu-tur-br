@@ -1,36 +1,38 @@
-# Próximos passos
+## Objetivo
 
-## 1. Configurar URLs no Supabase (ação manual sua)
+Atualizar os 6 templates de e-mail de autenticação para:
+1. Conteúdo bilíngue (Português + Espanhol empilhados no mesmo e-mail).
+2. Remetente fixo `Rodada Peru 2026 <rodada@promperu.tur.br>`.
+3. Assuntos bilíngues também (ex.: `Confirme seu e-mail · Confirma tu correo`).
 
-No painel do Supabase → **Authentication → URL Configuration**:
+## Mudanças
 
-- **Site URL**: `https://rodada.promperu.tur.br`
-- **Redirect URLs** (lista de permissões), adicionar:
-  - `https://rodada.promperu.tur.br/**`
-  - `https://rodada-promperu-tur-br.lovable.app/**`
-  - `https://id-preview--9163060e-b183-4ce2-8782-e5a412537db3.lovable.app/**`
-  - `http://localhost:3000/**`
+### 1. `src/routes/lovable/email/auth/webhook.ts`
+- Trocar `FROM_DOMAIN` / `from` para `Rodada Peru 2026 <rodada@promperu.tur.br>`.
+- Atualizar `EMAIL_SUBJECTS` para versões bilíngues PT · ES:
+  - signup: `Confirme seu e-mail · Confirma tu correo`
+  - invite: `Você foi convidado · Has sido invitado`
+  - magiclink: `Seu link de acesso · Tu enlace de acceso`
+  - recovery: `Redefinir senha · Restablecer contraseña`
+  - email_change: `Confirme seu novo e-mail · Confirma tu nuevo correo`
+  - reauthentication: `Seu código de verificação · Tu código de verificación`
 
-Sem isso, o link do e-mail continua apontando para `localhost:3000` mesmo quando o usuário abre em produção.
+### 2. Os 6 templates em `src/lib/email-templates/`
+- `signup.tsx`, `invite.tsx`, `magic-link.tsx`, `recovery.tsx`, `email-change.tsx`, `reauthentication.tsx`.
+- Reescrever cada um para mostrar bloco PT seguido de um separador (`<Hr />`) e bloco ES.
+- Cada bloco tem: Heading, parágrafo(s) explicativos, e o mesmo CTA (mesmo `confirmationUrl`) com label no idioma — exceto reauthentication que mostra o token nos dois idiomas.
+- Manter a identidade visual já presente em `_shared.tsx` (cor primária `#D52B1E`, fonte, container).
+- Rodapé bilíngue: "Se você não solicitou… / Si no solicitaste…".
 
-## 2. Testar o fluxo ponta-a-ponta
+### 3. `src/routes/lovable/email/auth/preview.ts`
+- Sem mudanças funcionais — os mesmos props (`siteName`, `siteUrl`, `recipient`, `confirmationUrl`, `token`, `oldEmail`/`newEmail`) continuam servindo.
 
-a) Signup novo → ver painel "Verifique seu e-mail" (sem redirecionar para /onboarding).
-b) Abrir link válido → cair em `/onboarding` autenticado.
-c) Abrir link duas vezes (ou esperar 1h) → deve cair em `/login?reason=otp_expired`, ver o `Alert` e poder reenviar confirmação.
-d) Reenviar confirmação → toast de sucesso, novo e-mail chega.
+## Observação sobre idioma do perfil
 
-## 3. (Opcional) Customizar template de e-mail do Supabase
+Optamos por bilíngue empilhado em todos os e-mails de auth (decisão do usuário), então não é necessário consultar `profiles.preferred_language` no webhook. Isso mantém o handler simples e funciona inclusive no signup, quando o perfil ainda não existe.
 
-Hoje o e-mail usa o template padrão do Supabase. Podemos:
-- Personalizar o template no painel Supabase (Auth → Email Templates), ou
-- Scaffoldar templates customizados via Lovable Emails (requer domínio de e-mail próprio configurado).
+## Verificação
 
-## 4. (Opcional) Polimento
-
-- Cooldown de 60s no botão "Reenviar confirmação" para evitar spam/rate-limit do Supabase.
-- Mensagem específica quando o erro do hash for diferente de `otp_expired` (ex.: `access_denied` por outro motivo).
-
----
-
-Me diga quais desses passos quer que eu execute agora (provavelmente 3 e/ou 4, já que 1 e 2 dependem de você).
+Após a implementação:
+- Pré-visualizar cada template (botão "Visualizar e-mail" em Cloud → Emails) para conferir o layout PT/ES.
+- Confirmar no log de envio que o `from` aparece como `rodada@promperu.tur.br`.
