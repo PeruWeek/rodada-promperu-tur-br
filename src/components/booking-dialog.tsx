@@ -109,9 +109,10 @@ export function BookingDialog({
 
   const grouped = useMemo(() => {
     if (!data?.slots) return [];
-    const out: { period: string; items: typeof data.slots }[] = [];
-    const morning: typeof data.slots = [];
-    const afternoon: typeof data.slots = [];
+    type Slot = (typeof data.slots)[number];
+    const out: { period: string; items: Slot[] }[] = [];
+    const morning: Slot[] = [];
+    const afternoon: Slot[] = [];
     for (const s of data.slots) {
       const h = new Date(s.start_at).getUTCHours();
       if (h < 18) morning.push(s);
