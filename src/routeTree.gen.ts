@@ -15,10 +15,12 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedTableAgendaRouteImport } from './routes/_authenticated/table-agenda'
+import { Route as AuthenticatedProfileRouteImport } from './routes/_authenticated/profile'
 import { Route as AuthenticatedExploreRouteImport } from './routes/_authenticated/explore'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedAgendaRouteImport } from './routes/_authenticated/agenda'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
+import { Route as AuthenticatedExhibitorIdRouteImport } from './routes/_authenticated/exhibitor.$id'
 
 const SignupRoute = SignupRouteImport.update({
   id: '/signup',
@@ -50,6 +52,11 @@ const AuthenticatedTableAgendaRoute =
     path: '/table-agenda',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedProfileRoute = AuthenticatedProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedExploreRoute = AuthenticatedExploreRouteImport.update({
   id: '/explore',
   path: '/explore',
@@ -70,6 +77,12 @@ const AuthenticatedAdminRoute = AuthenticatedAdminRouteImport.update({
   path: '/admin',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedExhibitorIdRoute =
+  AuthenticatedExhibitorIdRouteImport.update({
+    id: '/exhibitor/$id',
+    path: '/exhibitor/$id',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -80,7 +93,9 @@ export interface FileRoutesByFullPath {
   '/agenda': typeof AuthenticatedAgendaRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/explore': typeof AuthenticatedExploreRoute
+  '/profile': typeof AuthenticatedProfileRoute
   '/table-agenda': typeof AuthenticatedTableAgendaRoute
+  '/exhibitor/$id': typeof AuthenticatedExhibitorIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -91,7 +106,9 @@ export interface FileRoutesByTo {
   '/agenda': typeof AuthenticatedAgendaRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/explore': typeof AuthenticatedExploreRoute
+  '/profile': typeof AuthenticatedProfileRoute
   '/table-agenda': typeof AuthenticatedTableAgendaRoute
+  '/exhibitor/$id': typeof AuthenticatedExhibitorIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -104,7 +121,9 @@ export interface FileRoutesById {
   '/_authenticated/agenda': typeof AuthenticatedAgendaRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/explore': typeof AuthenticatedExploreRoute
+  '/_authenticated/profile': typeof AuthenticatedProfileRoute
   '/_authenticated/table-agenda': typeof AuthenticatedTableAgendaRoute
+  '/_authenticated/exhibitor/$id': typeof AuthenticatedExhibitorIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -117,7 +136,9 @@ export interface FileRouteTypes {
     | '/agenda'
     | '/dashboard'
     | '/explore'
+    | '/profile'
     | '/table-agenda'
+    | '/exhibitor/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -128,7 +149,9 @@ export interface FileRouteTypes {
     | '/agenda'
     | '/dashboard'
     | '/explore'
+    | '/profile'
     | '/table-agenda'
+    | '/exhibitor/$id'
   id:
     | '__root__'
     | '/'
@@ -140,7 +163,9 @@ export interface FileRouteTypes {
     | '/_authenticated/agenda'
     | '/_authenticated/dashboard'
     | '/_authenticated/explore'
+    | '/_authenticated/profile'
     | '/_authenticated/table-agenda'
+    | '/_authenticated/exhibitor/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -195,6 +220,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedTableAgendaRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/profile': {
+      id: '/_authenticated/profile'
+      path: '/profile'
+      fullPath: '/profile'
+      preLoaderRoute: typeof AuthenticatedProfileRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/explore': {
       id: '/_authenticated/explore'
       path: '/explore'
@@ -223,6 +255,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/exhibitor/$id': {
+      id: '/_authenticated/exhibitor/$id'
+      path: '/exhibitor/$id'
+      fullPath: '/exhibitor/$id'
+      preLoaderRoute: typeof AuthenticatedExhibitorIdRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
   }
 }
 
@@ -231,7 +270,9 @@ interface AuthenticatedRouteChildren {
   AuthenticatedAgendaRoute: typeof AuthenticatedAgendaRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedExploreRoute: typeof AuthenticatedExploreRoute
+  AuthenticatedProfileRoute: typeof AuthenticatedProfileRoute
   AuthenticatedTableAgendaRoute: typeof AuthenticatedTableAgendaRoute
+  AuthenticatedExhibitorIdRoute: typeof AuthenticatedExhibitorIdRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
@@ -239,7 +280,9 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAgendaRoute: AuthenticatedAgendaRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedExploreRoute: AuthenticatedExploreRoute,
+  AuthenticatedProfileRoute: AuthenticatedProfileRoute,
   AuthenticatedTableAgendaRoute: AuthenticatedTableAgendaRoute,
+  AuthenticatedExhibitorIdRoute: AuthenticatedExhibitorIdRoute,
 }
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
@@ -256,3 +299,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
