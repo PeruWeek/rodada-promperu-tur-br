@@ -8,7 +8,7 @@ import { Check, RefreshCw, Search, UserCheck } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useProfile, hasRole, type AppRole } from "@/hooks/use-profile";
-import { assignExhibitorToTable, rebuildSlots, setUserRole } from "@/lib/admin.functions";
+import { adminSearchProfiles, assignExhibitorToTable, rebuildSlots, setUserRole } from "@/lib/admin.functions";
 import { generalCheckIn } from "@/lib/checkin.functions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -168,6 +168,7 @@ function CheckinTab() {
   const qc = useQueryClient();
   const [q, setQ] = useState("");
   const checkInFn = useServerFn(generalCheckIn);
+  const searchFn = useServerFn(adminSearchProfiles);
 
   const { data, isLoading } = useQuery({
     queryKey: ["admin-checkin", q],
@@ -175,15 +176,8 @@ function CheckinTab() {
       const { data: event } = await supabase
         .from("events").select("id, name").order("created_at").limit(1).maybeSingle();
       if (!event) return { event: null, profiles: [], checkedIds: new Set<string>() };
-      let pq = supabase
-        .from("profiles")
-        .select("id, full_name, email, company_id")
-        .eq("is_active", true)
-        .order("full_name")
-        .limit(50);
-      if (q.trim()) pq = pq.ilike("full_name", `%${q.trim()}%`);
-      const [{ data: profs }, { data: checks }] = await Promise.all([
-        pq,
+      const [{ profiles: profs }, { data: checks }] = await Promise.all([
+        searchFn({ data: { q, activeOnly: true } }),
         supabase.from("general_checkins").select("profile_id").eq("event_id", event.id),
       ]);
       const compIds = (profs ?? []).map((p) => p.company_id).filter(Boolean) as string[];
@@ -263,18 +257,14 @@ function UsersTab() {
   const qc = useQueryClient();
   const [q, setQ] = useState("");
   const setRoleFn = useServerFn(setUserRole);
+  const searchFn = useServerFn(adminSearchProfiles);
 
   const { data, isLoading } = useQuery({
     queryKey: ["admin-users", q],
     queryFn: async () => {
-      let pq = supabase
-        .from("profiles")
-        .select("id, auth_user_id, full_name, email")
-        .not("auth_user_id", "is", null)
-        .order("full_name")
-        .limit(50);
-      if (q.trim()) pq = pq.ilike("full_name", `%${q.trim()}%`);
-      const { data: profs } = await pq;
+      const { profiles: profs } = await searchFn({
+        data: { q, requireAuthUser: true },
+      });
       const ids = (profs ?? []).map((p) => p.auth_user_id).filter(Boolean) as string[];
       const { data: roles } = ids.length
         ? await supabase.from("user_roles").select("user_id, role").in("user_id", ids)

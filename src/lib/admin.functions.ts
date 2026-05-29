@@ -78,3 +78,30 @@ export const rebuildSlots = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { ok: true };
   });
+
+export const adminSearchProfiles = createServerFn({ method: "POST" })
+  .inputValidator((input) =>
+    z
+      .object({
+        q: z.string().optional(),
+        activeOnly: z.boolean().optional(),
+        requireAuthUser: z.boolean().optional(),
+        limit: z.number().int().min(1).max(200).optional(),
+      })
+      .parse(input),
+  )
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.userId);
+    let q = supabaseAdmin
+      .from("profiles")
+      .select("id, auth_user_id, full_name, email, company_id")
+      .order("full_name")
+      .limit(data.limit ?? 50);
+    if (data.activeOnly) q = q.eq("is_active", true);
+    if (data.requireAuthUser) q = q.not("auth_user_id", "is", null);
+    if (data.q?.trim()) q = q.ilike("full_name", `%${data.q.trim()}%`);
+    const { data: rows, error } = await q;
+    if (error) throw new Error(error.message);
+    return { profiles: rows ?? [] };
+  });
