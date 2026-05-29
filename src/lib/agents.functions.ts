@@ -114,16 +114,26 @@ export const duplicateAgent = createServerFn({ method: "POST" })
       .eq("id", data.id)
       .maybeSingle();
     if (error || !src) throw new Error(error?.message ?? "Agente não encontrado");
-    const { id: _id, created_at: _c, updated_at: _u, agent_skills, ...rest } = src as Record<string, unknown> & {
-      agent_skills?: Array<{ skill_id: string }>;
-    };
+    const agentSkills = (src.agent_skills as Array<{ skill_id: string }> | null) ?? [];
     const { data: created, error: e2 } = await supabaseAdmin
       .from("agents")
-      .insert({ ...rest, name: `${rest.name} (cópia)`, is_default: false })
+      .insert({
+        event_id: src.event_id,
+        name: `${src.name} (cópia)`,
+        provider: src.provider,
+        base_url_mode: src.base_url_mode,
+        model: src.model,
+        temperature: src.temperature,
+        max_tokens: src.max_tokens,
+        system_prompt: src.system_prompt,
+        rag_enabled: src.rag_enabled,
+        is_active: src.is_active,
+        is_default: false,
+      })
       .select("id")
       .maybeSingle();
     if (e2) throw new Error(e2.message);
-    const skillIds = (agent_skills ?? []).map((s) => s.skill_id);
+    const skillIds = agentSkills.map((s) => s.skill_id);
     if (skillIds.length > 0 && created) {
       await supabaseAdmin
         .from("agent_skills")
