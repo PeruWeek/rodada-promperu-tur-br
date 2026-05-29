@@ -153,14 +153,54 @@
       "scheduled": "Agendada",
       "cancelled": "Cancelada",
       "completed": "Completada",
-      "no_show": "No asistió"
-    }
+      "done": "Completada",
+      "no_show": "No asistió",
+      "needs_reschedule": "Reagendar"
+    },
+    "pdfTitle": "Mi Agenda — Rueda Perú 2026",
+    "pdfGenerated": "Generado el {{date}}",
+    "downloadPdf": "Descargar PDF"
   },
   "tableAgenda": {
     "title": "Agenda de la Mesa",
     "subtitle": "Tus reuniones confirmadas en el evento.",
     "noTable": "Aún no se te asignó una mesa. Espera la confirmación de la organización.",
-    "empty": "Aún no hay reuniones agendadas en tu mesa."
+    "empty": "Aún no hay reuniones agendadas en tu mesa.",
+    "checkin": "Check-in",
+    "noShow": "No vino",
+    "checkinSaved": "Check-in registrado.",
+    "pdfTitle": "Agenda Mesa #{{number}}",
+    "status": {
+      "present": "Presente",
+      "late": "Tarde",
+      "no_show": "No vino"
+    }
+  },
+  "admin": {
+    "title": "Administración",
+    "subtitle": "Gestiona mesas, check-in y roles de usuarios.",
+    "forbidden": "Acceso restringido a administradores.",
+    "tabs": { "tables": "Mesas", "checkin": "Check-in", "users": "Usuarios" },
+    "tables": {
+      "help": "Asigna un expositor a cada mesa. Usa 'Regenerar slots' tras cambios.",
+      "unassigned": "— Sin expositor —",
+      "saved": "Mesa actualizada.",
+      "rebuildSlots": "Regenerar slots",
+      "slotsRebuilt": "Slots regenerados."
+    },
+    "checkin": {
+      "searchPlaceholder": "Buscar participante...",
+      "noResults": "No se encontraron participantes.",
+      "checked": "Check-in hecho",
+      "check": "Hacer check-in",
+      "done": "¡Check-in registrado!",
+      "already": "Ya tenía check-in."
+    },
+    "users": {
+      "searchPlaceholder": "Buscar usuario...",
+      "empty": "No se encontraron usuarios.",
+      "saved": "Roles actualizados."
+    }
   },
   "roles": {
     "admin": "Admin",
