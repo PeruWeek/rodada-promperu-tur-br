@@ -2,13 +2,14 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
-import { Calendar, MapPin, Table2, X } from "lucide-react";
+import { Calendar, Download, MapPin, Table2, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useProfile } from "@/hooks/use-profile";
 import { cancelMeeting } from "@/lib/booking.functions";
 import { formatSlotFull } from "@/components/booking-dialog";
+import { buildAgendaPdf } from "@/lib/pdf";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -72,6 +73,22 @@ function AgendaPage() {
     .sort((a, b) => (a.slot?.start_at ?? "").localeCompare(b.slot?.start_at ?? ""));
   const others = (meetings ?? []).filter((m) => m.status !== "scheduled");
 
+  const downloadPdf = () => {
+    const doc = buildAgendaPdf({
+      title: t("agenda.pdfTitle"),
+      subtitle: t("common.appName"),
+      ownerName: profile?.full_name ?? "",
+      generatedLabel: t("agenda.pdfGenerated", { date: new Date().toLocaleString(i18n.language === "es" ? "es" : "pt-BR") }),
+      rows: scheduled.map((m) => ({
+        time: m.slot ? formatSlotFull(m.slot.start_at, i18n.language) : "—",
+        withName: m.company?.trade_name ?? m.exhibitor?.full_name ?? "—",
+        table: m.table?.table_number != null ? `#${m.table.table_number}` : "—",
+        location: m.company?.country_code ?? "",
+      })),
+    });
+    doc.save(`agenda-${(profile?.full_name ?? "user").replace(/\s+/g, "-").toLowerCase()}.pdf`);
+  };
+
   return (
     <div className="mx-auto max-w-4xl px-4 py-8 sm:py-10">
       <div className="flex items-start justify-between gap-3">
@@ -79,9 +96,14 @@ function AgendaPage() {
           <h1 className="text-3xl font-bold">{t("agenda.title")}</h1>
           <p className="mt-1 text-sm text-muted-foreground">{t("agenda.subtitle")}</p>
         </div>
-        <Button asChild variant="outline" size="sm">
-          <Link to="/explore">{t("agenda.exploreCta")}</Link>
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={downloadPdf} disabled={scheduled.length === 0}>
+            <Download size={14} /> {t("agenda.downloadPdf")}
+          </Button>
+          <Button asChild variant="outline" size="sm">
+            <Link to="/explore">{t("agenda.exploreCta")}</Link>
+          </Button>
+        </div>
       </div>
 
       {isLoading ? (
