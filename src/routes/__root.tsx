@@ -80,13 +80,17 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Rodada Peru 2026 — Rodada de Negócios MICE Peru × Brasil" },
+      { title: "Rodada de Negócios MICE Peru × Brasil" },
       { name: "description", content: "Plataforma oficial de matchmaking e agendamento da Rodada de Negócios MICE Peru × Brasil. 08 de julho de 2026." },
       { name: "author", content: "PromPerú" },
-      { property: "og:title", content: "Rodada Peru 2026 — MICE Peru × Brasil" },
-      { property: "og:description", content: "Encontros estratégicos entre operadores peruanos e compradores brasileiros." },
+      { property: "og:title", content: "Rodada de Negócios MICE Peru × Brasil" },
+      { property: "og:description", content: "Plataforma oficial de matchmaking e agendamento da Rodada de Negócios MICE Peru × Brasil. 08 de julho de 2026." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
+      { name: "twitter:title", content: "Rodada de Negócios MICE Peru × Brasil" },
+      { name: "twitter:description", content: "Plataforma oficial de matchmaking e agendamento da Rodada de Negócios MICE Peru × Brasil. 08 de julho de 2026." },
+      { property: "og:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/1c7cd6ff-e0aa-413b-bf74-2c7c26b97334" },
+      { name: "twitter:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/1c7cd6ff-e0aa-413b-bf74-2c7c26b97334" },
     ],
     links: [
       {
@@ -99,7 +103,6 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         rel: "stylesheet",
         href: "https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700;900&display=swap",
       },
-      { rel: "icon", type: "image/png", href: "/favicon.png" },
     ],
   }),
   shellComponent: RootShell,
