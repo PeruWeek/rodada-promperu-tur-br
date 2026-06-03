@@ -1144,6 +1144,10 @@ export type Database = {
           similarity: number
         }[]
       }
+      onboard_company: {
+        Args: { p_city: string; p_country_code: string; p_trade_name: string }
+        Returns: string
+      }
       rebuild_event_time_slots: {
         Args: { p_deactivate_previous?: boolean; p_event_id: string }
         Returns: string
