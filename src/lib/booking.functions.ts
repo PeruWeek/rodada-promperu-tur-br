@@ -49,7 +49,8 @@ export const bookMeeting = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
 
-    const { data: profile, error: profErr } = await supabase
+    // Email column is restricted via column-level grants; use admin client for own profile read.
+    const { data: profile, error: profErr } = await supabaseAdmin
       .from("profiles")
       .select("id, full_name, company_id, email, preferred_language")
       .eq("auth_user_id", userId)
@@ -148,17 +149,19 @@ export const cancelMeeting = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
 
-    const { data: profile } = await supabase
+    const { data: profile } = await supabaseAdmin
       .from("profiles")
       .select("id, full_name, email, preferred_language")
       .eq("auth_user_id", userId)
       .maybeSingle();
     if (!profile) throw new Error("Profile not found");
 
-    const { data: updated, error: updErr } = await supabase
+    // Visitor UPDATE RLS policy removed for security; mutate via admin client after verifying ownership.
+    const { data: updated, error: updErr } = await supabaseAdmin
       .from("meetings")
       .update({ status: "cancelled", cancel_reason: data.reason ?? null })
       .eq("id", data.meetingId)
+      .eq("visitor_profile_id", profile.id)
       .select("id, table_id, slot_id, event_id")
       .single();
     if (updErr) throw new Error(updErr.message);
