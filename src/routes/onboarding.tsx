@@ -42,7 +42,7 @@ function OnboardingPage() {
       const { error: cErr } = await supabase.rpc("onboard_company", {
         p_trade_name: companyName,
         p_country_code: finalCountry,
-        p_city: city || null,
+        p_city: city || "",
       });
       if (cErr) throw cErr;
 
