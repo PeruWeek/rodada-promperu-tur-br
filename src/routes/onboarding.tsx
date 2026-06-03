@@ -39,17 +39,12 @@ function OnboardingPage() {
     setSaving(true);
     try {
       const finalCountry = country || (kind === "exhibitor" ? "PE" : "BR");
-      const { data: company, error: cErr } = await supabase
-        .from("companies")
-        .insert({ trade_name: companyName, country_code: finalCountry, city: city || null })
-        .select()
-        .single();
+      const { error: cErr } = await supabase.rpc("onboard_company", {
+        p_trade_name: companyName,
+        p_country_code: finalCountry,
+        p_city: city || null,
+      });
       if (cErr) throw cErr;
-      const { error: pErr } = await supabase
-        .from("profiles")
-        .update({ company_id: company.id })
-        .eq("id", profile.id);
-      if (pErr) throw pErr;
 
       if (kind === "visitor") {
         await supabase.from("visitor_profiles").upsert({ profile_id: profile.id });
