@@ -147,7 +147,7 @@ export const cancelMeeting = createServerFn({ method: "POST" })
   )
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
-    const { supabase, userId } = context;
+    const { userId } = context;
 
     const { data: profile } = await supabaseAdmin
       .from("profiles")
