@@ -392,7 +392,12 @@ function Step2({ data, set, errors, t }: StepProps) {
       <div>
         <Label htmlFor="website">{t("signup.website")}</Label>
         <Input id="website" type="url" placeholder="https://..." value={data.website}
-          onChange={(e) => set("website", e.target.value)} className="mt-1.5" />
+          onChange={(e) => set("website", e.target.value)}
+          onBlur={(e) => {
+            const normalized = normalizeWebsiteURL(e.target.value);
+            if (normalized !== e.target.value) set("website", normalized);
+          }}
+          className="mt-1.5" />
         <FieldError msg={errors.website} t={t} />
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
@@ -411,7 +416,23 @@ function Step2({ data, set, errors, t }: StepProps) {
   );
 }
 
-function Step3({ data, set, errors, t }: StepProps) {
+function Step3({
+  data,
+  set,
+  errors,
+  t,
+  whatsappSameAsPhone,
+  setWhatsappSameAsPhone,
+}: StepProps & {
+  whatsappSameAsPhone: boolean;
+  setWhatsappSameAsPhone: (v: boolean) => void;
+}) {
+  const phoneDigits = data.phone.replace(/\D+/g, "");
+  const showPhoneDDDHint = phoneDigits.length >= 8 && phoneDigits.length <= 9;
+  const whatsappDigits = data.whatsapp.replace(/\D+/g, "");
+  const showWhatsappDDDHint =
+    !whatsappSameAsPhone && whatsappDigits.length >= 8 && whatsappDigits.length <= 9;
+  const phonePlaceholder = "(DDD) 9XXXX-XXXX — ex: (11) 98765-4321";
   return (
     <div className="space-y-4">
       <div>
@@ -429,16 +450,39 @@ function Step3({ data, set, errors, t }: StepProps) {
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
           <Label htmlFor="phone">{t("signup.phone")} *</Label>
-          <Input id="phone" inputMode="tel" placeholder="(11) 91234-5678" value={data.phone}
+          <Input id="phone" inputMode="tel" placeholder={phonePlaceholder} value={data.phone}
             onChange={(e) => set("phone", formatBRPhone(e.target.value))} className="mt-1.5" />
+          {showPhoneDDDHint && (
+            <p className="mt-1 text-xs text-muted-foreground">{t("signup.hints.includeDDD")}</p>
+          )}
           <FieldError msg={errors.phone} t={t} />
         </div>
         <div>
           <Label htmlFor="whatsapp">{t("signup.whatsapp")} *</Label>
-          <Input id="whatsapp" inputMode="tel" placeholder="(11) 91234-5678" value={data.whatsapp}
-            onChange={(e) => set("whatsapp", formatBRPhone(e.target.value))} className="mt-1.5" />
-          <FieldError msg={errors.whatsapp} t={t} />
+          <Input
+            id="whatsapp"
+            inputMode="tel"
+            placeholder={phonePlaceholder}
+            value={whatsappSameAsPhone ? data.phone : data.whatsapp}
+            disabled={whatsappSameAsPhone}
+            onChange={(e) => set("whatsapp", formatBRPhone(e.target.value))}
+            className="mt-1.5"
+          />
+          {showWhatsappDDDHint && (
+            <p className="mt-1 text-xs text-muted-foreground">{t("signup.hints.includeDDD")}</p>
+          )}
+          {!whatsappSameAsPhone && <FieldError msg={errors.whatsapp} t={t} />}
         </div>
+      </div>
+      <div className="flex items-center gap-2">
+        <Checkbox
+          id="whatsappSameAsPhone"
+          checked={whatsappSameAsPhone}
+          onCheckedChange={(v) => setWhatsappSameAsPhone(v === true)}
+        />
+        <Label htmlFor="whatsappSameAsPhone" className="text-sm font-normal leading-snug">
+          {t("signup.labels.whatsappSameAsPhone")}
+        </Label>
       </div>
       <div>
         <Label htmlFor="preferred_language">{t("signup.preferredLanguage")} *</Label>
