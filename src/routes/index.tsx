@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Rodada Peru 2026 — Matchmaking MICE Peru × Brasil" },
+      { title: "Rodada de Negócios Promperu 2026 — Matchmaking MICE Peru × Brasil" },
       { name: "description", content: "Plataforma oficial de matchmaking e agendamento da Rodada de Negócios MICE Peru × Brasil. 08 de julho de 2026." },
     ],
   }),

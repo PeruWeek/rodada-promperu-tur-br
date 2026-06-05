@@ -1,6 +1,6 @@
 {
   "common": {
-    "appName": "Rodada Peru 2026",
+    "appName": "Rodada de Negócios Promperu 2026",
     "tagline": "Rodada de Negócios MICE — Peru × Brasil",
     "loading": "Carregando...",
     "save": "Salvar",
@@ -41,7 +41,7 @@
     "loginTitle": "Entrar",
     "loginSubtitle": "Acesse sua conta para gerenciar reuniões.",
     "signupTitle": "Criar conta",
-    "signupSubtitle": "Inscreva-se para participar da Rodada Peru 2026.",
+    "signupSubtitle": "Inscreva-se para participar da Rodada de Negócios Promperu 2026.",
     "email": "E-mail",
     "password": "Senha",
     "fullName": "Nome completo",
@@ -154,7 +154,7 @@
   },
   "agenda": {
     "title": "Minha Agenda",
-    "subtitle": "Suas reuniões confirmadas na Rodada Peru 2026.",
+    "subtitle": "Suas reuniões confirmadas na Rodada de Negócios Promperu 2026.",
     "empty": "Você ainda não tem reuniões agendadas.",
     "exploreCta": "Explorar expositores",
     "cancel": "Cancelar",
@@ -169,7 +169,7 @@
       "no_show": "Não compareceu",
       "needs_reschedule": "Reagendar"
     },
-    "pdfTitle": "Minha Agenda — Rodada Peru 2026",
+    "pdfTitle": "Minha Agenda — Rodada de Negócios Promperu 2026",
     "pdfGenerated": "Gerado em {{date}}",
     "downloadPdf": "Baixar PDF"
   },
