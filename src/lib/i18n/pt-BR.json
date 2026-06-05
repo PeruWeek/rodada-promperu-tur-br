@@ -35,7 +35,17 @@
     "step3Title": "Agende reuniões",
     "step3Body": "Encontre parceiros e reserve slots de 15 minutos. Confirmação instantânea, sem conflito.",
     "step4Title": "Compareça e gere negócios",
-    "step4Body": "Acesse sua agenda no app ou em PDF. Check-in rápido no dia do evento."
+    "step4Body": "Acesse sua agenda no app ou em PDF. Check-in rápido no dia do evento.",
+    "scheduleTitle": "Programação",
+    "scheduleRegistration": "Registro de participantes",
+    "scheduleBusinessRound": "Rodada de Negócios",
+    "scheduleLunch": "Almoço e Networking",
+    "venueTitle": "Local do evento",
+    "venueDateLabel": "Data",
+    "venueDate": "Quarta-feira, 08 de julho de 2026",
+    "venueAddressLabel": "Endereço",
+    "venueName": "Restaurante AMAZO Cozinha Peruana",
+    "venueAddress": "Rua Guaianases, 1149 – Campos Elíseos, São Paulo"
   },
   "auth": {
     "loginTitle": "Entrar",
