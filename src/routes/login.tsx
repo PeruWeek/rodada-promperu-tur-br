@@ -13,7 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 type LoginSearch = { reason?: string };
 
 export const Route = createFileRoute("/login")({
-  head: () => ({ meta: [{ title: "Entrar — Rodada Peru 2026" }] }),
+  head: () => ({ meta: [{ title: "Entrar — Rodada de Negócios Promperu 2026" }] }),
   validateSearch: (s: Record<string, unknown>): LoginSearch => ({
     reason: typeof s.reason === "string" ? s.reason : undefined,
   }),

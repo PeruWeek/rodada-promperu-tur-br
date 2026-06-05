@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/signup")({
-  head: () => ({ meta: [{ title: "Cadastro — Rodada Peru 2026" }] }),
+  head: () => ({ meta: [{ title: "Cadastro — Rodada de Negócios Promperu 2026" }] }),
   component: SignupPage,
 });
 

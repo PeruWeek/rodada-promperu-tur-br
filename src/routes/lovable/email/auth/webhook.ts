@@ -31,7 +31,7 @@ const EMAIL_TEMPLATES: Record<string, React.ComponentType<any>> = {
 }
 
 // Configuration
-const SITE_NAME = "Rodada Peru 2026"
+const SITE_NAME = "Rodada de Negócios Promperu 2026"
 const SENDER_DOMAIN = "rsvp.promperu.tur.br"
 const ROOT_DOMAIN = "promperu.tur.br"
 const FROM_ADDRESS = "rodada@promperu.tur.br"

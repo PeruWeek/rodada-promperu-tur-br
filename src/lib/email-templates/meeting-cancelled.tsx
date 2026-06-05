@@ -23,7 +23,7 @@ import {
   text,
 } from "./_shared";
 
-const SITE_NAME = "Rodada Peru 2026";
+const SITE_NAME = "Rodada de Negócios Promperu 2026";
 
 interface Props {
   language?: "pt-BR" | "es";
