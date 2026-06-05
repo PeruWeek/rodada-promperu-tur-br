@@ -67,9 +67,9 @@
     "resendConfirmation": "Reenviar confirmación",
     "resendNeedEmail": "Ingresa tu correo para reenviar.",
     "resendSuccess": "Enviamos un nuevo correo de confirmación. Revisa tu bandeja de entrada.",
-    "checkEmailTitle": "Revisa tu correo",
-    "checkEmailBody": "Enviamos un enlace de confirmación a {{email}}. Haz clic en el enlace para activar tu cuenta.",
-    "checkEmailHint": "El enlace expira en 1 hora y solo puede usarse una vez. Si no llega, revisa la carpeta de spam."
+    "checkEmailTitle": "¡Registro recibido! Revisa tu correo",
+    "checkEmailBody": "Enviamos un enlace de confirmación a {{email}}. Haz clic en el enlace para activar tu cuenta — serás llevado directamente a tu agenda.",
+    "checkEmailHint": "El enlace expira en 1 hora y solo puede usarse una vez. Si no llega, revisa la carpeta de spam. Después de confirmar, ingresa con el correo y la contraseña registrados para acceder a tu agenda."
   },
   "onboarding": {
     "title": "Cuéntanos quién eres",
