@@ -206,7 +206,8 @@
       "tables": "Mesas",
       "checkin": "Check-in",
       "users": "Usuários",
-      "requests": "Solicitações"
+      "requests": "Solicitações",
+      "emails": "E-mails"
     },
     "tables": {
       "help": "Atribua um expositor a cada mesa. Use 'Regenerar slots' após mudanças.",
@@ -245,6 +246,38 @@
         "approved": "Aprovada",
         "rejected": "Rejeitada"
       }
+    },
+    "emails": {
+      "searchHelp": "Busque um usuário por e-mail para confirmar manualmente ou criar um novo já confirmado.",
+      "emailPlaceholder": "email@exemplo.com",
+      "search": "Buscar",
+      "emailLabel": "E-mail",
+      "fullNameLabel": "Nome completo",
+      "passwordLabel": "Senha provisória",
+      "passwordHint": "Mínimo 8 caracteres",
+      "languageLabel": "Idioma preferido",
+      "createdAt": "Criado em",
+      "profile": "Perfil",
+      "yes": "Sim",
+      "no": "Não",
+      "confirmedBadge": "E-mail confirmado",
+      "pendingBadge": "Pendente",
+      "confirmNow": "Confirmar e-mail agora",
+      "confirmed": "E-mail confirmado!",
+      "notFound": "Nenhum usuário encontrado com esse e-mail.",
+      "createTitle": "Criar usuário já confirmado",
+      "createHelp": "Cria o usuário com e-mail já confirmado (sem disparar envio). Entregue a senha provisória ao usuário.",
+      "createAndConfirm": "Criar e confirmar",
+      "created": "Usuário criado e confirmado!",
+      "createdNotice": "Usuário criado com sucesso.",
+      "passwordCopyHint": "Copie a senha provisória e entregue ao usuário. Ele poderá fazer login em /login imediatamente.",
+      "copy": "Copiar",
+      "copied": "Copiado!",
+      "copyFailed": "Não foi possível copiar.",
+      "resetPasswordTitle": "Definir/Resetar senha",
+      "newPasswordPlaceholder": "Nova senha (mínimo 8 caracteres)",
+      "setPassword": "Definir senha",
+      "passwordSet": "Senha atualizada."
     }
   },
   "roles": {

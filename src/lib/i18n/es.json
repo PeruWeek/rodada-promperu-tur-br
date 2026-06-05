@@ -206,7 +206,8 @@
       "tables": "Mesas",
       "checkin": "Check-in",
       "users": "Usuarios",
-      "requests": "Solicitudes"
+      "requests": "Solicitudes",
+      "emails": "Emails"
     },
     "tables": {
       "help": "Asigna un expositor a cada mesa. Usa 'Regenerar slots' tras cambios.",
@@ -245,6 +246,38 @@
         "approved": "Aprobada",
         "rejected": "Rechazada"
       }
+    },
+    "emails": {
+      "searchHelp": "Busca un usuario por email para confirmar manualmente o crear uno nuevo ya confirmado.",
+      "emailPlaceholder": "email@ejemplo.com",
+      "search": "Buscar",
+      "emailLabel": "Email",
+      "fullNameLabel": "Nombre completo",
+      "passwordLabel": "Contraseña provisional",
+      "passwordHint": "Mínimo 8 caracteres",
+      "languageLabel": "Idioma preferido",
+      "createdAt": "Creado el",
+      "profile": "Perfil",
+      "yes": "Sí",
+      "no": "No",
+      "confirmedBadge": "Email confirmado",
+      "pendingBadge": "Pendiente",
+      "confirmNow": "Confirmar email ahora",
+      "confirmed": "¡Email confirmado!",
+      "notFound": "No se encontró ningún usuario con ese email.",
+      "createTitle": "Crear usuario ya confirmado",
+      "createHelp": "Crea el usuario con email ya confirmado (sin enviar email). Entrega la contraseña provisional al usuario.",
+      "createAndConfirm": "Crear y confirmar",
+      "created": "¡Usuario creado y confirmado!",
+      "createdNotice": "Usuario creado con éxito.",
+      "passwordCopyHint": "Copia la contraseña provisional y entrégala al usuario. Podrá iniciar sesión en /login de inmediato.",
+      "copy": "Copiar",
+      "copied": "¡Copiado!",
+      "copyFailed": "No se pudo copiar.",
+      "resetPasswordTitle": "Definir/Restablecer contraseña",
+      "newPasswordPlaceholder": "Nueva contraseña (mínimo 8 caracteres)",
+      "setPassword": "Definir contraseña",
+      "passwordSet": "Contraseña actualizada."
     }
   },
   "roles": {
