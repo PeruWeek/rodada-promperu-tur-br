@@ -4,11 +4,17 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { Check, RefreshCw, Search, UserCheck } from "lucide-react";
+import { Check, Copy, Mail, RefreshCw, Search, UserCheck } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useProfile, hasRole, type AppRole } from "@/hooks/use-profile";
 import { adminSearchProfiles, assignExhibitorToTable, rebuildSlots, setUserRole } from "@/lib/admin.functions";
+import {
+  adminConfirmEmail,
+  adminCreateConfirmedUser,
+  adminSetPassword,
+  findAuthUserByEmail,
+} from "@/lib/admin-auth.functions";
 import { generalCheckIn } from "@/lib/checkin.functions";
 import { listExhibitorRequests, reviewExhibitorRequest } from "@/lib/exhibitor-requests.functions";
 import { Badge } from "@/components/ui/badge";
@@ -62,11 +68,13 @@ function AdminPage() {
           <TabsTrigger value="checkin">{t("admin.tabs.checkin")}</TabsTrigger>
           <TabsTrigger value="users">{t("admin.tabs.users")}</TabsTrigger>
           <TabsTrigger value="requests">{t("admin.tabs.requests")}</TabsTrigger>
+          <TabsTrigger value="emails">{t("admin.tabs.emails")}</TabsTrigger>
         </TabsList>
         <TabsContent value="tables" className="mt-4"><TablesTab /></TabsContent>
         <TabsContent value="checkin" className="mt-4"><CheckinTab /></TabsContent>
         <TabsContent value="users" className="mt-4"><UsersTab /></TabsContent>
         <TabsContent value="requests" className="mt-4"><RequestsTab /></TabsContent>
+        <TabsContent value="emails" className="mt-4"><EmailsTab /></TabsContent>
       </Tabs>
     </div>
   );
