@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useServerFn } from "@tanstack/react-start";
 import { useQueryClient } from "@tanstack/react-query";
@@ -13,6 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useProfile } from "@/hooks/use-profile";
 import { requestExhibitorAccess } from "@/lib/exhibitor-requests.functions";
+import { BUYER_SIGNUP_STORAGE_KEY } from "@/lib/validation/buyer-signup.schema";
 
 export const Route = createFileRoute("/onboarding")({ component: OnboardingPage });
 
@@ -30,8 +31,35 @@ function OnboardingPage() {
   const [country, setCountry] = useState("");
   const [city, setCity] = useState("");
   const [saving, setSaving] = useState(false);
+  const [autoFinishing, setAutoFinishing] = useState(false);
 
   if (!authLoading && !user) { navigate({ to: "/login" }); return null; }
+
+  // If the buyer wizard left a pending payload, finalize automatically and skip the kind picker.
+  useEffect(() => {
+    if (!user || !profile || autoFinishing) return;
+    let raw: string | null = null;
+    try { raw = sessionStorage.getItem(BUYER_SIGNUP_STORAGE_KEY); } catch { /* ignore */ }
+    if (!raw) return;
+    let payload: Record<string, unknown>;
+    try { payload = JSON.parse(raw); } catch { return; }
+    setAutoFinishing(true);
+    (async () => {
+      try {
+        const { error } = await (supabase.rpc as unknown as (
+          fn: string, args: Record<string, unknown>,
+        ) => Promise<{ error: { message: string } | null }>)("complete_buyer_signup", { p_payload: payload });
+        if (error) throw error;
+        try { sessionStorage.removeItem(BUYER_SIGNUP_STORAGE_KEY); } catch { /* ignore */ }
+        await qc.invalidateQueries();
+        toast.success(t("onboarding.savedVisitor"));
+        navigate({ to: "/dashboard" });
+      } catch (err) {
+        setAutoFinishing(false);
+        toast.error(err instanceof Error ? err.message : "erro");
+      }
+    })();
+  }, [user, profile, autoFinishing, qc, navigate, t]);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -61,6 +89,17 @@ function OnboardingPage() {
       toast.error(err instanceof Error ? err.message : "erro");
     } finally { setSaving(false); }
   };
+
+  if (autoFinishing) {
+    return (
+      <div className="min-h-screen bg-background">
+        <SiteHeader />
+        <div className="mx-auto max-w-md px-4 py-16 text-center">
+          <p className="text-muted-foreground">{t("common.loading")}</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">

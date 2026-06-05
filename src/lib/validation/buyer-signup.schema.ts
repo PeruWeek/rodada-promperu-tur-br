@@ -1,0 +1,97 @@
+import { z } from "zod";
+import { isValidBRPhone, isValidCNPJ, UF_LIST } from "./br-masks";
+
+const optTrim = z.string().trim().optional().or(z.literal(""));
+
+export const stepAccountSchema = z
+  .object({
+    email: z.string().trim().email(),
+    password: z.string().min(8),
+    confirmPassword: z.string().min(8),
+  })
+  .refine((d) => d.password === d.confirmPassword, {
+    path: ["confirmPassword"],
+    message: "passwordMismatch",
+  });
+
+export const stepCompanySchema = z.object({
+  tax_id: z
+    .string()
+    .optional()
+    .or(z.literal(""))
+    .refine((v) => !v || isValidCNPJ(v), { message: "cnpjInvalid" }),
+  legal_name: optTrim,
+  trade_name: z.string().trim().min(2).max(160),
+  city: z.string().trim().min(2).max(120),
+  state_code: z.enum(UF_LIST as unknown as [string, ...string[]]),
+  website: z
+    .string()
+    .trim()
+    .optional()
+    .or(z.literal(""))
+    .refine((v) => !v || /^https?:\/\/.+\..+/.test(v), { message: "urlInvalid" }),
+  instagram: optTrim,
+  linkedin: optTrim,
+});
+
+export const stepContactSchema = z.object({
+  full_name: z.string().trim().min(2).max(160),
+  job_title: z.string().trim().min(2).max(120),
+  phone: z.string().refine((v) => isValidBRPhone(v), { message: "phoneInvalid" }),
+  whatsapp: z.string().refine((v) => isValidBRPhone(v), { message: "phoneInvalid" }),
+  preferred_language: z.enum(["pt-BR", "es"]),
+});
+
+export const stepBuyerProfileSchema = z.object({
+  buyer_type: z.string().min(1),
+  interests_segments: z.array(z.string()),
+  interests_destinations: z.array(z.string()),
+  interests_destinations_free: z.string().max(500).optional().or(z.literal("")),
+  interests_services: z.array(z.string()),
+  demand_profile: z.string().max(1000).optional().or(z.literal("")),
+});
+
+export const stepPortfolioSchema = z.object({
+  portfolio_pt: z.string().max(4000).optional().or(z.literal("")),
+  portfolio_es: z.string().max(4000).optional().or(z.literal("")),
+  notes: z.string().max(500).optional().or(z.literal("")),
+  consent_data_sharing: z.literal(true, { errorMap: () => ({ message: "consentRequired" }) }),
+  consent_marketing: z.boolean(),
+});
+
+export type BuyerSignupData = {
+  // step 1 (not persisted to sessionStorage)
+  email: string;
+  password: string;
+  confirmPassword: string;
+  // step 2
+  tax_id: string;
+  legal_name: string;
+  trade_name: string;
+  city: string;
+  state_code: string;
+  website: string;
+  instagram: string;
+  linkedin: string;
+  // step 3
+  full_name: string;
+  job_title: string;
+  phone: string;
+  whatsapp: string;
+  preferred_language: "pt-BR" | "es";
+  // step 4
+  buyer_type: string;
+  interests_segments: string[];
+  interests_destinations: string[];
+  interests_destinations_free: string;
+  interests_services: string[];
+  demand_profile: string;
+  // step 5
+  portfolio_pt: string;
+  portfolio_es: string;
+  notes: string;
+  consent_data_sharing: boolean;
+  consent_marketing: boolean;
+};
+
+export const BUYER_SIGNUP_STORAGE_KEY = "buyer_signup_pending_v1";

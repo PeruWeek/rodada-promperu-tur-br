@@ -155,6 +155,8 @@ export type Database = {
           legal_name: string | null
           linkedin: string | null
           phone: string | null
+          state_code: string | null
+          tax_id: string | null
           trade_name: string
           website: string | null
           whatsapp: string | null
@@ -168,6 +170,8 @@ export type Database = {
           legal_name?: string | null
           linkedin?: string | null
           phone?: string | null
+          state_code?: string | null
+          tax_id?: string | null
           trade_name: string
           website?: string | null
           whatsapp?: string | null
@@ -181,6 +185,8 @@ export type Database = {
           legal_name?: string | null
           linkedin?: string | null
           phone?: string | null
+          state_code?: string | null
+          tax_id?: string | null
           trade_name?: string
           website?: string | null
           whatsapp?: string | null
@@ -830,7 +836,10 @@ export type Database = {
           full_name: string
           id: string
           is_active: boolean
+          job_title: string | null
+          phone: string | null
           preferred_language: Database["public"]["Enums"]["app_language"]
+          whatsapp: string | null
         }
         Insert: {
           auth_user_id?: string | null
@@ -840,7 +849,10 @@ export type Database = {
           full_name: string
           id?: string
           is_active?: boolean
+          job_title?: string | null
+          phone?: string | null
           preferred_language?: Database["public"]["Enums"]["app_language"]
+          whatsapp?: string | null
         }
         Update: {
           auth_user_id?: string | null
@@ -850,7 +862,10 @@ export type Database = {
           full_name?: string
           id?: string
           is_active?: boolean
+          job_title?: string | null
+          phone?: string | null
           preferred_language?: Database["public"]["Enums"]["app_language"]
+          whatsapp?: string | null
         }
         Relationships: [
           {
@@ -1083,7 +1098,12 @@ export type Database = {
       visitor_profiles: {
         Row: {
           buyer_type: string | null
+          consent_data_sharing: boolean
+          consent_data_sharing_at: string | null
+          consent_marketing: boolean
+          demand_profile: string | null
           interests_destinations: string[] | null
+          interests_destinations_free: string | null
           interests_segments: string[] | null
           interests_services: string[] | null
           notes: string | null
@@ -1093,7 +1113,12 @@ export type Database = {
         }
         Insert: {
           buyer_type?: string | null
+          consent_data_sharing?: boolean
+          consent_data_sharing_at?: string | null
+          consent_marketing?: boolean
+          demand_profile?: string | null
           interests_destinations?: string[] | null
+          interests_destinations_free?: string | null
           interests_segments?: string[] | null
           interests_services?: string[] | null
           notes?: string | null
@@ -1103,7 +1128,12 @@ export type Database = {
         }
         Update: {
           buyer_type?: string | null
+          consent_data_sharing?: boolean
+          consent_data_sharing_at?: string | null
+          consent_marketing?: boolean
+          demand_profile?: string | null
           interests_destinations?: string[] | null
+          interests_destinations_free?: string | null
           interests_segments?: string[] | null
           interests_services?: string[] | null
           notes?: string | null
@@ -1126,6 +1156,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      complete_buyer_signup: { Args: { p_payload: Json }; Returns: string }
       current_profile_id: { Args: never; Returns: string }
       has_role: {
         Args: {
