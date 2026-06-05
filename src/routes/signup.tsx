@@ -1,57 +1,189 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { z } from "zod";
 
 import { SiteHeader } from "@/components/site-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import { MultiSelectChips } from "@/components/multi-select-chips";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  formatBRPhone,
+  formatCNPJ,
+  toE164BR,
+  UF_LIST,
+} from "@/lib/validation/br-masks";
+import {
+  BUYER_SIGNUP_STORAGE_KEY,
+  type BuyerSignupData,
+  stepAccountSchema,
+  stepBuyerProfileSchema,
+  stepCompanySchema,
+  stepContactSchema,
+  stepPortfolioSchema,
+} from "@/lib/validation/buyer-signup.schema";
+import { TAXONOMY } from "@/lib/taxonomy";
 
 export const Route = createFileRoute("/signup")({
   head: () => ({ meta: [{ title: "Cadastro — Rodada de Negócios Promperu 2026" }] }),
   component: SignupPage,
 });
 
+const TOTAL_STEPS = 5;
+
+const emptyData: BuyerSignupData = {
+  email: "",
+  password: "",
+  confirmPassword: "",
+  tax_id: "",
+  legal_name: "",
+  trade_name: "",
+  city: "",
+  state_code: "",
+  website: "",
+  instagram: "",
+  linkedin: "",
+  full_name: "",
+  job_title: "",
+  phone: "",
+  whatsapp: "",
+  preferred_language: "pt-BR",
+  buyer_type: "",
+  interests_segments: [],
+  interests_destinations: [],
+  interests_destinations_free: "",
+  interests_services: [],
+  demand_profile: "",
+  portfolio_pt: "",
+  portfolio_es: "",
+  notes: "",
+  consent_data_sharing: false,
+  consent_marketing: false,
+};
+
+type Errors = Record<string, string>;
+
+function flattenZodErrors(err: z.ZodError): Errors {
+  const out: Errors = {};
+  for (const issue of err.issues) {
+    const key = issue.path.join(".");
+    if (!out[key]) out[key] = issue.message;
+  }
+  return out;
+}
+
 function SignupPage() {
   const { t, i18n } = useTranslation();
-  const [fullName, setFullName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const lang = (i18n.language === "es" ? "es" : "pt") as "pt" | "es";
+  const [step, setStep] = useState(1);
+  const [data, setData] = useState<BuyerSignupData>({
+    ...emptyData,
+    preferred_language: i18n.language?.startsWith("es") ? "es" : "pt-BR",
+  });
+  const [errors, setErrors] = useState<Errors>({});
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
 
-  const onSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: `${window.location.origin}/onboarding`,
-        data: {
-          full_name: fullName,
-          preferred_language: i18n.language?.startsWith("es") ? "es" : "pt-BR",
-        },
-      },
-    });
-    setLoading(false);
-    if (error) { toast.error(error.message); return; }
-    setSent(true);
+  const set = <K extends keyof BuyerSignupData>(key: K, value: BuyerSignupData[K]) =>
+    setData((d) => ({ ...d, [key]: value }));
+
+  const validateStep = (s: number): boolean => {
+    const schemas = [
+      stepAccountSchema,
+      stepCompanySchema,
+      stepContactSchema,
+      stepBuyerProfileSchema,
+      stepPortfolioSchema,
+    ];
+    const r = schemas[s - 1].safeParse(data);
+    if (r.success) {
+      setErrors({});
+      return true;
+    }
+    setErrors(flattenZodErrors(r.error));
+    return false;
   };
+
+  const next = () => {
+    if (validateStep(step)) setStep((s) => Math.min(TOTAL_STEPS, s + 1));
+  };
+  const back = () => setStep((s) => Math.max(1, s - 1));
+
+  const onFinish = async () => {
+    if (!validateStep(5)) return;
+    setLoading(true);
+    try {
+      // Persist non-auth payload for /onboarding to consume after email confirm.
+      const payload = {
+        trade_name: data.trade_name,
+        legal_name: data.legal_name,
+        tax_id: data.tax_id,
+        city: data.city,
+        state_code: data.state_code,
+        website: data.website,
+        instagram: data.instagram,
+        linkedin: data.linkedin,
+        full_name: data.full_name,
+        job_title: data.job_title,
+        phone: toE164BR(data.phone),
+        whatsapp: toE164BR(data.whatsapp),
+        preferred_language: data.preferred_language,
+        buyer_type: data.buyer_type,
+        interests_segments: data.interests_segments,
+        interests_destinations: data.interests_destinations,
+        interests_destinations_free: data.interests_destinations_free,
+        interests_services: data.interests_services,
+        demand_profile: data.demand_profile,
+        portfolio_pt: data.portfolio_pt,
+        portfolio_es: data.portfolio_es,
+        notes: data.notes,
+        consent_data_sharing: data.consent_data_sharing,
+        consent_marketing: data.consent_marketing,
+      };
+      try {
+        sessionStorage.setItem(BUYER_SIGNUP_STORAGE_KEY, JSON.stringify(payload));
+      } catch { /* ignore */ }
+
+      const { error } = await supabase.auth.signUp({
+        email: data.email,
+        password: data.password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/onboarding`,
+          data: {
+            full_name: data.full_name,
+            preferred_language: data.preferred_language,
+          },
+        },
+      });
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+      setSent(true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const progress = useMemo(() => Math.round((step / TOTAL_STEPS) * 100), [step]);
 
   return (
     <div className="min-h-screen bg-background">
       <SiteHeader />
-      <div className="mx-auto max-w-md px-4 py-12">
+      <div className="mx-auto max-w-2xl px-4 py-12">
         <h1 className="text-3xl font-bold">{t("auth.signupTitle")}</h1>
         <p className="mt-2 text-sm text-muted-foreground">{t("auth.signupSubtitle")}</p>
+
         {sent ? (
           <div className="mt-8 space-y-4 rounded-lg border bg-card p-6">
             <h2 className="text-lg font-semibold">{t("auth.checkEmailTitle")}</h2>
             <p className="text-sm text-muted-foreground">
-              {t("auth.checkEmailBody", { email })}
+              {t("auth.checkEmailBody", { email: data.email })}
             </p>
             <p className="text-xs text-muted-foreground">{t("auth.checkEmailHint")}</p>
             <Link
@@ -63,14 +195,296 @@ function SignupPage() {
             </Link>
           </div>
         ) : (
-        <form onSubmit={onSubmit} className="mt-8 space-y-4">
-          <div><Label htmlFor="name">{t("auth.fullName")}</Label><Input id="name" required value={fullName} onChange={(e) => setFullName(e.target.value)} className="mt-1.5" /></div>
-          <div><Label htmlFor="email">{t("auth.email")}</Label><Input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="mt-1.5" /></div>
-          <div><Label htmlFor="password">{t("auth.password")}</Label><Input id="password" type="password" required minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} className="mt-1.5" /></div>
-          <Button type="submit" className="w-full" size="lg" disabled={loading}>{t("auth.submitSignup")}</Button>
-          <p className="text-center text-sm text-muted-foreground"><Link to="/login" className="font-medium text-primary hover:underline">{t("auth.switchToLogin")}</Link></p>
-        </form>
+          <>
+            <div className="mt-6">
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>
+                  {t("signup.stepLabel", { current: step, total: TOTAL_STEPS })}
+                </span>
+                <span>{t(`signup.stepTitles.${step}`)}</span>
+              </div>
+              <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                <div className="h-full bg-primary transition-all" style={{ width: `${progress}%` }} />
+              </div>
+            </div>
+
+            <form
+              className="mt-8 space-y-5"
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (step < TOTAL_STEPS) next();
+                else void onFinish();
+              }}
+            >
+              {step === 1 && (
+                <Step1 data={data} set={set} errors={errors} t={t} />
+              )}
+              {step === 2 && (
+                <Step2 data={data} set={set} errors={errors} t={t} />
+              )}
+              {step === 3 && (
+                <Step3 data={data} set={set} errors={errors} t={t} />
+              )}
+              {step === 4 && (
+                <Step4 data={data} set={set} errors={errors} t={t} lang={lang} />
+              )}
+              {step === 5 && (
+                <Step5 data={data} set={set} errors={errors} t={t} />
+              )}
+
+              <div className="flex items-center justify-between pt-2">
+                {step > 1 ? (
+                  <Button type="button" variant="outline" onClick={back} disabled={loading}>
+                    {t("common.back")}
+                  </Button>
+                ) : <span />}
+                <Button type="submit" disabled={loading}>
+                  {step < TOTAL_STEPS ? t("common.continue") : t("signup.finish")}
+                </Button>
+              </div>
+
+              <p className="text-center text-sm text-muted-foreground">
+                <Link to="/login" className="font-medium text-primary hover:underline">
+                  {t("auth.switchToLogin")}
+                </Link>
+              </p>
+            </form>
+          </>
         )}
+      </div>
+    </div>
+  );
+}
+
+type StepProps = {
+  data: BuyerSignupData;
+  set: <K extends keyof BuyerSignupData>(k: K, v: BuyerSignupData[K]) => void;
+  errors: Errors;
+  t: (k: string, opts?: Record<string, unknown>) => string;
+};
+
+function FieldError({ msg, t }: { msg?: string; t: StepProps["t"] }) {
+  if (!msg) return null;
+  const known = ["cnpjInvalid", "phoneInvalid", "urlInvalid", "passwordMismatch", "consentRequired"];
+  const text = known.includes(msg) ? t(`signup.errors.${msg}`) : t("signup.errors.required");
+  return <p className="mt-1 text-xs font-medium text-destructive">{text}</p>;
+}
+
+function Step1({ data, set, errors, t }: StepProps) {
+  return (
+    <div className="space-y-4">
+      <div>
+        <Label htmlFor="email">{t("auth.email")} *</Label>
+        <Input id="email" type="email" autoComplete="email" value={data.email}
+          onChange={(e) => set("email", e.target.value)} className="mt-1.5" />
+        <FieldError msg={errors.email} t={t} />
+      </div>
+      <div>
+        <Label htmlFor="password">{t("auth.password")} *</Label>
+        <Input id="password" type="password" autoComplete="new-password" value={data.password}
+          onChange={(e) => set("password", e.target.value)} className="mt-1.5" />
+        <p className="mt-1 text-xs text-muted-foreground">{t("signup.passwordHint")}</p>
+        <FieldError msg={errors.password} t={t} />
+      </div>
+      <div>
+        <Label htmlFor="confirmPassword">{t("signup.confirmPassword")} *</Label>
+        <Input id="confirmPassword" type="password" autoComplete="new-password" value={data.confirmPassword}
+          onChange={(e) => set("confirmPassword", e.target.value)} className="mt-1.5" />
+        <FieldError msg={errors.confirmPassword} t={t} />
+      </div>
+    </div>
+  );
+}
+
+function Step2({ data, set, errors, t }: StepProps) {
+  return (
+    <div className="space-y-4">
+      <div>
+        <Label>{t("signup.country")}</Label>
+        <Input value="Brasil" disabled className="mt-1.5" />
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <Label htmlFor="tax_id">{t("signup.taxId")}</Label>
+          <Input id="tax_id" inputMode="numeric" placeholder="00.000.000/0000-00" value={data.tax_id}
+            onChange={(e) => set("tax_id", formatCNPJ(e.target.value))} className="mt-1.5" />
+          <FieldError msg={errors.tax_id} t={t} />
+        </div>
+        <div>
+          <Label htmlFor="legal_name">{t("signup.legalName")}</Label>
+          <Input id="legal_name" value={data.legal_name}
+            onChange={(e) => set("legal_name", e.target.value)} className="mt-1.5" />
+        </div>
+      </div>
+      <div>
+        <Label htmlFor="trade_name">{t("signup.tradeName")} *</Label>
+        <Input id="trade_name" value={data.trade_name}
+          onChange={(e) => set("trade_name", e.target.value)} className="mt-1.5" />
+        <FieldError msg={errors.trade_name} t={t} />
+      </div>
+      <div className="grid gap-4 sm:grid-cols-3">
+        <div className="sm:col-span-2">
+          <Label htmlFor="city">{t("signup.city")} *</Label>
+          <Input id="city" value={data.city}
+            onChange={(e) => set("city", e.target.value)} className="mt-1.5" />
+          <FieldError msg={errors.city} t={t} />
+        </div>
+        <div>
+          <Label htmlFor="state_code">{t("signup.state")} *</Label>
+          <select id="state_code" value={data.state_code}
+            onChange={(e) => set("state_code", e.target.value)}
+            className="mt-1.5 h-9 w-full rounded-md border border-input bg-background px-3 text-sm">
+            <option value="">—</option>
+            {UF_LIST.map((uf) => <option key={uf} value={uf}>{uf}</option>)}
+          </select>
+          <FieldError msg={errors.state_code} t={t} />
+        </div>
+      </div>
+      <div>
+        <Label htmlFor="website">{t("signup.website")}</Label>
+        <Input id="website" type="url" placeholder="https://..." value={data.website}
+          onChange={(e) => set("website", e.target.value)} className="mt-1.5" />
+        <FieldError msg={errors.website} t={t} />
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <Label htmlFor="instagram">Instagram</Label>
+          <Input id="instagram" placeholder="@empresa" value={data.instagram}
+            onChange={(e) => set("instagram", e.target.value)} className="mt-1.5" />
+        </div>
+        <div>
+          <Label htmlFor="linkedin">LinkedIn</Label>
+          <Input id="linkedin" placeholder="linkedin.com/company/..." value={data.linkedin}
+            onChange={(e) => set("linkedin", e.target.value)} className="mt-1.5" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Step3({ data, set, errors, t }: StepProps) {
+  return (
+    <div className="space-y-4">
+      <div>
+        <Label htmlFor="full_name">{t("auth.fullName")} *</Label>
+        <Input id="full_name" value={data.full_name}
+          onChange={(e) => set("full_name", e.target.value)} className="mt-1.5" />
+        <FieldError msg={errors.full_name} t={t} />
+      </div>
+      <div>
+        <Label htmlFor="job_title">{t("signup.jobTitle")} *</Label>
+        <Input id="job_title" value={data.job_title}
+          onChange={(e) => set("job_title", e.target.value)} className="mt-1.5" />
+        <FieldError msg={errors.job_title} t={t} />
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <Label htmlFor="phone">{t("signup.phone")} *</Label>
+          <Input id="phone" inputMode="tel" placeholder="(11) 91234-5678" value={data.phone}
+            onChange={(e) => set("phone", formatBRPhone(e.target.value))} className="mt-1.5" />
+          <FieldError msg={errors.phone} t={t} />
+        </div>
+        <div>
+          <Label htmlFor="whatsapp">{t("signup.whatsapp")} *</Label>
+          <Input id="whatsapp" inputMode="tel" placeholder="(11) 91234-5678" value={data.whatsapp}
+            onChange={(e) => set("whatsapp", formatBRPhone(e.target.value))} className="mt-1.5" />
+          <FieldError msg={errors.whatsapp} t={t} />
+        </div>
+      </div>
+      <div>
+        <Label htmlFor="preferred_language">{t("signup.preferredLanguage")} *</Label>
+        <select id="preferred_language" value={data.preferred_language}
+          onChange={(e) => set("preferred_language", e.target.value as "pt-BR" | "es")}
+          className="mt-1.5 h-9 w-full rounded-md border border-input bg-background px-3 text-sm">
+          <option value="pt-BR">Português</option>
+          <option value="es">Español</option>
+        </select>
+      </div>
+    </div>
+  );
+}
+
+function Step4({ data, set, errors, t, lang }: StepProps & { lang: "pt" | "es" }) {
+  return (
+    <div className="space-y-5">
+      <div>
+        <Label htmlFor="buyer_type">{t("signup.buyerType")} *</Label>
+        <select id="buyer_type" value={data.buyer_type}
+          onChange={(e) => set("buyer_type", e.target.value)}
+          className="mt-1.5 h-9 w-full rounded-md border border-input bg-background px-3 text-sm">
+          <option value="">—</option>
+          {TAXONOMY.buyer_types.map((b) => (
+            <option key={b.value} value={b.value}>{lang === "es" ? b.es : b.pt}</option>
+          ))}
+        </select>
+        <FieldError msg={errors.buyer_type} t={t} />
+      </div>
+      <div>
+        <Label>{t("signup.segments")}</Label>
+        <div className="mt-1.5">
+          <MultiSelectChips taxonomyKey="segments" value={data.interests_segments}
+            onChange={(v) => set("interests_segments", v)} />
+        </div>
+      </div>
+      <div>
+        <Label>{t("signup.destinations")}</Label>
+        <div className="mt-1.5">
+          <MultiSelectChips taxonomyKey="destinations" value={data.interests_destinations}
+            onChange={(v) => set("interests_destinations", v)} />
+        </div>
+        <Input className="mt-2" placeholder={t("signup.destinationsFreePlaceholder")}
+          value={data.interests_destinations_free}
+          onChange={(e) => set("interests_destinations_free", e.target.value)} />
+      </div>
+      <div>
+        <Label>{t("signup.services")}</Label>
+        <div className="mt-1.5">
+          <MultiSelectChips taxonomyKey="services" value={data.interests_services}
+            onChange={(v) => set("interests_services", v)} />
+        </div>
+      </div>
+      <div>
+        <Label htmlFor="demand_profile">{t("signup.demandProfile")}</Label>
+        <Textarea id="demand_profile" rows={3} placeholder={t("signup.demandProfilePlaceholder")}
+          value={data.demand_profile}
+          onChange={(e) => set("demand_profile", e.target.value)} className="mt-1.5" />
+      </div>
+    </div>
+  );
+}
+
+function Step5({ data, set, errors, t }: StepProps) {
+  return (
+    <div className="space-y-4">
+      <div>
+        <Label htmlFor="portfolio_pt">{t("signup.portfolioPt")}</Label>
+        <Textarea id="portfolio_pt" rows={4} value={data.portfolio_pt}
+          onChange={(e) => set("portfolio_pt", e.target.value)} className="mt-1.5" />
+      </div>
+      <div>
+        <Label htmlFor="portfolio_es">{t("signup.portfolioEs")}</Label>
+        <Textarea id="portfolio_es" rows={4} value={data.portfolio_es}
+          onChange={(e) => set("portfolio_es", e.target.value)} className="mt-1.5" />
+      </div>
+      <div>
+        <Label htmlFor="notes">{t("signup.notes")}</Label>
+        <Textarea id="notes" rows={2} value={data.notes}
+          onChange={(e) => set("notes", e.target.value)} className="mt-1.5" />
+      </div>
+      <div className="flex items-start gap-2 rounded-md border p-3">
+        <Checkbox id="consent_data_sharing" checked={data.consent_data_sharing}
+          onCheckedChange={(v) => set("consent_data_sharing", v === true)} />
+        <Label htmlFor="consent_data_sharing" className="text-sm leading-snug">
+          {t("signup.consentDataSharing")} *
+        </Label>
+      </div>
+      <FieldError msg={errors.consent_data_sharing} t={t} />
+      <div className="flex items-start gap-2 rounded-md border p-3">
+        <Checkbox id="consent_marketing" checked={data.consent_marketing}
+          onCheckedChange={(v) => set("consent_marketing", v === true)} />
+        <Label htmlFor="consent_marketing" className="text-sm leading-snug">
+          {t("signup.consentMarketing")}
+        </Label>
       </div>
     </div>
   );
