@@ -13,26 +13,9 @@ async function assertAdmin(userId: string) {
   if (!ok) throw new Error("Forbidden");
 }
 
-async function actorProfileId(userId: string): Promise<string | null> {
-  const { data } = await supabaseAdmin
-    .from("profiles")
-    .select("id")
-    .eq("auth_user_id", userId)
-    .maybeSingle();
-  return data?.id ?? null;
-}
-
 async function audit(action: string, userId: string, payload: Record<string, unknown>) {
-  try {
-    const actor = await actorProfileId(userId);
-    await supabaseAdmin.from("audit_logs").insert({
-      actor_profile_id: actor,
-      action,
-      payload: payload as never,
-    });
-  } catch {
-    // best-effort; do not block on audit failures
-  }
+  // Lightweight logger; audit_logs requires event_id which is not available here.
+  console.log(`[admin-auth] action=${action} actor=${userId}`, payload);
 }
 
 const emailSchema = z
