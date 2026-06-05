@@ -303,9 +303,19 @@
       "required": "Campo obligatorio.",
       "cnpjInvalid": "CNPJ inválido.",
       "phoneInvalid": "Teléfono inválido. Usa (DDD) número.",
+      "phoneMissingDDD": "Incluye el DDD (2 dígitos) antes del número.",
+      "phoneInvalidDDD": "El DDD informado no es válido.",
+      "phoneMissingMobile9": "Para celular, incluye el dígito 9 después del DDD.",
+      "phoneTooShort": "El número informado es inválido o está incompleto.",
       "urlInvalid": "URL inválida (usa https://...).",
       "passwordMismatch": "Las contraseñas no coinciden.",
       "consentRequired": "Debes aceptar para continuar."
+    },
+    "labels": {
+      "whatsappSameAsPhone": "WhatsApp es el mismo del teléfono"
+    },
+    "hints": {
+      "includeDDD": "Incluye el DDD (2 dígitos) antes del número"
     }
   }
 }

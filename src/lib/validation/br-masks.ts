@@ -65,18 +65,59 @@ export function formatBRPhone(value: string): string {
   return `(${ddd}) ${rest.slice(0, 5)}-${rest.slice(5)}`;
 }
 
-export function isValidBRPhone(value: string): boolean {
-  const d = onlyDigits(value);
-  if (d.length !== 10 && d.length !== 11) return false;
+export type BRPhoneInvalidReason =
+  | "missingDDD"
+  | "invalidDDD"
+  | "missingMobile9"
+  | "tooShort";
+
+export type BRPhoneValidationResult =
+  | { ok: true }
+  | { ok: false; reason: BRPhoneInvalidReason };
+
+/** Strip BR country code (+55) and a leading 0 trunk when the input is
+ * obviously a pasted/dirty international number. */
+function stripBRCountryCode(digits: string): string {
+  let d = digits;
+  if (d.startsWith("55") && d.length > 11) {
+    d = d.slice(2);
+    // After removing 55, sometimes a leading trunk 0 remains (e.g. "0 11 ...").
+    if (d.startsWith("0") && d.length > 11) d = d.slice(1);
+  }
+  return d;
+}
+
+export function validateBRPhoneDetailed(input: string): BRPhoneValidationResult {
+  const raw = onlyDigits(input ?? "");
+  if (raw.length === 0) return { ok: true };
+  const d = stripBRCountryCode(raw);
+  if (d.length < 8) return { ok: false, reason: "tooShort" };
+  if (d.length < 10) return { ok: false, reason: "missingDDD" };
+  if (d.length > 11) return { ok: false, reason: "tooShort" };
   const ddd = Number(d.slice(0, 2));
-  if (!VALID_DDD.has(ddd)) return false;
-  if (d.length === 11 && d[2] !== "9") return false;
-  return true;
+  if (!VALID_DDD.has(ddd)) return { ok: false, reason: "invalidDDD" };
+  if (d.length === 11 && d[2] !== "9") return { ok: false, reason: "missingMobile9" };
+  return { ok: true };
+}
+
+export function isValidBRPhone(value: string): boolean {
+  const r = validateBRPhoneDetailed(value);
+  // Empty is "ok" in detailed; for the boolean helper, require an actual number.
+  if (!r.ok) return false;
+  return onlyDigits(value).length >= 10;
 }
 
 /** Convert a masked/raw BR phone to E.164 (+55...). Returns "" if invalid. */
 export function toE164BR(value: string): string {
-  const d = onlyDigits(value);
-  if (!isValidBRPhone(d)) return "";
+  if (!isValidBRPhone(value)) return "";
+  const d = stripBRCountryCode(onlyDigits(value));
   return "+55" + d;
+}
+
+/** Normalize a website URL: prefix https:// when scheme is missing. */
+export function normalizeWebsiteURL(input: string): string {
+  const v = (input ?? "").trim();
+  if (!v) return "";
+  if (/^https?:\/\//i.test(v)) return v;
+  return "https://" + v;
 }
