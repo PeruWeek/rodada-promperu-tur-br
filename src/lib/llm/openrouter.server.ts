@@ -80,7 +80,7 @@ export async function chatCompletion(opts: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${opts.apiKey}`,
       "HTTP-Referer": "https://rsvp.promperu.tur.br",
-      "X-Title": "Rodada Peru - Assistente",
+      "X-Title": "Rodada de Negócios Promperu 2026 - Assistente",
     },
     body: JSON.stringify(body),
   });
@@ -98,7 +98,7 @@ export async function embed(text: string, apiKey: string): Promise<number[]> {
       "Content-Type": "application/json",
       Authorization: `Bearer ${apiKey}`,
       "HTTP-Referer": "https://rsvp.promperu.tur.br",
-      "X-Title": "Rodada Peru - RAG",
+      "X-Title": "Rodada de Negócios Promperu 2026 - RAG",
     },
     body: JSON.stringify({ model: "baai/bge-m3", input: text }),
   });

@@ -178,7 +178,7 @@ export const sendChatMessage = createServerFn({ method: "POST" })
     const systemParts: string[] = [];
     systemParts.push(
       agent.system_prompt ||
-        "Você é o Assistente do Evento Rodada Peru-Brasil 2026. Responda em PT-BR ou ES conforme o idioma do usuário. Seja objetivo e use as ferramentas disponíveis quando precisar consultar dados.",
+        "Você é o Assistente da Rodada de Negócios Promperu 2026. Responda em PT-BR ou ES conforme o idioma do usuário. Seja objetivo e use as ferramentas disponíveis quando precisar consultar dados.",
     );
     systemParts.push(`Contexto: event_id=${conv.event_id}; profile_id=${ctx.profileId}; role=${ctx.isStaff ? "staff" : "user"}.`);
 
