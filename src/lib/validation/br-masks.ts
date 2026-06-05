@@ -30,7 +30,7 @@ export function isValidCNPJ(value: string): boolean {
     const len = base.length;
     const start = len - 7;
     let sum = 0;
-    let pos = len + 1;
+    let pos = len - 7;
     for (let i = 0; i < len; i++) {
       sum += Number(base[i]) * pos--;
       if (pos < 2) pos = 9;
