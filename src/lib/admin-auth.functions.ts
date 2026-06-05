@@ -28,7 +28,7 @@ async function audit(action: string, userId: string, payload: Record<string, unk
     await supabaseAdmin.from("audit_logs").insert({
       actor_profile_id: actor,
       action,
-      payload,
+      payload: payload as never,
     });
   } catch {
     // best-effort; do not block on audit failures
