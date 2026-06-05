@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { ArrowRight, Calendar, FileText, Users2, Briefcase } from "lucide-react";
+import { ArrowRight, Calendar, FileText, Users2, Briefcase, Clock, MapPin } from "lucide-react";
 
 import { SiteHeader } from "@/components/site-header";
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,12 @@ function LandingPage() {
     { icon: Briefcase, title: t("landing.step2Title"), body: t("landing.step2Body") },
     { icon: Calendar, title: t("landing.step3Title"), body: t("landing.step3Body") },
     { icon: FileText, title: t("landing.step4Title"), body: t("landing.step4Body") },
+  ];
+
+  const schedule = [
+    { time: "08:00 – 09:00", label: t("landing.scheduleRegistration") },
+    { time: "09:00 – 14:15", label: t("landing.scheduleBusinessRound") },
+    { time: "14:15 – 17:00", label: t("landing.scheduleLunch") },
   ];
 
   return (
@@ -83,6 +89,62 @@ function LandingPage() {
                 <p className="mt-2 text-sm text-muted-foreground">{s.body}</p>
               </div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Programa & Local */}
+      <section className="border-t border-border">
+        <div className="mx-auto max-w-6xl px-4 py-16 md:py-20">
+          <div className="grid gap-8 lg:grid-cols-2">
+            {/* Schedule */}
+            <div className="rounded-2xl border border-border bg-card p-6 md:p-8">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <Clock size={20} />
+                </div>
+                <h2 className="text-2xl font-bold">{t("landing.scheduleTitle")}</h2>
+              </div>
+              <ul className="mt-6 divide-y divide-border">
+                {schedule.map((s) => (
+                  <li key={s.time} className="flex flex-col gap-1 py-4 sm:flex-row sm:items-center sm:justify-between">
+                    <span className="font-mono text-sm font-semibold text-primary">{s.time}</span>
+                    <span className="text-base text-foreground sm:text-right">{s.label}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Venue */}
+            <div className="rounded-2xl border border-border bg-card p-6 md:p-8">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <MapPin size={20} />
+                </div>
+                <h2 className="text-2xl font-bold">{t("landing.venueTitle")}</h2>
+              </div>
+              <div className="mt-6 space-y-5">
+                <div className="flex items-start gap-3">
+                  <Calendar size={18} className="mt-1 text-muted-foreground" />
+                  <div>
+                    <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      {t("landing.venueDateLabel")}
+                    </div>
+                    <div className="text-base text-foreground">{t("landing.venueDate")}</div>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <MapPin size={18} className="mt-1 text-muted-foreground" />
+                  <div>
+                    <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      {t("landing.venueAddressLabel")}
+                    </div>
+                    <div className="text-base font-semibold text-foreground">{t("landing.venueName")}</div>
+                    <div className="text-sm text-muted-foreground">{t("landing.venueAddress")}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
