@@ -463,3 +463,242 @@ function UsersTab() {
     </Card>
   );
 }
+
+function EmailsTab() {
+  const { t } = useTranslation();
+  const findFn = useServerFn(findAuthUserByEmail);
+  const confirmFn = useServerFn(adminConfirmEmail);
+  const createFn = useServerFn(adminCreateConfirmedUser);
+  const setPwdFn = useServerFn(adminSetPassword);
+
+  const [email, setEmail] = useState("");
+  const [result, setResult] = useState<
+    | { user: { id: string; email: string; email_confirmed_at: string | null; created_at: string }; hasProfile: boolean }
+    | { user: null; hasProfile: false }
+    | null
+  >(null);
+
+  const [fullName, setFullName] = useState("");
+  const [password, setPassword] = useState("");
+  const [lang, setLang] = useState<"pt-BR" | "es">("pt-BR");
+  const [createdPassword, setCreatedPassword] = useState<string | null>(null);
+  const [resetPwd, setResetPwd] = useState("");
+
+  const normalizedEmail = email.trim().toLowerCase();
+
+  const searchMut = useMutation({
+    mutationFn: async () => findFn({ data: { email: normalizedEmail } }),
+    onSuccess: (r) => {
+      setResult(r);
+      setCreatedPassword(null);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const confirmMut = useMutation({
+    mutationFn: async (userId: string) => confirmFn({ data: { userId } }),
+    onSuccess: () => {
+      toast.success(t("admin.emails.confirmed"));
+      searchMut.mutate();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const createMut = useMutation({
+    mutationFn: async () =>
+      createFn({
+        data: {
+          email: normalizedEmail,
+          full_name: fullName,
+          password,
+          preferred_language: lang,
+        },
+      }),
+    onSuccess: () => {
+      toast.success(t("admin.emails.created"));
+      setCreatedPassword(password);
+      setPassword("");
+      setFullName("");
+      searchMut.mutate();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const resetMut = useMutation({
+    mutationFn: async (userId: string) => setPwdFn({ data: { userId, password: resetPwd } }),
+    onSuccess: () => {
+      toast.success(t("admin.emails.passwordSet"));
+      setResetPwd("");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const copy = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success(t("admin.emails.copied"));
+    } catch {
+      toast.error(t("admin.emails.copyFailed"));
+    }
+  };
+
+  const notFound = result !== null && result.user === null;
+
+  return (
+    <div className="space-y-4">
+      <Card className="p-5">
+        <p className="mb-3 text-sm text-muted-foreground">{t("admin.emails.searchHelp")}</p>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <div className="relative flex-1">
+            <Mail
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+              size={16}
+            />
+            <Input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder={t("admin.emails.emailPlaceholder")}
+              className="pl-9"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && normalizedEmail) searchMut.mutate();
+              }}
+            />
+          </div>
+          <Button
+            onClick={() => searchMut.mutate()}
+            disabled={!normalizedEmail || searchMut.isPending}
+          >
+            <Search size={14} /> {t("admin.emails.search")}
+          </Button>
+        </div>
+
+        {result?.user && (
+          <div className="mt-4 rounded-md border border-border p-3">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold">{result.user.email}</p>
+                <p className="text-xs text-muted-foreground">
+                  {t("admin.emails.createdAt")}: {new Date(result.user.created_at).toLocaleString()}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {t("admin.emails.profile")}: {result.hasProfile ? t("admin.emails.yes") : t("admin.emails.no")}
+                </p>
+              </div>
+              {result.user.email_confirmed_at ? (
+                <Badge className="shrink-0" variant="default">
+                  <Check size={12} className="mr-1" />
+                  {t("admin.emails.confirmedBadge")}
+                </Badge>
+              ) : (
+                <Badge className="shrink-0" variant="secondary">
+                  {t("admin.emails.pendingBadge")}
+                </Badge>
+              )}
+            </div>
+
+            {!result.user.email_confirmed_at && (
+              <Button
+                size="sm"
+                className="mt-3"
+                onClick={() => confirmMut.mutate(result.user!.id)}
+                disabled={confirmMut.isPending}
+              >
+                {t("admin.emails.confirmNow")}
+              </Button>
+            )}
+
+            <div className="mt-4 border-t border-border pt-3">
+              <p className="mb-2 text-xs font-medium">{t("admin.emails.resetPasswordTitle")}</p>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Input
+                  type="text"
+                  value={resetPwd}
+                  onChange={(e) => setResetPwd(e.target.value)}
+                  placeholder={t("admin.emails.newPasswordPlaceholder")}
+                />
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => resetMut.mutate(result.user!.id)}
+                  disabled={resetPwd.length < 8 || resetMut.isPending}
+                >
+                  {t("admin.emails.setPassword")}
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {notFound && (
+          <p className="mt-4 text-sm text-muted-foreground">{t("admin.emails.notFound")}</p>
+        )}
+      </Card>
+
+      {notFound && (
+        <Card className="p-5">
+          <p className="mb-3 text-sm font-semibold">{t("admin.emails.createTitle")}</p>
+          <p className="mb-3 text-xs text-muted-foreground">{t("admin.emails.createHelp")}</p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-xs font-medium">{t("admin.emails.emailLabel")}</label>
+              <Input value={normalizedEmail} readOnly disabled />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium">{t("admin.emails.fullNameLabel")}</label>
+              <Input value={fullName} onChange={(e) => setFullName(e.target.value)} />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium">{t("admin.emails.passwordLabel")}</label>
+              <Input
+                type="text"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder={t("admin.emails.passwordHint")}
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium">{t("admin.emails.languageLabel")}</label>
+              <Select value={lang} onValueChange={(v) => setLang(v as "pt-BR" | "es")}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pt-BR">Português (Brasil)</SelectItem>
+                  <SelectItem value="es">Español</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <Button
+            className="mt-4"
+            onClick={() => createMut.mutate()}
+            disabled={
+              createMut.isPending ||
+              !normalizedEmail ||
+              fullName.trim().length === 0 ||
+              password.length < 8
+            }
+          >
+            {t("admin.emails.createAndConfirm")}
+          </Button>
+
+          {createdPassword && (
+            <div className="mt-4 rounded-md border border-primary/40 bg-primary/5 p-3 text-sm">
+              <p className="font-medium">{t("admin.emails.createdNotice")}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{t("admin.emails.passwordCopyHint")}</p>
+              <div className="mt-2 flex items-center gap-2">
+                <code className="flex-1 rounded bg-background px-2 py-1 font-mono text-xs">
+                  {createdPassword}
+                </code>
+                <Button size="sm" variant="outline" onClick={() => copy(createdPassword)}>
+                  <Copy size={14} /> {t("admin.emails.copy")}
+                </Button>
+              </div>
+            </div>
+          )}
+        </Card>
+      )}
+    </div>
+  );
+}
