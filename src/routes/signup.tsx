@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -16,6 +16,7 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   formatBRPhone,
   formatCNPJ,
+  normalizeWebsiteURL,
   toE164BR,
   UF_LIST,
 } from "@/lib/validation/br-masks";
@@ -89,9 +90,17 @@ function SignupPage() {
   const [errors, setErrors] = useState<Errors>({});
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
+  const [whatsappSameAsPhone, setWhatsappSameAsPhone] = useState(false);
 
   const set = <K extends keyof BuyerSignupData>(key: K, value: BuyerSignupData[K]) =>
     setData((d) => ({ ...d, [key]: value }));
+
+  // Keep whatsapp synced with phone while the checkbox is on (no loops).
+  useEffect(() => {
+    if (whatsappSameAsPhone && data.whatsapp !== data.phone) {
+      setData((d) => ({ ...d, whatsapp: d.phone }));
+    }
+  }, [whatsappSameAsPhone, data.phone, data.whatsapp]);
 
   const validateStep = (s: number): boolean => {
     const schemas = [
@@ -106,16 +115,41 @@ function SignupPage() {
       setErrors({});
       return true;
     }
-    setErrors(flattenZodErrors(r.error));
+    const flat = flattenZodErrors(r.error);
+    // Suppress whatsapp error when the field is mirrored from phone.
+    if (whatsappSameAsPhone) delete flat.whatsapp;
+    setErrors(flat);
     return false;
   };
 
   const next = () => {
+    // Step 2: normalize website before validating (covers autofill without blur).
+    if (step === 2 && data.website) {
+      const normalized = normalizeWebsiteURL(data.website);
+      if (normalized !== data.website) {
+        setData((d) => ({ ...d, website: normalized }));
+        // Re-run validation against the normalized snapshot synchronously.
+        const snapshot = { ...data, website: normalized };
+        const r = stepCompanySchema.safeParse(snapshot);
+        if (r.success) {
+          setErrors({});
+          setStep((s) => Math.min(TOTAL_STEPS, s + 1));
+          return;
+        }
+        setErrors(flattenZodErrors(r.error));
+        return;
+      }
+    }
     if (validateStep(step)) setStep((s) => Math.min(TOTAL_STEPS, s + 1));
   };
   const back = () => setStep((s) => Math.max(1, s - 1));
 
   const onFinish = async () => {
+    // Final safety: mirror whatsapp = phone if the user kept the shortcut on.
+    if (whatsappSameAsPhone && data.whatsapp !== data.phone) {
+      setData((d) => ({ ...d, whatsapp: d.phone }));
+      data.whatsapp = data.phone;
+    }
     if (!validateStep(5)) return;
     setLoading(true);
     try {
@@ -224,7 +258,14 @@ function SignupPage() {
                 <Step2 data={data} set={set} errors={errors} t={t} />
               )}
               {step === 3 && (
-                <Step3 data={data} set={set} errors={errors} t={t} />
+                <Step3
+                  data={data}
+                  set={set}
+                  errors={errors}
+                  t={t}
+                  whatsappSameAsPhone={whatsappSameAsPhone}
+                  setWhatsappSameAsPhone={setWhatsappSameAsPhone}
+                />
               )}
               {step === 4 && (
                 <Step4 data={data} set={set} errors={errors} t={t} lang={lang} />
@@ -266,8 +307,15 @@ type StepProps = {
 
 function FieldError({ msg, t }: { msg?: string; t: StepProps["t"] }) {
   if (!msg) return null;
-  const known = ["cnpjInvalid", "phoneInvalid", "urlInvalid", "passwordMismatch", "consentRequired"];
-  const text = known.includes(msg) ? t(`signup.errors.${msg}`) : t("signup.errors.required");
+  // Messages already namespaced (e.g. "signup.errors.phoneMissingDDD") are
+  // translated directly. Legacy short codes fall back to the old mapping.
+  let text: string;
+  if (msg.startsWith("signup.")) {
+    text = t(msg);
+  } else {
+    const known = ["cnpjInvalid", "phoneInvalid", "urlInvalid", "passwordMismatch", "consentRequired"];
+    text = known.includes(msg) ? t(`signup.errors.${msg}`) : t("signup.errors.required");
+  }
   return <p className="mt-1 text-xs font-medium text-destructive">{text}</p>;
 }
 
