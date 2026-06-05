@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { isValidBRPhone, isValidCNPJ, UF_LIST } from "./br-masks";
+import { isValidCNPJ, UF_LIST, validateBRPhoneDetailed } from "./br-masks";
 
 const optTrim = z.string().trim().optional().or(z.literal(""));
 
@@ -37,8 +37,32 @@ export const stepCompanySchema = z.object({
 export const stepContactSchema = z.object({
   full_name: z.string().trim().min(2).max(160),
   job_title: z.string().trim().min(2).max(120),
-  phone: z.string().refine((v) => isValidBRPhone(v), { message: "phoneInvalid" }),
-  whatsapp: z.string().refine((v) => isValidBRPhone(v), { message: "phoneInvalid" }),
+  phone: z.string().superRefine((v, ctx) => {
+    if (!v) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "signup.errors.required" });
+      return;
+    }
+    const r = validateBRPhoneDetailed(v);
+    if (!r.ok) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `signup.errors.phone${r.reason[0].toUpperCase()}${r.reason.slice(1)}`,
+      });
+    }
+  }),
+  whatsapp: z.string().superRefine((v, ctx) => {
+    if (!v) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "signup.errors.required" });
+      return;
+    }
+    const r = validateBRPhoneDetailed(v);
+    if (!r.ok) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `signup.errors.phone${r.reason[0].toUpperCase()}${r.reason.slice(1)}`,
+      });
+    }
+  }),
   preferred_language: z.enum(["pt-BR", "es"]),
 });
 
