@@ -1,23 +1,24 @@
-## Problema
+## Plano: Toggle de visibilidade de senha
 
-O CNPJ digitado (`11.229.910/0001-67`) é matematicamente válido, mas o formulário marca como inválido. A causa é um bug em `src/lib/validation/br-masks.ts` na função `isValidCNPJ`:
+### Objetivo
+Adicionar botão de "mostrar/ocultar senha" (ícone de olho) em todos os campos de senha do projeto.
 
-```ts
-let pos = len + 1;   // ← errado: começa em 13 para 12 dígitos
-```
+### Escopo
+1. **Tela de login** (`src/routes/login.tsx`) — campo "Senha"
+2. **Tela de cadastro** (`src/routes/signup.tsx`) — campos "Senha" e "Confirmar senha"
+3. **Tela de credenciais LLM** (`src/routes/_authenticated/credenciais-llm.tsx`) — campo de senha/ token
 
-O algoritmo oficial usa pesos `5,4,3,2,9,8,7,6,5,4,3,2` (e `6,...,2` para o 2º dígito), ou seja, `pos` deve começar em `len - 7` (5 para o 1º DV, 6 para o 2º). Com `len + 1` os pesos viram `13,12,11,...`, fazendo CNPJs válidos serem rejeitados.
+### Implementação
 
-## Correção
+Criar componente reutilizável `PasswordInput` em `src/components/ui/password-input.tsx`:
+- Baseado no `Input` do shadcn/ui
+- Botão de toggle à direita do campo com ícones `Eye` e `EyeOff` (Lucide)
+- Alterna entre `type="password"` e `type="text"`
+- Acessível: atributo `aria-label` no botão
 
-Em `src/lib/validation/br-masks.ts`, na função `calc` dentro de `isValidCNPJ`:
+Substituir os `<Input type="password" ...>` pelos novos componentes nas 3 rotas identificadas.
 
-- trocar `let pos = len + 1;` por `let pos = len - 7;`
-
-Nenhuma outra mudança é necessária — a lógica de redução de `pos` para 9 quando `< 2`, formatação e validações de telefone/UF permanecem iguais.
-
-## Verificação
-
-Após a alteração, validar:
-- `11.229.910/0001-67` → válido (passa no Passo 2)
-- CNPJs claramente inválidos (ex.: `11.111.111/1111-11`, dígitos errados) continuam rejeitados
+### Resultado esperado
+- Usuário pode clicar no ícone de olho para visualizar a senha digitada
+- Ícone muda para olho riscado quando a senha está visível
+- Funciona em todas as telas de autenticação do sistema

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { PasswordInput } from "@/components/ui/password-input";
 import {
   getCredentialStatus,
   saveUserCredential,
@@ -68,8 +69,7 @@ function Page() {
 
         <div className="space-y-2">
           <label className="text-sm font-medium">API Key OpenRouter</label>
-          <Input
-            type="password"
+          <PasswordInput
             placeholder="sk-or-..."
             value={key}
             onChange={(e) => setKey(e.target.value)}

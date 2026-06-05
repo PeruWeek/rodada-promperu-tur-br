@@ -8,6 +8,7 @@ import { SiteHeader } from "@/components/site-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { MultiSelectChips } from "@/components/multi-select-chips";
@@ -281,14 +282,14 @@ function Step1({ data, set, errors, t }: StepProps) {
       </div>
       <div>
         <Label htmlFor="password">{t("auth.password")} *</Label>
-        <Input id="password" type="password" autoComplete="new-password" value={data.password}
+        <PasswordInput id="password" autoComplete="new-password" value={data.password}
           onChange={(e) => set("password", e.target.value)} className="mt-1.5" />
         <p className="mt-1 text-xs text-muted-foreground">{t("signup.passwordHint")}</p>
         <FieldError msg={errors.password} t={t} />
       </div>
       <div>
         <Label htmlFor="confirmPassword">{t("signup.confirmPassword")} *</Label>
-        <Input id="confirmPassword" type="password" autoComplete="new-password" value={data.confirmPassword}
+        <PasswordInput id="confirmPassword" autoComplete="new-password" value={data.confirmPassword}
           onChange={(e) => set("confirmPassword", e.target.value)} className="mt-1.5" />
         <FieldError msg={errors.confirmPassword} t={t} />
       </div>
