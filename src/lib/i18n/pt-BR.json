@@ -263,5 +263,49 @@
     "reviewNote": "Observação",
     "noRequest": "Você ainda não enviou uma solicitação.",
     "goOnboarding": "Voltar ao cadastro"
+  },
+  "signup": {
+    "stepLabel": "Passo {{current}} de {{total}}",
+    "stepTitles": {
+      "1": "Conta",
+      "2": "Empresa",
+      "3": "Contato",
+      "4": "Perfil do comprador",
+      "5": "Portfólio & Consentimentos"
+    },
+    "finish": "Finalizar cadastro",
+    "confirmPassword": "Confirmar senha",
+    "passwordHint": "Mínimo de 8 caracteres.",
+    "country": "País",
+    "taxId": "CNPJ",
+    "legalName": "Razão social",
+    "tradeName": "Nome fantasia",
+    "city": "Cidade",
+    "state": "UF",
+    "website": "Site",
+    "jobTitle": "Cargo",
+    "phone": "Telefone",
+    "whatsapp": "WhatsApp",
+    "preferredLanguage": "Idioma preferido",
+    "buyerType": "Tipo de buyer",
+    "segments": "Segmentos de interesse",
+    "destinations": "Destinos de interesse",
+    "destinationsFreePlaceholder": "Outros destinos (separe por vírgula)",
+    "services": "Serviços de interesse",
+    "demandProfile": "Perfil de demanda",
+    "demandProfilePlaceholder": "Ex.: incentivo 100–300 pax, congressos, feiras...",
+    "portfolioPt": "Portfólio (PT)",
+    "portfolioEs": "Portfólio (ES)",
+    "notes": "Observações e preferências",
+    "consentDataSharing": "Autorizo o compartilhamento dos meus dados com os participantes da Rodada de Negócios Promperu 2026.",
+    "consentMarketing": "Quero receber comunicações sobre o evento e novidades.",
+    "errors": {
+      "required": "Campo obrigatório.",
+      "cnpjInvalid": "CNPJ inválido.",
+      "phoneInvalid": "Telefone inválido. Use (DDD) número.",
+      "urlInvalid": "URL inválida (use https://...).",
+      "passwordMismatch": "As senhas não coincidem.",
+      "consentRequired": "É necessário aceitar para continuar."
+    }
   }
 }
