@@ -11,31 +11,48 @@ interface SignupEmailProps {
   confirmationUrl: string
 }
 
+const LOGIN_URL = 'https://rodada.promperu.tur.br/login'
+
+const secondaryButton = {
+  ...button,
+  backgroundColor: '#ffffff',
+  color: PRIMARY,
+  border: `2px solid ${PRIMARY}`,
+}
+
 export const SignupEmail = ({ siteName, siteUrl, recipient, confirmationUrl }: SignupEmailProps) => (
   <Html lang="pt-BR" dir="ltr">
     <Head />
-    <Preview>Confirme seu e-mail · Confirma tu correo — {siteName}</Preview>
+    <Preview>Cadastro recebido — confirme seu e-mail e acesse sua agenda · Registro recibido — confirma tu correo y accede a tu agenda</Preview>
     <Body style={main}>
       <Container style={container}>
-        <Heading style={h1}>Confirme seu e-mail</Heading>
+        <Heading style={h1}>Cadastro recebido com sucesso!</Heading>
         <Text style={text}>
           Obrigado por se cadastrar em{' '}
-          <Link href={siteUrl} style={{ color: PRIMARY }}><strong>{siteName}</strong></Link>. Confirme seu endereço de e-mail ({recipient}) clicando no botão abaixo:
+          <Link href={siteUrl} style={{ color: PRIMARY }}><strong>{siteName}</strong></Link>. Para ativar sua conta, confirme seu endereço de e-mail ({recipient}) clicando no botão abaixo:
         </Text>
         <Button style={button} href={confirmationUrl}>Confirmar e-mail</Button>
         <Text style={{ ...text, marginTop: '16px' }}>
+          Depois de confirmar, entre com o e-mail e a senha cadastrados para acessar sua agenda da Rodada de Negócios.
+        </Text>
+        <Button style={secondaryButton} href={LOGIN_URL}>Entrar e ver minha agenda</Button>
+        <Text style={{ ...text, marginTop: '16px', fontSize: '13px', color: '#666' }}>
           Se você não criou esta conta, pode ignorar este e-mail com segurança.
         </Text>
 
         <Hr style={{ borderColor: '#eeeeee', margin: '32px 0' }} />
 
-        <Heading style={h1}>Confirma tu correo</Heading>
+        <Heading style={h1}>¡Registro recibido con éxito!</Heading>
         <Text style={text}>
           Gracias por registrarte en{' '}
-          <Link href={siteUrl} style={{ color: PRIMARY }}><strong>{siteName}</strong></Link>. Confirma tu dirección de correo ({recipient}) haciendo clic en el botón:
+          <Link href={siteUrl} style={{ color: PRIMARY }}><strong>{siteName}</strong></Link>. Para activar tu cuenta, confirma tu dirección de correo ({recipient}) haciendo clic en el botón:
         </Text>
         <Button style={button} href={confirmationUrl}>Confirmar correo</Button>
         <Text style={{ ...text, marginTop: '16px' }}>
+          Después de confirmar, ingresa con el correo y la contraseña registrados para acceder a tu agenda de la Rueda de Negocios.
+        </Text>
+        <Button style={secondaryButton} href={LOGIN_URL}>Ingresar y ver mi agenda</Button>
+        <Text style={{ ...text, marginTop: '16px', fontSize: '13px', color: '#666' }}>
           Si no creaste esta cuenta, puedes ignorar este correo con seguridad.
         </Text>
 

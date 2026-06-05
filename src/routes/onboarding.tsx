@@ -53,7 +53,7 @@ function OnboardingPage() {
         try { sessionStorage.removeItem(BUYER_SIGNUP_STORAGE_KEY); } catch { /* ignore */ }
         await qc.invalidateQueries();
         toast.success(t("onboarding.savedVisitor"));
-        navigate({ to: "/dashboard" });
+        navigate({ to: "/agenda" });
       } catch (err) {
         setAutoFinishing(false);
         toast.error(err instanceof Error ? err.message : "erro");
@@ -78,7 +78,7 @@ function OnboardingPage() {
         await supabase.from("visitor_profiles").upsert({ profile_id: profile.id });
         await qc.invalidateQueries();
         toast.success(t("onboarding.savedVisitor"));
-        navigate({ to: "/dashboard" });
+        navigate({ to: "/agenda" });
       } else {
         await requestExhibitorFn();
         await qc.invalidateQueries();
