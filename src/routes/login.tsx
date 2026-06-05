@@ -8,6 +8,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PasswordInput } from "@/components/ui/password-input";
 import { supabase } from "@/integrations/supabase/client";
 
 type LoginSearch = { reason?: string };
@@ -88,7 +89,7 @@ function LoginPage() {
           </div>
           <div>
             <Label htmlFor="password">{t("auth.password")}</Label>
-            <Input id="password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} className="mt-1.5" />
+            <PasswordInput id="password" required value={password} onChange={(e) => setPassword(e.target.value)} className="mt-1.5" />
           </div>
           <Button type="submit" className="w-full" size="lg" disabled={loading}>
             {t("auth.submitLogin")}
