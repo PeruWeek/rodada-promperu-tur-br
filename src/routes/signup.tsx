@@ -192,6 +192,7 @@ function SignupPage() {
           data: {
             full_name: data.full_name,
             preferred_language: data.preferred_language,
+            buyer_signup_payload: payload,
           },
         },
       });
@@ -211,12 +212,9 @@ function SignupPage() {
     <div className="min-h-screen bg-background">
       <SiteHeader />
       <div className="mx-auto max-w-2xl px-4 py-12">
-        <h1 className="text-3xl font-bold">{t("auth.signupTitle")}</h1>
-        <p className="mt-2 text-sm text-muted-foreground">{t("auth.signupSubtitle")}</p>
-
         {sent ? (
-          <div className="mt-8 space-y-4 rounded-lg border bg-card p-6">
-            <h2 className="text-lg font-semibold">{t("auth.checkEmailTitle")}</h2>
+          <div className="space-y-4 rounded-lg border bg-card p-6">
+            <h1 className="text-2xl font-bold">{t("auth.signupSuccessTitle")}</h1>
             <p className="text-sm text-muted-foreground">
               {t("auth.checkEmailBody", { email: data.email })}
             </p>
@@ -231,6 +229,8 @@ function SignupPage() {
           </div>
         ) : (
           <>
+            <h1 className="text-3xl font-bold">{t("auth.signupTitle")}</h1>
+            <p className="mt-2 text-sm text-muted-foreground">{t("auth.signupSubtitle")}</p>
             <div className="mt-6">
               <div className="flex items-center justify-between text-xs text-muted-foreground">
                 <span>
