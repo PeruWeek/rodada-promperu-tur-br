@@ -40,9 +40,19 @@ function OnboardingPage() {
     if (!user || !profile || autoFinishing) return;
     let raw: string | null = null;
     try { raw = sessionStorage.getItem(BUYER_SIGNUP_STORAGE_KEY); } catch { /* ignore */ }
-    if (!raw) return;
-    let payload: Record<string, unknown>;
-    try { payload = JSON.parse(raw); } catch { return; }
+    let payload: Record<string, unknown> | null = null;
+    if (raw) {
+      try { payload = JSON.parse(raw); } catch { payload = null; }
+    }
+    if (!payload) {
+      // Fallback: payload stored in auth user_metadata at signup (survives cross-device).
+      const meta = (user.user_metadata ?? {}) as Record<string, unknown>;
+      const fromMeta = meta.buyer_signup_payload;
+      if (fromMeta && typeof fromMeta === "object") {
+        payload = fromMeta as Record<string, unknown>;
+      }
+    }
+    if (!payload) return;
     setAutoFinishing(true);
     (async () => {
       try {
@@ -51,6 +61,8 @@ function OnboardingPage() {
         ) => Promise<{ error: { message: string } | null }>)("complete_buyer_signup", { p_payload: payload });
         if (error) throw error;
         try { sessionStorage.removeItem(BUYER_SIGNUP_STORAGE_KEY); } catch { /* ignore */ }
+        // Clear the metadata copy so we don't replay on subsequent visits.
+        try { await supabase.auth.updateUser({ data: { buyer_signup_payload: null } }); } catch { /* ignore */ }
         await qc.invalidateQueries();
         toast.success(t("onboarding.savedVisitor"));
         navigate({ to: "/agenda" });

@@ -1,44 +1,52 @@
-## Contexto
+## Problemas
 
-Não existe usuário com `comercial@kronedesign.com.br` em `auth.users` (verificado). Em vez de SQL pontual, vou entregar uma **aba "E-mails" reutilizável em `/admin`** que resolve o caso atual e casos futuros.
+1. **Tela pós-cadastro confusa** — o título "Cadastro para a Rodada de Negócios!" + subtítulo continuam visíveis acima do card "Cadastro recebido! Verifique seu e-mail", duplicando a mensagem.
+2. **Onboarding pede dados de novo** — o payload do wizard de 5 passos é salvo apenas em `sessionStorage`. Quando o usuário abre o link de confirmação em outro navegador/aba/dispositivo, `sessionStorage` está vazio → `/onboarding` cai no formulário manual de "Conte-nos quem você é" (empresa/país/cidade).
+3. **Perfil incompleto** — como o caminho manual rodou (em vez de `complete_buyer_signup`), apenas `companies.trade_name/country/city` foram gravados; CNPJ, UF, telefone, WhatsApp, cargo, buyer_type, segmentos, serviços, destinos, portfólio e consentimentos ficaram perdidos.
 
-## O que faz
+## Mudanças
 
-Nova aba **"E-mails"** em `/admin` (visível só para admin/staff), com dois blocos:
+### 1) `src/routes/signup.tsx` — limpar a tela de sucesso
+Quando `sent === true`, esconder o `<h1>` ("Cadastro para a Rodada…") e o `<p>` de subtítulo. Renderizar apenas o card de sucesso com:
+- Título: **"Registro realizado com sucesso!"** (nova chave i18n `auth.signupSuccessTitle`)
+- Corpo atual ("Enviamos um link de confirmação para {{email}}…") e o hint.
 
-### 1. Buscar usuário por e-mail
-- Campo + botão "Buscar". Mostra e-mail, criação, status `email_confirmed_at`, se já tem profile.
-- Se existir e estiver pendente → botão **"Confirmar e-mail agora"** (marca como confirmado direto, sem disparar envio — contorna o rate limit).
-- Se confirmado → badge verde, botão desabilitado.
-- Botão **"Definir/Resetar senha"** com campo de senha provisória.
+### 2) `src/routes/signup.tsx` — persistir o payload no `user_metadata`
+No `onFinish`, além de `sessionStorage`, passar o payload inteiro também em `options.data.buyer_signup_payload`:
 
-### 2. Criar usuário já confirmado (quando a busca não acha)
-- Campos: e-mail, nome completo, senha provisória, idioma (pt-BR/es).
-- Botão **"Criar e confirmar"** → cria já com e-mail confirmado e mostra a senha provisória para entregar ao usuário. O trigger `handle_new_user` cria o profile + role `visitor` automaticamente.
+```ts
+options: {
+  emailRedirectTo: `${window.location.origin}/onboarding`,
+  data: {
+    full_name: data.full_name,
+    preferred_language: data.preferred_language,
+    buyer_signup_payload: payload,  // <—
+  },
+}
+```
 
-### Fluxo Krone hoje
-1. `/admin` → aba "E-mails" → buscar `comercial@kronedesign.com.br` → "não encontrado".
-2. Preencher nome + senha provisória → "Criar e confirmar".
-3. Passar a senha provisória — usuário entra direto em `/login` e cai no onboarding.
+Isso garante que o payload viaje com o `auth.users` e fique disponível em qualquer dispositivo após confirmar o e-mail.
 
-## Detalhes técnicos
+### 3) `src/routes/onboarding.tsx` — ler o payload do `user_metadata` como fallback
+Antes de mostrar o seletor visitante/expositor, tentar nesta ordem:
+1. `sessionStorage[BUYER_SIGNUP_STORAGE_KEY]` (já existe);
+2. `user.user_metadata.buyer_signup_payload` (novo fallback);
+Se qualquer um existir → chamar `complete_buyer_signup`, limpar sessionStorage, invalidar queries, `navigate({ to: "/agenda" })`. Mostrar tela "Carregando…" enquanto roda.
 
-**Arquivos novos / alterados:**
+Resultado: o link de confirmação leva direto para `/agenda`, sem reabrir onboarding nem perder dados — independente do dispositivo/navegador.
 
-- `src/lib/admin-auth.functions.ts` (novo) — server functions protegidas por `requireSupabaseAuth` + `assertAdmin` (admin|staff) em **todas** elas, inclusive a de busca (evita enumeração de e-mails). `supabaseAdmin` importado dentro do handler com `await import(...)` (segue o padrão `tanstack-supabase-import-graph`):
-  - `findAuthUserByEmail({ email })` — chama `supabaseAdmin.auth.admin.listUsers({ page:1, perPage:200 })` e faz **match exato** em JS comparando `user.email?.toLowerCase() === email.toLowerCase()` (o filtro nativo do Supabase aceita parcial; precisamos do exato). Retorna `{ user: { id, email, email_confirmed_at, created_at } | null, hasProfile: boolean }`.
-  - `adminConfirmEmail({ userId })` — `updateUserById(userId, { email_confirm: true })`.
-  - `adminCreateConfirmedUser({ email, password, full_name, preferred_language })` — `createUser({ email, password, email_confirm: true, user_metadata: { full_name, preferred_language } })`. O trigger `handle_new_user` já roda para Admin API e popula `profiles` + `user_roles` a partir de `raw_user_meta_data` (verificado no schema).
-  - `adminSetPassword({ userId, password })` — `updateUserById(userId, { password })`.
-  - Todas inserem linha em `audit_logs` (tabela já existe: `actor_profile_id`, `action`, `payload jsonb`). Ação ex.: `admin.email_confirm`, payload com `target_user_id` e `target_email`.
-  - Validação Zod: e-mail válido + lowercase, senha mín. 8, `full_name` 1–120, idioma `pt-BR|es`.
-- `src/routes/_authenticated/admin.tsx` — adicionar `<TabsTrigger value="emails">` e componente `EmailsTab` com os dois blocos. Usa `useServerFn` + `useMutation`/`useQuery` no mesmo padrão de `UsersTab`/`RequestsTab`. Toasts `sonner` para sucesso/erro. Senha provisória mostrada num bloco copiável após criar.
-- `src/lib/i18n/pt-BR.json` e `es.json` — strings em `admin.tabs.emails` e `admin.emails.*`.
+### 4) `src/lib/i18n/pt-BR.json` e `es.json`
+Adicionar `auth.signupSuccessTitle`:
+- pt-BR: `"Registro realizado com sucesso!"`
+- es: `"¡Registro realizado con éxito!"`
 
-**Sem migration, sem novo secret** (usa `SUPABASE_SERVICE_ROLE_KEY` já presente). Service Role permanece **só no servidor**.
+E ajustar `auth.checkEmailTitle` para virar subtítulo do card (ou removê-lo, já que o novo título cumpre o papel).
 
-## Fora de escopo
+## Escopo / fora do escopo
 
-- Sem mudanças em `/signup`, `/login` ou nos e-mails transacionais — o rate limit do Supabase Auth se resolve contornando o envio.
-- Sem listagem geral / paginação — apenas busca por e-mail.
-- O ponto sobre WhatsApp no signup que você mencionou não está incluído neste plano; se quiser, abro depois separado.
+- Não mexe em RPCs, schema, RLS, e-mails transacionais nem no fluxo de expositor.
+- Não toca em `/admin` nem em `admin-auth.functions.ts`.
+- Usuários que já passaram pelo bug manual continuam podendo completar dados em `/profile` normalmente — esta mudança previne o problema para novos cadastros.
+
+## Caso atual (Krone)
+Como a conta `comercial@kronedesign.com.br` já passou pelo fluxo quebrado, a recuperação dela é manual em `/profile` (ou refazendo o cadastro após excluir o usuário no `/admin → E-mails`). A correção evita que isso aconteça com os próximos.
