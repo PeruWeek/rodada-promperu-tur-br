@@ -8,6 +8,7 @@ import { Plus, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useProfile, hasRole } from "@/hooks/use-profile";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -359,11 +360,11 @@ function PasswordCard() {
         </p>
         <div>
           <Label htmlFor="newPw">{t("profile.newPassword", { defaultValue: "Nova senha" })}</Label>
-          <Input id="newPw" type="password" autoComplete="new-password" value={pw} onChange={(e) => setPw(e.target.value)} className="mt-1.5" minLength={8} required />
+          <PasswordInput id="newPw" autoComplete="new-password" value={pw} onChange={(e) => setPw(e.target.value)} className="mt-1.5" minLength={8} required />
         </div>
         <div>
           <Label htmlFor="newPw2">{t("profile.confirmPassword", { defaultValue: "Confirmar nova senha" })}</Label>
-          <Input id="newPw2" type="password" autoComplete="new-password" value={pw2} onChange={(e) => setPw2(e.target.value)} className="mt-1.5" minLength={8} required />
+          <PasswordInput id="newPw2" autoComplete="new-password" value={pw2} onChange={(e) => setPw2(e.target.value)} className="mt-1.5" minLength={8} required />
         </div>
         <div className="flex justify-end">
           <Button type="submit" disabled={saving}>
