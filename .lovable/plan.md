@@ -1,30 +1,17 @@
 ## Diagnóstico
 
-O e-mail que você recebeu ("Confirm your signup") veio de `no-reply@auth.lovable.cloud` em inglês — é o template padrão da Lovable, e não o template bilíngue (PT/ES) que já existe no projeto em `src/routes/lovable/email/auth/webhook.ts` + `src/lib/email-templates/signup.tsx`.
+O usuário `comercial@kronedesign.com.br` (empresa "Teste Expositor") tem o papel `exhibitor` no `user_roles`, mas **não possui linha em `exhibitor_profiles`**.
 
-Isso indica que o webhook de e-mails de autenticação ainda não está ativado/conectado ao backend de auth, mesmo o domínio `rsvp.promperu.tur.br` estando verificado.
+A página de busca (Explore) lista expositores fazendo `SELECT FROM exhibitor_profiles` com join em `companies` e `profiles`. Sem a linha em `exhibitor_profiles`, o expositor não aparece nas buscas dos visitantes — mesmo tendo o papel correto.
 
-O remetente correto, conforme já configurado no projeto, é:
-- **From:** `Rodada de Negócios Promperu 2026 <rodada@promperu.tur.br>`
-- **Domínio de envio (DKIM/SPF):** `rsvp.promperu.tur.br` (verificado)
-- **Assunto:** `Confirme seu e-mail · Confirma tu correo`
-- **Conteúdo:** bilíngue PT/ES com botão "Confirmar e-mail / Confirmar correo" e link de login.
+Causa provável: o papel foi atribuído por uma via que não passou pelo trigger de aprovação de `exhibitor_requests` (que é o que cria automaticamente a linha em `exhibitor_profiles`). Verificado: é o único expositor nessa situação.
 
 ## O que vou fazer
 
-1. Re-executar o scaffold dos templates de e-mail de autenticação com sobrescrita confirmada, para garantir que o webhook fique registrado e ativado no hook do Supabase Auth (sem alterar o conteúdo dos templates bilíngues já personalizados — caso o scaffold tente sobrescrevê-los, mantemos a versão atual do `signup.tsx` e demais templates customizados).
-2. Confirmar que o roteamento `/lovable/email/auth/webhook` está publicado e que o Supabase Auth está apontando para ele.
-3. Pedir que você publique novamente o app, se necessário, para que o webhook entre em vigor em produção.
+1. **Backfill via migração**: inserir a linha em `exhibitor_profiles` para o profile `de3f87be-f26f-4e81-aec8-32debf09e490` (com `ON CONFLICT DO NOTHING`), para que o expositor passe a aparecer imediatamente nas buscas.
+2. **Prevenção**: adicionar uma migração com um trigger em `user_roles` que, sempre que um usuário receber `role = 'exhibitor'`, garanta automaticamente a existência da linha correspondente em `exhibitor_profiles` (via `INSERT ... ON CONFLICT DO NOTHING`). Isso evita que esse problema volte a ocorrer por qualquer caminho administrativo futuro.
 
-## Como validar depois
+## Validação
 
-- Fazer um novo cadastro com um e-mail de teste.
-- O e-mail deve chegar:
-  - De `rodada@promperu.tur.br` (exibido como "Rodada de Negócios Promperu 2026").
-  - Com assunto bilíngue PT/ES.
-  - Com o conteúdo "Cadastro recebido com sucesso! / ¡Registro recibido con éxito!".
-- Caso ainda chegue o template padrão da Lovable, monitorar em **Cloud → Emails** o status do hook e da fila.
-
-## Observação
-
-O template em PT/ES e o remetente já estão corretos no código — não precisa alterar o conteúdo. O ajuste é apenas de ativação do hook personalizado.
+- Após a migração, o expositor "Teste Expositor" deve aparecer na busca em /explore para qualquer visitante.
+- Novos perfis promovidos a `exhibitor` por qualquer rota (admin, trigger de request, ou direto) terão a linha em `exhibitor_profiles` criada automaticamente.
