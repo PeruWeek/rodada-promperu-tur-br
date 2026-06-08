@@ -23,7 +23,9 @@ import {
 import {
   BUYER_SIGNUP_STORAGE_KEY,
   type BuyerSignupData,
+  type AdditionalContact,
   stepAccountSchema,
+  stepAdditionalContactsSchema,
   stepBuyerProfileSchema,
   stepCompanySchema,
   stepContactSchema,
@@ -41,7 +43,7 @@ export const Route = createFileRoute("/signup")({
   component: SignupPage,
 });
 
-const TOTAL_STEPS = 5;
+const TOTAL_STEPS = 6;
 
 const emptyData: BuyerSignupData = {
   email: "",
@@ -55,11 +57,16 @@ const emptyData: BuyerSignupData = {
   website: "",
   instagram: "",
   linkedin: "",
+  address: "",
+  general_phone: "",
+  specialty: "",
+  import_profile: "",
   full_name: "",
   job_title: "",
   phone: "",
   whatsapp: "",
   preferred_language: "pt-BR",
+  additional_contacts: [],
   buyer_type: "",
   interests_segments: [],
   interests_destinations: [],
@@ -112,6 +119,7 @@ function SignupPage() {
       stepAccountSchema,
       stepCompanySchema,
       stepContactSchema,
+      stepAdditionalContactsSchema,
       stepBuyerProfileSchema,
       stepPortfolioSchema,
     ];
