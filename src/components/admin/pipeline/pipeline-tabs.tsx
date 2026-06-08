@@ -427,13 +427,14 @@ function FollowUpTab({ isAdmin }: Props) {
   });
 
   const mutPatch = useMutation({
-    mutationFn: (v: { id: string; patch: Parameters<typeof updateFn>[0]["data"]["patch"] }) =>
-      updateFn({ data: v }),
+    mutationFn: (v: { id: string; patch: Record<string, unknown> }) =>
+      updateFn({ data: v as { id: string; patch: never } }),
     onSuccess: () => { toast.success("Atualizado"); qc.invalidateQueries({ queryKey: ["pipeline-followups"] }); },
     onError: (e: Error) => toast.error(e.message),
   });
   const mutComplete = useMutation({
-    mutationFn: (v: Parameters<typeof completeFn>[0]["data"]) => completeFn({ data: v }),
+    mutationFn: (v: { id: string; nextAction: NextAction; dueAt: string | null; channel: string }) =>
+      completeFn({ data: v }),
     onSuccess: () => { toast.success("Ação registrada"); qc.invalidateQueries({ queryKey: ["pipeline-followups"] }); },
     onError: (e: Error) => toast.error(e.message),
   });
