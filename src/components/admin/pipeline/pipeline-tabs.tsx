@@ -426,9 +426,15 @@ function FollowUpTab({ isAdmin }: Props) {
     queryFn: () => listFn({ data: { mine, sort } }),
   });
 
+  type PatchInput = {
+    next_action?: NextAction;
+    priority?: Priority;
+    next_action_due_at?: string | null;
+    notes?: string | null;
+  };
   const mutPatch = useMutation({
-    mutationFn: (v: { id: string; patch: Record<string, unknown> }) =>
-      updateFn({ data: v as { id: string; patch: never } }),
+    mutationFn: (v: { id: string; patch: PatchInput }) =>
+      updateFn({ data: v }),
     onSuccess: () => { toast.success("Atualizado"); qc.invalidateQueries({ queryKey: ["pipeline-followups"] }); },
     onError: (e: Error) => toast.error(e.message),
   });
