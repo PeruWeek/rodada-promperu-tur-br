@@ -28,7 +28,7 @@ function AuthenticatedLayout() {
   const { data: reqData, isLoading: reqLoading } = useQuery({
     queryKey: ["my-exhibitor-request"],
     queryFn: () => fetchReq(),
-    enabled: !!profile && !isAdminStaff,
+    enabled: !!profile && !isAdminStaff && primaryRole === "exhibitor",
   });
 
   useEffect(() => {
@@ -56,16 +56,30 @@ function AuthenticatedLayout() {
     if (isAdminStaff) return;
 
     const req = reqData?.request;
-    const needsOnboarding = !profile.company_id && !req;
     const onPending = pathname === "/pending-exhibitor";
     const onProfile = pathname === "/profile";
 
-    if (needsOnboarding && pathname !== "/onboarding") {
-      navigate({ to: "/onboarding" });
+    // Exhibitors: gate by request status only; never send to onboarding.
+    if (primaryRole === "exhibitor") {
+      if (req && (req.status === "pending" || req.status === "rejected") && !onPending && !onProfile) {
+        navigate({ to: "/pending-exhibitor" });
+      }
       return;
     }
-    if (req && (req.status === "pending" || req.status === "rejected") && !onPending && !onProfile) {
-      navigate({ to: "/pending-exhibitor" });
+
+    // Visitors: only send to onboarding if they truly have no company yet
+    // (legacy users created before the buyer-signup form). Anyone with a
+    // company_id already completed signup and should never see the picker.
+    if (primaryRole === "visitor") {
+      if (!profile.company_id && pathname !== "/onboarding" && !onProfile) {
+        navigate({ to: "/onboarding" });
+      }
+      return;
+    }
+
+    // Fallback: no role at all yet → onboarding.
+    if (!primaryRole && pathname !== "/onboarding" && !onProfile) {
+      navigate({ to: "/onboarding" });
     }
   }, [profile, profileLoading, reqData, reqLoading, isAdminStaff, primaryRole, pathname, navigate]);
 
