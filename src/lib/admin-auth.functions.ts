@@ -165,7 +165,11 @@ export const adminUpdateUserProfile = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
     await assertAdminStrict(context.userId);
-    const patch: Record<string, unknown> = {};
+    const patch: {
+      full_name?: string;
+      preferred_language?: "pt-BR" | "es";
+      is_active?: boolean;
+    } = {};
     if (data.full_name !== undefined) patch.full_name = data.full_name;
     if (data.preferred_language !== undefined) patch.preferred_language = data.preferred_language;
     if (data.is_active !== undefined) patch.is_active = data.is_active;
