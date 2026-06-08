@@ -163,7 +163,7 @@ function SignupPage() {
       setData((d) => ({ ...d, whatsapp: d.phone }));
       data.whatsapp = data.phone;
     }
-    if (!validateStep(5)) return;
+    if (!validateStep(TOTAL_STEPS)) return;
     setLoading(true);
     try {
       // Persist non-auth payload for /onboarding to consume after email confirm.
@@ -176,11 +176,22 @@ function SignupPage() {
         website: data.website,
         instagram: data.instagram,
         linkedin: data.linkedin,
+        address: data.address,
+        general_phone: toE164BR(data.general_phone) || data.general_phone,
+        specialty: data.specialty,
+        import_profile: data.import_profile,
         full_name: data.full_name,
         job_title: data.job_title,
         phone: toE164BR(data.phone),
         whatsapp: toE164BR(data.whatsapp),
         preferred_language: data.preferred_language,
+        additional_contacts: data.additional_contacts.map((c) => ({
+          name: c.name,
+          job_title: c.job_title,
+          email: c.email,
+          phone_whatsapp: toE164BR(c.phone_whatsapp) || c.phone_whatsapp,
+          linkedin: c.linkedin,
+        })),
         buyer_type: data.buyer_type,
         interests_segments: data.interests_segments,
         interests_destinations: data.interests_destinations,
