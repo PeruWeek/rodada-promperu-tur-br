@@ -1,31 +1,21 @@
-# Reconectar Supabase via Lovable Cloud
+Criar o usuário admin `rodada@promperu.tur.br` no novo backend, já com email confirmado e role `admin`.
 
-## Objetivo
-Restaurar a injeção automática de `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` e **`SUPABASE_SERVICE_ROLE_KEY`** no runtime das server functions, eliminando o erro `Missing SUPABASE_SERVICE_ROLE_KEY` que bloqueia o login do admin (`comercial@kronedesign.com.br`) e demais fluxos administrativos.
+## Passos
 
-## Pré-requisitos (a fazer antes da reconexão)
-1. **Rotacionar o service_role** no painel do Supabase:
-   - Acessar Supabase Dashboard → Project Settings → API → "Reset service_role secret"
-   - Isso invalida a chave antiga que foi exposta no chat
-   - Copiar a nova chave gerada (será usada apenas internamente pela Lovable Cloud, você não precisa colá-la em lugar nenhum)
+1. Rodar um script (via `bun`) usando `SUPABASE_SERVICE_ROLE_KEY` para:
+   - Verificar se o email já existe em `auth.users`.
+   - Se existir: resetar senha para `RodadaAdmin#2026` e marcar `email_confirm: true`.
+   - Se não existir: criar com `email_confirm: true` e metadata `full_name: "Administrador Rodada"`, `preferred_language: "pt-BR"`.
+   - O trigger `handle_new_user` cria `profiles` + role `visitor` automaticamente.
 
-## Passos da reconexão (UI Lovable)
-1. Abrir **Project Settings** (engrenagem no canto superior direito do editor)
-2. Ir até a aba **Cloud**
-3. Localizar o card do Supabase conectado (projeto `wislupcekobgdizjduze`)
-4. Clicar em **Reconnect** (ou Disconnect + Connect, se "Reconnect" não estiver visível)
-5. Autorizar novamente o acesso da Lovable ao projeto Supabase
-6. Aguardar a confirmação de que as três variáveis foram sincronizadas
+2. Promover a `admin` via `INSERT ... ON CONFLICT DO NOTHING` em `public.user_roles` para o `user_id` retornado.
 
-## Validação pós-reconexão
-1. Abrir o app em preview e tentar logar com `comercial@kronedesign.com.br`
-2. Confirmar que o erro `Missing SUPABASE_SERVICE_ROLE_KEY` não aparece mais nos logs
-3. Testar uma ação administrativa (ex.: buscar perfis em /admin) para validar que `supabaseAdmin` está funcionando
+3. Validar com `SELECT` em `auth.users`, `profiles` e `user_roles`.
 
-## O que NÃO precisa ser feito
-- Nenhuma alteração de código — `src/integrations/supabase/client.server.ts` e `src/integrations/supabase/auth-middleware.ts` já leem `process.env.SUPABASE_*` corretamente
-- Nenhum secret adicional (`APP_SUPABASE_*`) — a Opção B foi descartada em favor desta
-- Nenhuma migração de banco
+## Credenciais que serão configuradas
 
-## Quando me avisar
-Me responda assim que concluir os passos da UI (ou se aparecer algum erro durante a reconexão). Eu então rodo a validação dos logs/login com você.
+- Email: `rodada@promperu.tur.br`
+- Senha temporária: `RodadaAdmin#2026` (trocar depois em Perfil)
+- Role: `admin`
+
+Nenhum arquivo do projeto será alterado.
