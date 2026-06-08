@@ -56,19 +56,28 @@ function LoginPage() {
   };
 
   const onResend = async () => {
-    if (!email) {
+    const target = email.trim().toLowerCase();
+    if (!target) {
       toast.error(t("auth.resendNeedEmail"));
       return;
     }
     setResending(true);
     const { error } = await supabase.auth.resend({
       type: "signup",
-      email,
+      email: target,
       options: { emailRedirectTo: `${window.location.origin}/onboarding` },
     });
     setResending(false);
     if (error) {
-      toast.error(error.message);
+      const msg = error.message?.toLowerCase() ?? "";
+      if (msg.includes("rate") || msg.includes("limit") || msg.includes("seconds")) {
+        toast.error("Aguarde alguns segundos antes de pedir outro reenvio.");
+      } else if (msg.includes("already") || msg.includes("confirmed")) {
+        toast.info("Este e-mail já está confirmado. Tente entrar normalmente.");
+      } else {
+        toast.error("Não foi possível reenviar agora. Tente novamente em instantes.");
+      }
+      setCooldown(30);
       return;
     }
     toast.success(t("auth.resendSuccess"));
