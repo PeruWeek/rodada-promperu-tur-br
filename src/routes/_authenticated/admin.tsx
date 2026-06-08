@@ -17,6 +17,7 @@ import {
   adminSetPassword,
   adminSetPrimaryRole,
   adminUpdateUserProfile,
+  adminUpsertUserCompany,
   findAuthUserByEmail,
 } from "@/lib/admin-auth.functions";
 import {
@@ -422,6 +423,8 @@ type AdminUser = {
   email: string | null;
   is_active: boolean;
   preferred_language: "pt-BR" | "es";
+  company_id: string | null;
+  company: { id: string; trade_name: string; country_code: string; city: string | null } | null;
   roles: AppRole[];
 };
 
@@ -434,6 +437,7 @@ function UsersTab({ currentAuthUserId }: { currentAuthUserId: string | null }) {
   const updateFn = useServerFn(adminUpdateUserProfile);
   const deleteFn = useServerFn(adminDeleteUser);
   const setRoleFn = useServerFn(adminSetPrimaryRole);
+  const upsertCompanyFn = useServerFn(adminUpsertUserCompany);
 
   const [createOpen, setCreateOpen] = useState(false);
   const [editing, setEditing] = useState<AdminUser | null>(null);
@@ -468,10 +472,26 @@ function UsersTab({ currentAuthUserId }: { currentAuthUserId: string | null }) {
       full_name?: string;
       preferred_language?: "pt-BR" | "es";
       is_active?: boolean;
-    }) => updateFn({ data: v }),
+      company?: { trade_name: string; country_code: string; city?: string } | null;
+    }) => {
+      const { company, ...profilePatch } = v;
+      await updateFn({ data: profilePatch });
+      if (company && company.trade_name.trim().length > 0) {
+        await upsertCompanyFn({
+          data: {
+            userId: v.userId,
+            trade_name: company.trade_name,
+            country_code: company.country_code || "BR",
+            city: company.city,
+          },
+        });
+      }
+      return { ok: true };
+    },
     onSuccess: () => {
       toast.success(t("admin.users.saved"));
       invalidate();
+      setEditing(null);
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -521,7 +541,7 @@ function UsersTab({ currentAuthUserId }: { currentAuthUserId: string | null }) {
           <p className="py-4 text-sm text-muted-foreground">{t("admin.users.empty")}</p>
         ) : (
           list.map((u) => {
-            const primary = u.roles[0] ?? null;
+            const primary = getPrimaryRole(u.roles);
             const isSelf = !!currentAuthUserId && u.auth_user_id === currentAuthUserId;
             return (
               <div key={u.id} className="rounded-md border border-border p-3">
