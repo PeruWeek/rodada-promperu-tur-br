@@ -1557,6 +1557,10 @@ export type Database = {
         Returns: boolean
       }
       is_admin_or_staff: { Args: { _user_id: string }; Returns: boolean }
+      log_audit: {
+        Args: { p_action: string; p_event_id?: string; p_payload: Json }
+        Returns: undefined
+      }
       match_rag_chunks: {
         Args: { p_event_id: string; p_query: string; p_top_k?: number }
         Returns: {
