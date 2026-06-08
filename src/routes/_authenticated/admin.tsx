@@ -27,6 +27,7 @@ import {
 } from "@/lib/staff.functions";
 import { generalCheckIn } from "@/lib/checkin.functions";
 import { listExhibitorRequests, reviewExhibitorRequest } from "@/lib/exhibitor-requests.functions";
+import { PipelineDashboard } from "@/components/admin/pipeline/pipeline-tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -96,19 +97,22 @@ function AdminPage() {
       <p className="mt-1 text-sm text-muted-foreground">{t("admin.subtitle")}</p>
 
       {isStaffOnly ? (
-        <Tabs defaultValue="staffAgenda" className="mt-6">
+        <Tabs defaultValue="dashboard" className="mt-6">
           <TabsList className="flex flex-wrap h-auto">
+            <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
             <TabsTrigger value="staffAgenda">{t("admin.tabs.staffAgenda")}</TabsTrigger>
             <TabsTrigger value="checkin">{t("admin.tabs.checkin")}</TabsTrigger>
             <TabsTrigger value="users">{t("admin.tabs.users")}</TabsTrigger>
           </TabsList>
+          <TabsContent value="dashboard" className="mt-4"><PipelineDashboard isAdmin={false} /></TabsContent>
           <TabsContent value="staffAgenda" className="mt-4"><StaffAgendaTab isAdmin={false} /></TabsContent>
           <TabsContent value="checkin" className="mt-4"><CheckinTab /></TabsContent>
           <TabsContent value="users" className="mt-4"><UsersTab currentAuthUserId={me?.auth_user_id ?? null} canDelete={false} /></TabsContent>
         </Tabs>
       ) : (
-        <Tabs defaultValue="tables" className="mt-6">
+        <Tabs defaultValue="dashboard" className="mt-6">
           <TabsList className="flex flex-wrap h-auto">
+            <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
             <TabsTrigger value="tables">{t("admin.tabs.tables")}</TabsTrigger>
             <TabsTrigger value="staffAgenda">{t("admin.tabs.staffAgenda")}</TabsTrigger>
             <TabsTrigger value="checkin">{t("admin.tabs.checkin")}</TabsTrigger>
@@ -117,6 +121,7 @@ function AdminPage() {
             <TabsTrigger value="requests">{t("admin.tabs.requests")}</TabsTrigger>
             <TabsTrigger value="emails">{t("admin.tabs.emails")}</TabsTrigger>
           </TabsList>
+          <TabsContent value="dashboard" className="mt-4"><PipelineDashboard isAdmin /></TabsContent>
           <TabsContent value="tables" className="mt-4"><TablesTab /></TabsContent>
           <TabsContent value="staffAgenda" className="mt-4"><StaffAgendaTab isAdmin /></TabsContent>
           <TabsContent value="checkin" className="mt-4"><CheckinTab /></TabsContent>
