@@ -415,97 +415,495 @@ function CheckinTab() {
 
 const ROLE_OPTIONS: AppRole[] = ["admin", "staff", "exhibitor", "visitor"];
 
-function UsersTab() {
+type AdminUser = {
+  id: string;
+  auth_user_id: string | null;
+  full_name: string;
+  email: string | null;
+  is_active: boolean;
+  preferred_language: "pt-BR" | "es";
+  roles: AppRole[];
+};
+
+function UsersTab({ currentAuthUserId }: { currentAuthUserId: string | null }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const [q, setQ] = useState("");
-  const setRoleFn = useServerFn(setUserRole);
-  const searchFn = useServerFn(adminSearchProfiles);
+  const listFn = useServerFn(adminListUsers);
+  const createFn = useServerFn(adminCreateConfirmedUser);
+  const updateFn = useServerFn(adminUpdateUserProfile);
+  const deleteFn = useServerFn(adminDeleteUser);
+  const setRoleFn = useServerFn(adminSetPrimaryRole);
+
+  const [createOpen, setCreateOpen] = useState(false);
+  const [editing, setEditing] = useState<AdminUser | null>(null);
+  const [deleting, setDeleting] = useState<AdminUser | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ["admin-users", q],
-    queryFn: async () => {
-      const { profiles: profs } = await searchFn({
-        data: { q, requireAuthUser: true },
-      });
-      const ids = (profs ?? []).map((p) => p.auth_user_id).filter(Boolean) as string[];
-      const { data: roles } = ids.length
-        ? await supabase.from("user_roles").select("user_id, role").in("user_id", ids)
-        : { data: [] as Array<{ user_id: string; role: AppRole }> };
-      return (profs ?? []).map((p) => ({
-        ...p,
-        roles: (roles ?? []).filter((r) => r.user_id === p.auth_user_id).map((r) => r.role as AppRole),
-      }));
-    },
+    queryFn: () => listFn({ data: { q } }),
   });
 
-  const mut = useMutation({
-    mutationFn: async (v: { userId: string; role: AppRole; action: "add" | "remove" }) =>
-      setRoleFn({ data: v }),
+  const invalidate = () => qc.invalidateQueries({ queryKey: ["admin-users"] });
+
+  const createMut = useMutation({
+    mutationFn: async (v: {
+      email: string;
+      password: string;
+      full_name: string;
+      preferred_language: "pt-BR" | "es";
+      role: AppRole;
+    }) => createFn({ data: v }),
     onSuccess: () => {
-      toast.success(t("admin.users.saved"));
-      qc.invalidateQueries({ queryKey: ["admin-users"] });
+      toast.success(t("admin.users.created"));
+      setCreateOpen(false);
+      invalidate();
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const list = useMemo(() => data ?? [], [data]);
+  const updateMut = useMutation({
+    mutationFn: async (v: {
+      userId: string;
+      full_name?: string;
+      preferred_language?: "pt-BR" | "es";
+      is_active?: boolean;
+    }) => updateFn({ data: v }),
+    onSuccess: () => {
+      toast.success(t("admin.users.saved"));
+      invalidate();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const roleMut = useMutation({
+    mutationFn: async (v: { userId: string; role: AppRole }) => setRoleFn({ data: v }),
+    onSuccess: () => {
+      toast.success(t("admin.users.saved"));
+      invalidate();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: async (userId: string) => deleteFn({ data: { userId } }),
+    onSuccess: () => {
+      toast.success(t("admin.users.deleted"));
+      setDeleting(null);
+      invalidate();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const list = useMemo(() => (data?.users ?? []) as AdminUser[], [data]);
 
   return (
     <Card className="p-5">
-      <div className="relative">
-        <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
-        <Input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder={t("admin.users.searchPlaceholder")}
-          className="pl-9"
-        />
+      <div className="flex flex-col gap-3 sm:flex-row">
+        <div className="relative flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
+          <Input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder={t("admin.users.searchPlaceholder")}
+            className="pl-9"
+          />
+        </div>
+        <Button onClick={() => setCreateOpen(true)}>
+          <Plus size={14} /> {t("admin.users.create.button")}
+        </Button>
       </div>
+
       <div className="mt-3 space-y-2">
         {isLoading ? (
           <Skeleton className="h-40 w-full" />
         ) : list.length === 0 ? (
           <p className="py-4 text-sm text-muted-foreground">{t("admin.users.empty")}</p>
         ) : (
-          list.map((u) => (
-            <div key={u.id} className="rounded-md border border-border p-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <p className="text-sm font-medium">{u.full_name}</p>
-                  <p className="text-xs text-muted-foreground">{u.email}</p>
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {ROLE_OPTIONS.map((r) => {
-                    const active = u.roles.includes(r);
-                    return (
-                      <button
-                        key={r}
-                        type="button"
-                        disabled={mut.isPending || !u.auth_user_id}
-                        onClick={() =>
-                          mut.mutate({
-                            userId: u.auth_user_id!,
-                            role: r,
-                            action: active ? "remove" : "add",
-                          })
-                        }
-                        className={`rounded-full border px-3 py-1 text-xs transition ${
-                          active
-                            ? "border-primary bg-primary text-primary-foreground"
-                            : "border-border text-muted-foreground hover:border-primary"
-                        }`}
-                      >
-                        {t(`roles.${r}`)}
-                      </button>
-                    );
-                  })}
+          list.map((u) => {
+            const primary = u.roles[0] ?? null;
+            const isSelf = !!currentAuthUserId && u.auth_user_id === currentAuthUserId;
+            return (
+              <div key={u.id} className="rounded-md border border-border p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium">
+                      {u.full_name}
+                      {!u.is_active && (
+                        <Badge variant="secondary" className="ml-2">{t("admin.users.inactive")}</Badge>
+                      )}
+                    </p>
+                    <p className="text-xs text-muted-foreground">{u.email}</p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Select
+                      value={primary ?? "visitor"}
+                      onValueChange={(v) =>
+                        u.auth_user_id &&
+                        roleMut.mutate({ userId: u.auth_user_id, role: v as AppRole })
+                      }
+                      disabled={roleMut.isPending || !u.auth_user_id || (isSelf && primary === "admin")}
+                    >
+                      <SelectTrigger className="w-36">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {ROLE_OPTIONS.map((r) => (
+                          <SelectItem key={r} value={r}>{t(`roles.${r}`)}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button size="sm" variant="outline" onClick={() => setEditing(u)}>
+                      <Pencil size={14} />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => setDeleting(u)}
+                      disabled={isSelf}
+                      title={isSelf ? t("admin.users.cannotDeleteSelf") : undefined}
+                    >
+                      <Trash2 size={14} />
+                    </Button>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
+
+      <CreateUserDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        onSubmit={(v) => createMut.mutate(v)}
+        submitting={createMut.isPending}
+      />
+
+      <EditUserDialog
+        user={editing}
+        onClose={() => setEditing(null)}
+        onSubmit={(patch) => {
+          if (!editing?.auth_user_id) return;
+          updateMut.mutate({ userId: editing.auth_user_id, ...patch });
+          setEditing(null);
+        }}
+      />
+
+      <AlertDialog open={!!deleting} onOpenChange={(o) => !o && setDeleting(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("admin.users.delete.title")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("admin.users.delete.confirm", { name: deleting?.full_name ?? "" })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleting?.auth_user_id && deleteMut.mutate(deleting.auth_user_id)}
+            >
+              {t("admin.users.delete.action")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </Card>
+  );
+}
+
+function CreateUserDialog({
+  open,
+  onOpenChange,
+  onSubmit,
+  submitting,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  onSubmit: (v: {
+    email: string;
+    password: string;
+    full_name: string;
+    preferred_language: "pt-BR" | "es";
+    role: AppRole;
+  }) => void;
+  submitting: boolean;
+}) {
+  const { t } = useTranslation();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [lang, setLang] = useState<"pt-BR" | "es">("pt-BR");
+  const [role, setRole] = useState<AppRole>("visitor");
+
+  useEffect(() => {
+    if (!open) {
+      setEmail(""); setPassword(""); setFullName(""); setLang("pt-BR"); setRole("visitor");
+    }
+  }, [open]);
+
+  const valid = email.trim().length > 3 && password.length >= 8 && fullName.trim().length > 0;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{t("admin.users.create.title")}</DialogTitle>
+        </DialogHeader>
+        <div className="grid gap-3">
+          <div>
+            <Label className="text-xs">{t("admin.users.create.email")}</Label>
+            <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+          </div>
+          <div>
+            <Label className="text-xs">{t("admin.users.create.password")}</Label>
+            <Input type="text" value={password} onChange={(e) => setPassword(e.target.value)} placeholder={t("admin.users.create.passwordHint")} />
+          </div>
+          <div>
+            <Label className="text-xs">{t("admin.users.create.fullName")}</Label>
+            <Input value={fullName} onChange={(e) => setFullName(e.target.value)} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs">{t("admin.users.create.language")}</Label>
+              <Select value={lang} onValueChange={(v) => setLang(v as "pt-BR" | "es")}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pt-BR">Português (BR)</SelectItem>
+                  <SelectItem value="es">Español</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs">{t("admin.users.primaryRole")}</Label>
+              <Select value={role} onValueChange={(v) => setRole(v as AppRole)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {ROLE_OPTIONS.map((r) => (
+                    <SelectItem key={r} value={r}>{t(`roles.${r}`)}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={() => onOpenChange(false)}>{t("common.cancel")}</Button>
+          <Button
+            disabled={!valid || submitting}
+            onClick={() => onSubmit({ email: email.trim().toLowerCase(), password, full_name: fullName.trim(), preferred_language: lang, role })}
+          >
+            {t("admin.users.create.button")}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function EditUserDialog({
+  user,
+  onClose,
+  onSubmit,
+}: {
+  user: AdminUser | null;
+  onClose: () => void;
+  onSubmit: (patch: { full_name?: string; preferred_language?: "pt-BR" | "es"; is_active?: boolean }) => void;
+}) {
+  const { t } = useTranslation();
+  const [fullName, setFullName] = useState("");
+  const [lang, setLang] = useState<"pt-BR" | "es">("pt-BR");
+  const [isActive, setIsActive] = useState(true);
+
+  useEffect(() => {
+    if (user) {
+      setFullName(user.full_name);
+      setLang(user.preferred_language);
+      setIsActive(user.is_active);
+    }
+  }, [user]);
+
+  return (
+    <Dialog open={!!user} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{t("admin.users.edit.title")}</DialogTitle>
+        </DialogHeader>
+        <div className="grid gap-3">
+          <div>
+            <Label className="text-xs">{t("admin.users.create.fullName")}</Label>
+            <Input value={fullName} onChange={(e) => setFullName(e.target.value)} />
+          </div>
+          <div>
+            <Label className="text-xs">{t("admin.users.create.language")}</Label>
+            <Select value={lang} onValueChange={(v) => setLang(v as "pt-BR" | "es")}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="pt-BR">Português (BR)</SelectItem>
+                <SelectItem value="es">Español</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex items-center justify-between rounded-md border border-border p-3">
+            <Label htmlFor="user-active">{t("admin.users.active")}</Label>
+            <Switch id="user-active" checked={isActive} onCheckedChange={setIsActive} />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose}>{t("common.cancel")}</Button>
+          <Button
+            onClick={() =>
+              onSubmit({ full_name: fullName.trim(), preferred_language: lang, is_active: isActive })
+            }
+          >
+            {t("common.save")}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function StaffAssignmentsTab() {
+  const { t } = useTranslation();
+  const qc = useQueryClient();
+  const listFn = useServerFn(listStaffAssignments);
+  const saveFn = useServerFn(setStaffTableAssignment);
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["admin-staff-assignments"],
+    queryFn: () => listFn({ data: {} }),
+  });
+
+  const mut = useMutation({
+    mutationFn: async (v: {
+      eventId: string;
+      tableId: string;
+      staffProfileId: string;
+      assigned: boolean;
+    }) => saveFn({ data: v }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin-staff-assignments"] }),
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  if (isLoading) return <Skeleton className="h-64 w-full" />;
+  if (!data?.eventId) {
+    return <Card className="p-5 text-sm text-muted-foreground">{t("admin.staff.noEvent")}</Card>;
+  }
+  if (data.staffOptions.length === 0) {
+    return <Card className="p-5 text-sm text-muted-foreground">{t("admin.staff.noStaff")}</Card>;
+  }
+
+  return (
+    <Card className="p-5">
+      <p className="mb-3 text-sm text-muted-foreground">{t("admin.staff.help")}</p>
+      <div className="space-y-3">
+        {data.tables.map((tbl) => (
+          <div key={tbl.id} className="rounded-md border border-border p-3">
+            <p className="mb-2 text-sm font-semibold">
+              {t("admin.staff.tableLabel", { n: tbl.table_number })}
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {data.staffOptions.map((s) => {
+                const assigned = data.assignments.some(
+                  (a) => a.table_id === tbl.id && a.staff_profile_id === s.id,
+                );
+                return (
+                  <button
+                    key={s.id}
+                    type="button"
+                    disabled={mut.isPending}
+                    onClick={() =>
+                      mut.mutate({
+                        eventId: data.eventId!,
+                        tableId: tbl.id,
+                        staffProfileId: s.id,
+                        assigned: !assigned,
+                      })
+                    }
+                    className={`rounded-full border px-3 py-1 text-xs transition ${
+                      assigned
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-border text-muted-foreground hover:border-primary"
+                    }`}
+                  >
+                    {s.full_name}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+function StaffAgendaTab({ isAdmin }: { isAdmin: boolean }) {
+  const { t } = useTranslation();
+  const agendaFn = useServerFn(getMyStaffAgenda);
+  const listAssignFn = useServerFn(listStaffAssignments);
+  const [staffFilter, setStaffFilter] = useState<string>("__me");
+
+  const { data: assignData } = useQuery({
+    queryKey: ["admin-staff-assignments"],
+    queryFn: () => listAssignFn({ data: {} }),
+    enabled: isAdmin,
+  });
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["staff-agenda", isAdmin ? staffFilter : "self"],
+    queryFn: () =>
+      agendaFn({
+        data: isAdmin && staffFilter !== "__me" ? { staffProfileId: staffFilter } : {},
+      }),
+  });
+
+  return (
+    <Card className="p-5">
+      {isAdmin && (
+        <div className="mb-4 max-w-sm">
+          <Label className="text-xs">{t("admin.staffAgenda.filterStaff")}</Label>
+          <Select value={staffFilter} onValueChange={setStaffFilter}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__me">{t("admin.staffAgenda.allForMe")}</SelectItem>
+              {(assignData?.staffOptions ?? []).map((s) => (
+                <SelectItem key={s.id} value={s.id}>{s.full_name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+      {isLoading ? (
+        <Skeleton className="h-40 w-full" />
+      ) : (data?.meetings ?? []).length === 0 ? (
+        <p className="py-4 text-sm text-muted-foreground">{t("admin.staffAgenda.empty")}</p>
+      ) : (
+        <div className="space-y-2">
+          {data!.meetings.map((m) => (
+            <div key={m.id} className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border p-3">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold">
+                  {m.start_at ? new Date(m.start_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}
+                  {" · "}
+                  {t("admin.staff.tableLabel", { n: m.table_number ?? "?" })}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {m.visitor_name ?? "—"}
+                  {m.visitor_company ? ` · ${m.visitor_company}` : ""}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {t("admin.staffAgenda.exhibitor")}: {m.exhibitor_company ?? m.exhibitor_name ?? "—"}
+                </p>
+              </div>
+              <Badge variant={m.checkin_status ? "default" : "secondary"} className="shrink-0">
+                {m.checkin_status ? t("admin.staffAgenda.checked") : t("admin.staffAgenda.notChecked")}
+              </Badge>
+            </div>
+          ))}
+        </div>
+      )}
     </Card>
   );
 }
