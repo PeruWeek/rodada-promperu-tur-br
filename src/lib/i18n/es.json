@@ -356,8 +356,6 @@
     "tradeName": "Nombre comercial",
     "taxIdHelp": "Informe el CNPJ de la empresa",
     "legalNameHelp": "Informe la razón social de la empresa",
-    "registrationId": "ID de registro",
-    "registrationIdHelp": "Informe el ID de registro proporcionado por la organización",
     "city": "Ciudad",
     "state": "Estado (UF)",
     "website": "Sitio web",
