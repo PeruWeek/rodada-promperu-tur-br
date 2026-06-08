@@ -37,7 +37,6 @@ export function SiteHeader() {
     if (primaryRole === "exhibitor") {
       return [
         { to: "/dashboard", label: t("nav.dashboard") },
-        { to: "/explore", label: t("nav.explore") },
         { to: "/table-agenda", label: t("nav.tableAgenda") },
         { to: "/profile", label: t("nav.profile") },
       ];
