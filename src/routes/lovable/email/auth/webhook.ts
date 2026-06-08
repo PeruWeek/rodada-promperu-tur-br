@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { render } from '@react-email/components'
+import { renderAsync } from '@react-email/components'
 import { parseEmailWebhookPayload } from '@lovable.dev/email-js'
 import { WebhookError, verifyWebhookRequest } from '@lovable.dev/webhooks-js'
 import { createClient } from '@supabase/supabase-js'
@@ -12,12 +12,12 @@ import { EmailChangeEmail } from '@/lib/email-templates/email-change'
 import { ReauthenticationEmail } from '@/lib/email-templates/reauthentication'
 
 const EMAIL_SUBJECTS: Record<string, string> = {
-  signup: 'Confirme seu e-mail · Confirma tu correo',
-  invite: 'Você foi convidado · Has sido invitado',
-  magiclink: 'Seu link de acesso · Tu enlace de acceso',
-  recovery: 'Redefinir senha · Restablecer contraseña',
-  email_change: 'Confirme seu novo e-mail · Confirma tu nuevo correo',
-  reauthentication: 'Seu código de verificação · Tu código de verificación',
+  signup: 'Confirm your email',
+  invite: "You've been invited",
+  magiclink: 'Your login link',
+  recovery: 'Reset your password',
+  email_change: 'Confirm your new email',
+  reauthentication: 'Your verification code',
 }
 
 // Template mapping
@@ -31,10 +31,10 @@ const EMAIL_TEMPLATES: Record<string, React.ComponentType<any>> = {
 }
 
 // Configuration
-const SITE_NAME = "Rodada de Negócios Promperu 2026"
+const SITE_NAME = "rodada-promperu-tur-br"
 const SENDER_DOMAIN = "rsvp.promperu.tur.br"
 const ROOT_DOMAIN = "promperu.tur.br"
-const FROM_ADDRESS = "rodada@promperu.tur.br"
+const FROM_DOMAIN = "promperu.tur.br"
 
 function redactEmail(email: string | null | undefined): string {
   if (!email) return '***'
@@ -145,8 +145,8 @@ export const Route = createFileRoute("/lovable/email/auth/webhook")({
 
         // Render React Email to HTML and plain text
         const element = React.createElement(EmailTemplate, templateProps)
-        const html = await render(element)
-        const text = await render(element, { plainText: true })
+        const html = await renderAsync(element)
+        const text = await renderAsync(element, { plainText: true })
 
         // Enqueue email for async processing by the dispatcher (process-email-queue).
         const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
@@ -177,7 +177,7 @@ export const Route = createFileRoute("/lovable/email/auth/webhook")({
             run_id,
             message_id: messageId,
             to: payload.data.email,
-            from: `${SITE_NAME} <${FROM_ADDRESS}>`,
+            from: `${SITE_NAME} <noreply@${FROM_DOMAIN}>`,
             sender_domain: SENDER_DOMAIN,
             subject: EMAIL_SUBJECTS[emailType] || 'Notification',
             html,
