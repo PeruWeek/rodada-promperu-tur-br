@@ -51,6 +51,7 @@ const emptyData: BuyerSignupData = {
   confirmPassword: "",
   tax_id: "",
   legal_name: "",
+  registration_id: "",
   trade_name: "",
   city: "",
   state_code: "",
@@ -171,6 +172,7 @@ function SignupPage() {
         trade_name: data.trade_name,
         legal_name: data.legal_name,
         tax_id: data.tax_id,
+        registration_id: data.registration_id,
         city: data.city,
         state_code: data.state_code,
         website: data.website,
@@ -381,16 +383,26 @@ function Step2({ data, set, errors, t }: StepProps) {
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
-          <Label htmlFor="tax_id">{t("signup.taxId")}</Label>
+          <Label htmlFor="tax_id">{t("signup.taxId")} *</Label>
           <Input id="tax_id" inputMode="numeric" placeholder="00.000.000/0000-00" value={data.tax_id}
             onChange={(e) => set("tax_id", formatCNPJ(e.target.value))} className="mt-1.5" />
+          <p className="mt-1 text-xs text-muted-foreground">{t("signup.taxIdHelp")}</p>
           <FieldError msg={errors.tax_id} t={t} />
         </div>
         <div>
-          <Label htmlFor="legal_name">{t("signup.legalName")}</Label>
+          <Label htmlFor="legal_name">{t("signup.legalName")} *</Label>
           <Input id="legal_name" value={data.legal_name}
             onChange={(e) => set("legal_name", e.target.value)} className="mt-1.5" />
+          <p className="mt-1 text-xs text-muted-foreground">{t("signup.legalNameHelp")}</p>
+          <FieldError msg={errors.legal_name} t={t} />
         </div>
+      </div>
+      <div>
+        <Label htmlFor="registration_id">{t("signup.registrationId")} *</Label>
+        <Input id="registration_id" value={data.registration_id}
+          onChange={(e) => set("registration_id", e.target.value)} className="mt-1.5" />
+        <p className="mt-1 text-xs text-muted-foreground">{t("signup.registrationIdHelp")}</p>
+        <FieldError msg={errors.registration_id} t={t} />
       </div>
       <div>
         <Label htmlFor="trade_name">{t("signup.tradeName")} *</Label>

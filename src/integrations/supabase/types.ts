@@ -158,6 +158,7 @@ export type Database = {
           legal_name: string | null
           linkedin: string | null
           phone: string | null
+          registration_id: string | null
           specialty: string | null
           state_code: string | null
           tax_id: string | null
@@ -177,6 +178,7 @@ export type Database = {
           legal_name?: string | null
           linkedin?: string | null
           phone?: string | null
+          registration_id?: string | null
           specialty?: string | null
           state_code?: string | null
           tax_id?: string | null
@@ -196,6 +198,7 @@ export type Database = {
           legal_name?: string | null
           linkedin?: string | null
           phone?: string | null
+          registration_id?: string | null
           specialty?: string | null
           state_code?: string | null
           tax_id?: string | null
