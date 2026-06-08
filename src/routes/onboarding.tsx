@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { useProfile } from "@/hooks/use-profile";
+import { useProfile, getPrimaryRole } from "@/hooks/use-profile";
 import { requestExhibitorAccess } from "@/lib/exhibitor-requests.functions";
 import { BUYER_SIGNUP_STORAGE_KEY } from "@/lib/validation/buyer-signup.schema";
 
@@ -34,6 +34,19 @@ function OnboardingPage() {
   const [autoFinishing, setAutoFinishing] = useState(false);
 
   if (!authLoading && !user) { navigate({ to: "/login" }); return null; }
+
+  // If the user already has a role/profile set up, skip the kind picker entirely.
+  useEffect(() => {
+    if (!profile) return;
+    const primary = getPrimaryRole(profile.roles);
+    if (primary === "admin" || primary === "staff") {
+      navigate({ to: "/admin" });
+    } else if (primary === "exhibitor") {
+      navigate({ to: "/dashboard" });
+    } else if (primary === "visitor" && profile.company_id) {
+      navigate({ to: "/agenda" });
+    }
+  }, [profile, navigate]);
 
   // If the buyer wizard left a pending payload, finalize automatically and skip the kind picker.
   useEffect(() => {
