@@ -1,52 +1,31 @@
-## Problemas
+# Reconectar Supabase via Lovable Cloud
 
-1. **Tela pós-cadastro confusa** — o título "Cadastro para a Rodada de Negócios!" + subtítulo continuam visíveis acima do card "Cadastro recebido! Verifique seu e-mail", duplicando a mensagem.
-2. **Onboarding pede dados de novo** — o payload do wizard de 5 passos é salvo apenas em `sessionStorage`. Quando o usuário abre o link de confirmação em outro navegador/aba/dispositivo, `sessionStorage` está vazio → `/onboarding` cai no formulário manual de "Conte-nos quem você é" (empresa/país/cidade).
-3. **Perfil incompleto** — como o caminho manual rodou (em vez de `complete_buyer_signup`), apenas `companies.trade_name/country/city` foram gravados; CNPJ, UF, telefone, WhatsApp, cargo, buyer_type, segmentos, serviços, destinos, portfólio e consentimentos ficaram perdidos.
+## Objetivo
+Restaurar a injeção automática de `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` e **`SUPABASE_SERVICE_ROLE_KEY`** no runtime das server functions, eliminando o erro `Missing SUPABASE_SERVICE_ROLE_KEY` que bloqueia o login do admin (`comercial@kronedesign.com.br`) e demais fluxos administrativos.
 
-## Mudanças
+## Pré-requisitos (a fazer antes da reconexão)
+1. **Rotacionar o service_role** no painel do Supabase:
+   - Acessar Supabase Dashboard → Project Settings → API → "Reset service_role secret"
+   - Isso invalida a chave antiga que foi exposta no chat
+   - Copiar a nova chave gerada (será usada apenas internamente pela Lovable Cloud, você não precisa colá-la em lugar nenhum)
 
-### 1) `src/routes/signup.tsx` — limpar a tela de sucesso
-Quando `sent === true`, esconder o `<h1>` ("Cadastro para a Rodada…") e o `<p>` de subtítulo. Renderizar apenas o card de sucesso com:
-- Título: **"Registro realizado com sucesso!"** (nova chave i18n `auth.signupSuccessTitle`)
-- Corpo atual ("Enviamos um link de confirmação para {{email}}…") e o hint.
+## Passos da reconexão (UI Lovable)
+1. Abrir **Project Settings** (engrenagem no canto superior direito do editor)
+2. Ir até a aba **Cloud**
+3. Localizar o card do Supabase conectado (projeto `wislupcekobgdizjduze`)
+4. Clicar em **Reconnect** (ou Disconnect + Connect, se "Reconnect" não estiver visível)
+5. Autorizar novamente o acesso da Lovable ao projeto Supabase
+6. Aguardar a confirmação de que as três variáveis foram sincronizadas
 
-### 2) `src/routes/signup.tsx` — persistir o payload no `user_metadata`
-No `onFinish`, além de `sessionStorage`, passar o payload inteiro também em `options.data.buyer_signup_payload`:
+## Validação pós-reconexão
+1. Abrir o app em preview e tentar logar com `comercial@kronedesign.com.br`
+2. Confirmar que o erro `Missing SUPABASE_SERVICE_ROLE_KEY` não aparece mais nos logs
+3. Testar uma ação administrativa (ex.: buscar perfis em /admin) para validar que `supabaseAdmin` está funcionando
 
-```ts
-options: {
-  emailRedirectTo: `${window.location.origin}/onboarding`,
-  data: {
-    full_name: data.full_name,
-    preferred_language: data.preferred_language,
-    buyer_signup_payload: payload,  // <—
-  },
-}
-```
+## O que NÃO precisa ser feito
+- Nenhuma alteração de código — `src/integrations/supabase/client.server.ts` e `src/integrations/supabase/auth-middleware.ts` já leem `process.env.SUPABASE_*` corretamente
+- Nenhum secret adicional (`APP_SUPABASE_*`) — a Opção B foi descartada em favor desta
+- Nenhuma migração de banco
 
-Isso garante que o payload viaje com o `auth.users` e fique disponível em qualquer dispositivo após confirmar o e-mail.
-
-### 3) `src/routes/onboarding.tsx` — ler o payload do `user_metadata` como fallback
-Antes de mostrar o seletor visitante/expositor, tentar nesta ordem:
-1. `sessionStorage[BUYER_SIGNUP_STORAGE_KEY]` (já existe);
-2. `user.user_metadata.buyer_signup_payload` (novo fallback);
-Se qualquer um existir → chamar `complete_buyer_signup`, limpar sessionStorage, invalidar queries, `navigate({ to: "/agenda" })`. Mostrar tela "Carregando…" enquanto roda.
-
-Resultado: o link de confirmação leva direto para `/agenda`, sem reabrir onboarding nem perder dados — independente do dispositivo/navegador.
-
-### 4) `src/lib/i18n/pt-BR.json` e `es.json`
-Adicionar `auth.signupSuccessTitle`:
-- pt-BR: `"Registro realizado com sucesso!"`
-- es: `"¡Registro realizado con éxito!"`
-
-E ajustar `auth.checkEmailTitle` para virar subtítulo do card (ou removê-lo, já que o novo título cumpre o papel).
-
-## Escopo / fora do escopo
-
-- Não mexe em RPCs, schema, RLS, e-mails transacionais nem no fluxo de expositor.
-- Não toca em `/admin` nem em `admin-auth.functions.ts`.
-- Usuários que já passaram pelo bug manual continuam podendo completar dados em `/profile` normalmente — esta mudança previne o problema para novos cadastros.
-
-## Caso atual (Krone)
-Como a conta `comercial@kronedesign.com.br` já passou pelo fluxo quebrado, a recuperação dela é manual em `/profile` (ou refazendo o cadastro após excluir o usuário no `/admin → E-mails`). A correção evita que isso aconteça com os próximos.
+## Quando me avisar
+Me responda assim que concluir os passos da UI (ou se aparecer algum erro durante a reconexão). Eu então rodo a validação dos logs/login com você.
