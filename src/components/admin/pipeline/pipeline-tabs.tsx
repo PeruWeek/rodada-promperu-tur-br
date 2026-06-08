@@ -161,10 +161,10 @@ function Distribution({ title, rows }: { title: string; rows: Array<{ key: strin
 }
 
 type AlertRow = {
-  id: string;
+  id: string | null;
   company_trade_name: string | null;
-  primary_contact_name: string | null;
-  region_label: string | null;
+  primary_contact_name?: string | null;
+  region_label?: string | null;
 };
 function AlertList({ title, rows }: { title: string; rows: AlertRow[] }) {
   return (
@@ -175,7 +175,7 @@ function AlertList({ title, rows }: { title: string; rows: AlertRow[] }) {
       ) : (
         <ul className="divide-y divide-border">
           {rows.map((r) => (
-            <li key={r.id} className="py-2 text-sm">
+            <li key={r.id ?? Math.random()} className="py-2 text-sm">
               <div className="font-medium">{r.company_trade_name ?? "—"}</div>
               <div className="text-xs text-muted-foreground">
                 {r.primary_contact_name ?? "—"}{r.region_label ? ` · ${r.region_label}` : ""}
@@ -426,14 +426,21 @@ function FollowUpTab({ isAdmin }: Props) {
     queryFn: () => listFn({ data: { mine, sort } }),
   });
 
+  type PatchInput = {
+    next_action?: NextAction;
+    priority?: Priority;
+    next_action_due_at?: string | null;
+    notes?: string | null;
+  };
   const mutPatch = useMutation({
-    mutationFn: (v: { id: string; patch: Parameters<typeof updateFn>[0]["data"]["patch"] }) =>
+    mutationFn: (v: { id: string; patch: PatchInput }) =>
       updateFn({ data: v }),
     onSuccess: () => { toast.success("Atualizado"); qc.invalidateQueries({ queryKey: ["pipeline-followups"] }); },
     onError: (e: Error) => toast.error(e.message),
   });
   const mutComplete = useMutation({
-    mutationFn: (v: Parameters<typeof completeFn>[0]["data"]) => completeFn({ data: v }),
+    mutationFn: (v: { id: string; nextAction: NextAction; dueAt: string | null; channel: string }) =>
+      completeFn({ data: v }),
     onSuccess: () => { toast.success("Ação registrada"); qc.invalidateQueries({ queryKey: ["pipeline-followups"] }); },
     onError: (e: Error) => toast.error(e.message),
   });
