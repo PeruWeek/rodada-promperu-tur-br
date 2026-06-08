@@ -1,33 +1,36 @@
-## Problemas identificados
+## Regras consolidadas (resumo das suas instruções)
 
-**1) Admin `rodada@promperu.tur.br` aparece como "Visitante"**
-No banco esse usuário tem DUAS roles em `user_roles`: `visitor` e `admin` (legado, antes do `adminSetPrimaryRole` que limpa e regrava). O painel admin (`src/routes/_authenticated/admin.tsx`, linha 524) faz `u.roles[0] ?? null`, ou seja, pega a primeira role retornada pelo banco — que nesse caso veio `visitor`. Por isso o dropdown mostra "Visitante" mesmo o usuário sendo admin de fato. O resto do app funciona porque usa `hasRole(..., "admin")`.
+- **Cadastro público pelo formulário**: somente para **visitantes (compradores)**. Expositores nunca se cadastram sozinhos pelo site.
+- **Cadastro de expositores**: criado por **admin ou staff** no painel.
+- **Edição de usuários (qualquer um)**: admin **e** staff.
+- **Exclusão de usuários**: **somente admin**.
 
-**2) Visitante `luizantoniotibirica@gmail.com` cai no onboarding**
-No banco ele tem `role=visitor` mas `company_id IS NULL`. O guard em `_authenticated.tsx` manda visitante sem company para `/onboarding`. E o onboarding ainda mostra o seletor "Visitante / Expositor" (perfil que ele já tem). Além disso o `EditUserDialog` do admin só salva `full_name / preferred_language / is_active` — não há campo de empresa, então "atualizar pela admin" nunca cria a `company` e o visitante segue caindo no onboarding.
+## Causa raiz do problema atual
 
-## Correções
+`luizantoniotibirica@gmail.com` é visitante e tem em `auth.users.raw_user_meta_data.full_name` = **"Luiz Antonio Tibiriça"** (gravado no signup), mas em `profiles.full_name` ficou **"Escritorio Promperu"** — foi sobrescrito em algum momento (edição admin ou payload do buyer-signup antigo). O onboarding atual para visitor já com role definido **não tem o campo "Nome completo"**, então o usuário não consegue corrigir nesse fluxo (só via "Perfil").
 
-### A. UI da lista de usuários no admin
-`src/routes/_authenticated/admin.tsx`:
-- Trocar `const primary = u.roles[0] ?? null;` por `getPrimaryRole(u.roles)` (já importado), com prioridade `admin > staff > exhibitor > visitor`. Isso fará a linha do `rodada@…` mostrar "Administrador".
-- `disabled` do Select considera `isSelf && primary === "admin"` (já correto após o fix).
+## O que vou fazer
 
-### B. Limpar roles duplicadas no banco
-Migration única que, para cada `user_id` com mais de uma role, mantém apenas a de maior prioridade (admin > staff > exhibitor > visitor) e adiciona um índice único `(user_id)` em `user_roles` (hoje o unique é `(user_id, role)`, permitindo múltiplas). Isso evita que o problema volte. Server fn `adminSetPrimaryRole` já faz delete+insert, então passa a respeitar o unique sem mudança.
+### 1. Onboarding passa a pedir "Nome completo" (visitor)
+Em `src/routes/onboarding.tsx`, no formulário de empresa:
+- Adicionar campo **"Nome completo"** no topo, pré-preenchido com `profile.full_name`.
+- No submit, fazer `UPDATE profiles SET full_name = ... WHERE id = profile.id` antes do `onboard_company` (RLS de update próprio já existe).
 
-### C. Onboarding não pergunta perfil quando já existe role
-`src/routes/onboarding.tsx`:
-- Se `primaryRole === "visitor"` e `!company_id`: pré-selecionar `kind="visitor"`, ocultar os dois botões de escolha e mostrar direto o formulário "Empresa / País / Cidade".
-- Se `primaryRole === "exhibitor"` e `!company_id`: idem com `kind="exhibitor"`.
-- Mantém o seletor apenas quando o usuário não tem role nenhuma (caso novo OAuth).
+### 2. Admin painel: permissões corretas
+- `adminCreateConfirmedUser`, `adminUpdateUserProfile`, `adminUpsertUserCompany`, `adminSetPrimaryRole`, `adminConfirmEmail`, `adminSetPassword`: **admin ou staff** (trocar `assertAdminStrict` por `assertAdmin`).
+- `adminDeleteUser`: **somente admin** (mantém `assertAdminStrict`).
+- Na UI de `admin.tsx`, ocultar o botão "Excluir" para quem é staff (usar `hasRole(roles, "admin")`).
 
-### D. Admin pode definir empresa do usuário ao editar
-`EditUserDialog` em `admin.tsx`: adicionar campos `Empresa (nome) / País / Cidade`. Ao salvar, se o usuário não tem company, criar via uma nova server fn `adminUpsertUserCompany` (usa `supabaseAdmin`, cria `companies` e seta `profiles.company_id`); se já tem, atualiza os campos. Isso resolve "atualizando dados pela admin não grava" — passa a gravar empresa também, e o visitante deixa de cair no onboarding na próxima entrada.
+### 3. Bloquear signup público de expositor
+- Em `src/routes/signup.tsx` / fluxo de onboarding, remover o caminho "Expositor" do cadastro público. Onboarding já trata visitor por padrão; ajustar o seletor para mostrar só "Visitante" quando o usuário chega via signup público.
+- A página `/signup` (formulário público) continua exclusiva para visitante/comprador.
 
-## Critérios de aceite
+### 4. Corrigir o nome do Luiz agora (data fix)
+Atualizar `profiles.full_name = 'Luiz Antonio Tibiriça'` para o `auth_user_id` dele (valor vindo do próprio metadata de signup). Empresa "Kronedesign" permanece.
 
-- Linha do `rodada@promperu.tur.br` na aba Usuários mostra "Administrador".
-- Nenhum usuário possui mais de uma role em `user_roles`.
-- Visitante já cadastrado (com role) entra direto no app; se faltar empresa, vê só o formulário de empresa (sem o seletor de perfil).
-- Admin consegue preencher empresa/país/cidade de um usuário pelo diálogo de edição e isso persiste no banco.
+## Critérios de aceitação
+- Visitor recém-criado vê **Nome completo + Empresa + País + Cidade** no onboarding e a edição persiste em `profiles.full_name`.
+- Staff consegue criar/editar usuários (incluindo expositores) mas **não** vê o botão Excluir.
+- Admin consegue tudo, inclusive excluir.
+- Não existe mais opção "Cadastre-se como expositor" no fluxo público; expositor só é criado pelo painel.
+- Perfil do Luiz mostra "Luiz Antonio Tibiriça".

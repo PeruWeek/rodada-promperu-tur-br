@@ -50,7 +50,7 @@ export const findAuthUserByEmail = createServerFn({ method: "POST" })
   .inputValidator((input) => z.object({ email: emailSchema }).parse(input))
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
-    await assertAdminStrict(context.userId);
+    await assertAdmin(context.userId);
     const user = await findUserByEmailExact(data.email);
     if (!user) return { user: null as null, hasProfile: false };
     const { data: prof } = await supabaseAdmin
@@ -73,7 +73,7 @@ export const adminConfirmEmail = createServerFn({ method: "POST" })
   .inputValidator((input) => z.object({ userId: z.string().uuid() }).parse(input))
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
-    await assertAdminStrict(context.userId);
+    await assertAdmin(context.userId);
     const { data: updated, error } = await supabaseAdmin.auth.admin.updateUserById(data.userId, {
       email_confirm: true,
     });
@@ -99,7 +99,11 @@ export const adminCreateConfirmedUser = createServerFn({ method: "POST" })
   )
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
-    await assertAdminStrict(context.userId);
+    await assertAdmin(context.userId);
+    // Only admin can create another admin
+    if (data.role === "admin") {
+      await assertAdminStrict(context.userId);
+    }
     const { data: created, error } = await supabaseAdmin.auth.admin.createUser({
       email: data.email,
       password: data.password,
@@ -140,7 +144,7 @@ export const adminSetPassword = createServerFn({ method: "POST" })
   )
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
-    await assertAdminStrict(context.userId);
+    await assertAdmin(context.userId);
     const { error } = await supabaseAdmin.auth.admin.updateUserById(data.userId, {
       password: data.password,
     });
@@ -164,7 +168,7 @@ export const adminUpdateUserProfile = createServerFn({ method: "POST" })
   )
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
-    await assertAdminStrict(context.userId);
+    await assertAdmin(context.userId);
     const patch: {
       full_name?: string;
       preferred_language?: "pt-BR" | "es";
@@ -199,7 +203,7 @@ export const adminUpsertUserCompany = createServerFn({ method: "POST" })
   )
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
-    await assertAdminStrict(context.userId);
+    await assertAdmin(context.userId);
     const { data: prof, error: pErr } = await supabaseAdmin
       .from("profiles")
       .select("id, company_id")
@@ -263,7 +267,11 @@ export const adminSetPrimaryRole = createServerFn({ method: "POST" })
   )
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
-    await assertAdminStrict(context.userId);
+    await assertAdmin(context.userId);
+    // Only admin can grant/revoke admin or staff
+    if (data.role === "admin" || data.role === "staff") {
+      await assertAdminStrict(context.userId);
+    }
     // Prevent removing your own admin role (lockout protection)
     if (data.userId === context.userId && data.role !== "admin") {
       throw new Error("Você não pode remover seu próprio papel de admin.");
@@ -308,7 +316,7 @@ export const adminListUsers = createServerFn({ method: "POST" })
   )
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
-    await assertAdminStrict(context.userId);
+    await assertAdmin(context.userId);
     let q = supabaseAdmin
       .from("profiles")
       .select("id, auth_user_id, full_name, email, is_active, preferred_language, company_id, companies:company_id(id, trade_name, country_code, city)")
