@@ -727,18 +727,29 @@ function EditUserDialog({
 }: {
   user: AdminUser | null;
   onClose: () => void;
-  onSubmit: (patch: { full_name?: string; preferred_language?: "pt-BR" | "es"; is_active?: boolean }) => void;
+  onSubmit: (patch: {
+    full_name?: string;
+    preferred_language?: "pt-BR" | "es";
+    is_active?: boolean;
+    company?: { trade_name: string; country_code: string; city?: string } | null;
+  }) => void;
 }) {
   const { t } = useTranslation();
   const [fullName, setFullName] = useState("");
   const [lang, setLang] = useState<"pt-BR" | "es">("pt-BR");
   const [isActive, setIsActive] = useState(true);
+  const [companyName, setCompanyName] = useState("");
+  const [country, setCountry] = useState("BR");
+  const [city, setCity] = useState("");
 
   useEffect(() => {
     if (user) {
       setFullName(user.full_name);
       setLang(user.preferred_language);
       setIsActive(user.is_active);
+      setCompanyName(user.company?.trade_name ?? "");
+      setCountry(user.company?.country_code ?? "BR");
+      setCity(user.company?.city ?? "");
     }
   }, [user]);
 
@@ -763,6 +774,26 @@ function EditUserDialog({
               </SelectContent>
             </Select>
           </div>
+          <div>
+            <Label className="text-xs">Empresa</Label>
+            <Input value={companyName} onChange={(e) => setCompanyName(e.target.value)} placeholder="Nome da empresa" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs">País</Label>
+              <Select value={country} onValueChange={setCountry}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="BR">Brasil</SelectItem>
+                  <SelectItem value="PE">Perú</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs">Cidade</Label>
+              <Input value={city} onChange={(e) => setCity(e.target.value)} />
+            </div>
+          </div>
           <div className="flex items-center justify-between rounded-md border border-border p-3">
             <Label htmlFor="user-active">{t("admin.users.active")}</Label>
             <Switch id="user-active" checked={isActive} onCheckedChange={setIsActive} />
@@ -772,7 +803,14 @@ function EditUserDialog({
           <Button variant="ghost" onClick={onClose}>{t("common.cancel")}</Button>
           <Button
             onClick={() =>
-              onSubmit({ full_name: fullName.trim(), preferred_language: lang, is_active: isActive })
+              onSubmit({
+                full_name: fullName.trim(),
+                preferred_language: lang,
+                is_active: isActive,
+                company: companyName.trim()
+                  ? { trade_name: companyName.trim(), country_code: country || "BR", city: city.trim() || undefined }
+                  : null,
+              })
             }
           >
             {t("common.save")}
