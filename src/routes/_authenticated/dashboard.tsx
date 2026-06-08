@@ -12,6 +12,7 @@ export const Route = createFileRoute("/_authenticated/dashboard")({
 function DashboardPage() {
   const { t } = useTranslation();
   const { data: profile } = useProfile();
+  const isExhibitor = hasRole(profile?.roles, "exhibitor");
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-10">
@@ -25,12 +26,14 @@ function DashboardPage() {
         <div className="rounded-xl border border-border bg-card p-6">
           <h2 className="text-lg font-bold">{t("dashboard.nextMeetingTitle")}</h2>
           <p className="mt-2 text-sm text-muted-foreground">{t("dashboard.noMeetings")}</p>
-          <Button asChild className="mt-4" size="sm"><Link to="/explore">{t("dashboard.exploreCta")}<ArrowRight className="ml-2 h-4 w-4" /></Link></Button>
+          {!isExhibitor && (
+            <Button asChild className="mt-4" size="sm"><Link to="/explore">{t("dashboard.exploreCta")}<ArrowRight className="ml-2 h-4 w-4" /></Link></Button>
+          )}
         </div>
         <div className="rounded-xl border border-border bg-card p-6">
-          <h2 className="text-lg font-bold">{hasRole(profile?.roles, "exhibitor") ? t("dashboard.tableAgenda") : t("dashboard.myAgenda")}</h2>
+          <h2 className="text-lg font-bold">{isExhibitor ? t("dashboard.tableAgenda") : t("dashboard.myAgenda")}</h2>
           <p className="mt-2 text-sm text-muted-foreground">{t("dashboard.completeProfile")}</p>
-          <Button asChild className="mt-4" size="sm" variant="outline"><Link to={hasRole(profile?.roles, "exhibitor") ? "/table-agenda" : "/agenda"}>{t("nav.agenda")}</Link></Button>
+          <Button asChild className="mt-4" size="sm" variant="outline"><Link to={isExhibitor ? "/table-agenda" : "/agenda"}>{t("nav.agenda")}</Link></Button>
         </div>
       </div>
     </div>

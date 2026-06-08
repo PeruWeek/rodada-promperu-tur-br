@@ -47,7 +47,7 @@ function AuthenticatedLayout() {
         return;
       }
     } else if (primaryRole === "exhibitor") {
-      if (pathname.startsWith("/admin") || pathname === "/agenda") {
+      if (pathname.startsWith("/admin") || pathname === "/agenda" || pathname === "/explore" || pathname.startsWith("/explore/") || pathname.startsWith("/exhibitor/")) {
         navigate({ to: "/dashboard" });
         return;
       }
