@@ -1,20 +1,29 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { Check, Copy, Mail, RefreshCw, Search, UserCheck } from "lucide-react";
+import { Check, Copy, Mail, Pencil, Plus, RefreshCw, Search, Trash2, UserCheck } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
-import { useProfile, hasRole, type AppRole } from "@/hooks/use-profile";
-import { adminSearchProfiles, assignExhibitorToTable, rebuildSlots, setUserRole } from "@/lib/admin.functions";
+import { useProfile, hasRole, getPrimaryRole, type AppRole } from "@/hooks/use-profile";
+import { adminSearchProfiles, assignExhibitorToTable, rebuildSlots } from "@/lib/admin.functions";
 import {
   adminConfirmEmail,
   adminCreateConfirmedUser,
+  adminDeleteUser,
+  adminListUsers,
   adminSetPassword,
+  adminSetPrimaryRole,
+  adminUpdateUserProfile,
   findAuthUserByEmail,
 } from "@/lib/admin-auth.functions";
+import {
+  getMyStaffAgenda,
+  listStaffAssignments,
+  setStaffTableAssignment,
+} from "@/lib/staff.functions";
 import { generalCheckIn } from "@/lib/checkin.functions";
 import { listExhibitorRequests, reviewExhibitorRequest } from "@/lib/exhibitor-requests.functions";
 import { Badge } from "@/components/ui/badge";
@@ -31,6 +40,25 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 
 export const Route = createFileRoute("/_authenticated/admin")({
   component: AdminPage,
@@ -57,25 +85,43 @@ function AdminPage() {
     );
   }
 
+  const primary = getPrimaryRole(me?.roles);
+  const isStaffOnly = primary === "staff";
+
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 sm:py-10">
       <h1 className="text-3xl font-bold">{t("admin.title")}</h1>
       <p className="mt-1 text-sm text-muted-foreground">{t("admin.subtitle")}</p>
 
-      <Tabs defaultValue="tables" className="mt-6">
-        <TabsList>
-          <TabsTrigger value="tables">{t("admin.tabs.tables")}</TabsTrigger>
-          <TabsTrigger value="checkin">{t("admin.tabs.checkin")}</TabsTrigger>
-          <TabsTrigger value="users">{t("admin.tabs.users")}</TabsTrigger>
-          <TabsTrigger value="requests">{t("admin.tabs.requests")}</TabsTrigger>
-          <TabsTrigger value="emails">{t("admin.tabs.emails")}</TabsTrigger>
-        </TabsList>
-        <TabsContent value="tables" className="mt-4"><TablesTab /></TabsContent>
-        <TabsContent value="checkin" className="mt-4"><CheckinTab /></TabsContent>
-        <TabsContent value="users" className="mt-4"><UsersTab /></TabsContent>
-        <TabsContent value="requests" className="mt-4"><RequestsTab /></TabsContent>
-        <TabsContent value="emails" className="mt-4"><EmailsTab /></TabsContent>
-      </Tabs>
+      {isStaffOnly ? (
+        <Tabs defaultValue="staffAgenda" className="mt-6">
+          <TabsList>
+            <TabsTrigger value="staffAgenda">{t("admin.tabs.staffAgenda")}</TabsTrigger>
+            <TabsTrigger value="checkin">{t("admin.tabs.checkin")}</TabsTrigger>
+          </TabsList>
+          <TabsContent value="staffAgenda" className="mt-4"><StaffAgendaTab isAdmin={false} /></TabsContent>
+          <TabsContent value="checkin" className="mt-4"><CheckinTab /></TabsContent>
+        </Tabs>
+      ) : (
+        <Tabs defaultValue="tables" className="mt-6">
+          <TabsList className="flex flex-wrap h-auto">
+            <TabsTrigger value="tables">{t("admin.tabs.tables")}</TabsTrigger>
+            <TabsTrigger value="staffAgenda">{t("admin.tabs.staffAgenda")}</TabsTrigger>
+            <TabsTrigger value="checkin">{t("admin.tabs.checkin")}</TabsTrigger>
+            <TabsTrigger value="staff">{t("admin.tabs.staff")}</TabsTrigger>
+            <TabsTrigger value="users">{t("admin.tabs.users")}</TabsTrigger>
+            <TabsTrigger value="requests">{t("admin.tabs.requests")}</TabsTrigger>
+            <TabsTrigger value="emails">{t("admin.tabs.emails")}</TabsTrigger>
+          </TabsList>
+          <TabsContent value="tables" className="mt-4"><TablesTab /></TabsContent>
+          <TabsContent value="staffAgenda" className="mt-4"><StaffAgendaTab isAdmin /></TabsContent>
+          <TabsContent value="checkin" className="mt-4"><CheckinTab /></TabsContent>
+          <TabsContent value="staff" className="mt-4"><StaffAssignmentsTab /></TabsContent>
+          <TabsContent value="users" className="mt-4"><UsersTab currentAuthUserId={me?.auth_user_id ?? null} /></TabsContent>
+          <TabsContent value="requests" className="mt-4"><RequestsTab /></TabsContent>
+          <TabsContent value="emails" className="mt-4"><EmailsTab /></TabsContent>
+        </Tabs>
+      )}
     </div>
   );
 }
