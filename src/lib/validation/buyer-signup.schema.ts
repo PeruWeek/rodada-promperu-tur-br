@@ -131,6 +131,7 @@ export type BuyerSignupData = {
   // step 2
   tax_id: string;
   legal_name: string;
+  registration_id: string;
   trade_name: string;
   city: string;
   state_code: string;
