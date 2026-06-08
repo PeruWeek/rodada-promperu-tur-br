@@ -147,14 +147,18 @@ export type Database = {
       }
       companies: {
         Row: {
+          address: string | null
           city: string | null
           country_code: string
           created_at: string
+          general_phone: string | null
           id: string
+          import_profile: string | null
           instagram: string | null
           legal_name: string | null
           linkedin: string | null
           phone: string | null
+          specialty: string | null
           state_code: string | null
           tax_id: string | null
           trade_name: string
@@ -162,14 +166,18 @@ export type Database = {
           whatsapp: string | null
         }
         Insert: {
+          address?: string | null
           city?: string | null
           country_code: string
           created_at?: string
+          general_phone?: string | null
           id?: string
+          import_profile?: string | null
           instagram?: string | null
           legal_name?: string | null
           linkedin?: string | null
           phone?: string | null
+          specialty?: string | null
           state_code?: string | null
           tax_id?: string | null
           trade_name: string
@@ -177,14 +185,18 @@ export type Database = {
           whatsapp?: string | null
         }
         Update: {
+          address?: string | null
           city?: string | null
           country_code?: string
           created_at?: string
+          general_phone?: string | null
           id?: string
+          import_profile?: string | null
           instagram?: string | null
           legal_name?: string | null
           linkedin?: string | null
           phone?: string | null
+          specialty?: string | null
           state_code?: string | null
           tax_id?: string | null
           trade_name?: string
@@ -1143,6 +1155,7 @@ export type Database = {
       }
       visitor_profiles: {
         Row: {
+          additional_contacts: Json
           buyer_type: string | null
           consent_data_sharing: boolean
           consent_data_sharing_at: string | null
@@ -1158,6 +1171,7 @@ export type Database = {
           profile_id: string
         }
         Insert: {
+          additional_contacts?: Json
           buyer_type?: string | null
           consent_data_sharing?: boolean
           consent_data_sharing_at?: string | null
@@ -1173,6 +1187,7 @@ export type Database = {
           profile_id: string
         }
         Update: {
+          additional_contacts?: Json
           buyer_type?: string | null
           consent_data_sharing?: boolean
           consent_data_sharing_at?: string | null
