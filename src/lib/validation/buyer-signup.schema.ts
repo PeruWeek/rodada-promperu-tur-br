@@ -21,7 +21,6 @@ export const stepCompanySchema = z.object({
     .min(1, { message: "signup.errors.required" })
     .refine((v) => isValidCNPJ(v), { message: "cnpjInvalid" }),
   legal_name: z.string().trim().min(2).max(160),
-  registration_id: z.string().trim().min(1).max(120),
   trade_name: z.string().trim().min(2).max(160),
   city: z.string().trim().min(2).max(120),
   state_code: z.enum(UF_LIST as unknown as [string, ...string[]]),
@@ -131,7 +130,6 @@ export type BuyerSignupData = {
   // step 2
   tax_id: string;
   legal_name: string;
-  registration_id: string;
   trade_name: string;
   city: string;
   state_code: string;
