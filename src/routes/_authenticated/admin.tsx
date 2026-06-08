@@ -88,6 +88,7 @@ function AdminPage() {
 
   const primary = getPrimaryRole(me?.roles);
   const isStaffOnly = primary === "staff";
+  const isAdmin = hasRole(me?.roles, "admin");
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 sm:py-10">
@@ -96,12 +97,14 @@ function AdminPage() {
 
       {isStaffOnly ? (
         <Tabs defaultValue="staffAgenda" className="mt-6">
-          <TabsList>
+          <TabsList className="flex flex-wrap h-auto">
             <TabsTrigger value="staffAgenda">{t("admin.tabs.staffAgenda")}</TabsTrigger>
             <TabsTrigger value="checkin">{t("admin.tabs.checkin")}</TabsTrigger>
+            <TabsTrigger value="users">{t("admin.tabs.users")}</TabsTrigger>
           </TabsList>
           <TabsContent value="staffAgenda" className="mt-4"><StaffAgendaTab isAdmin={false} /></TabsContent>
           <TabsContent value="checkin" className="mt-4"><CheckinTab /></TabsContent>
+          <TabsContent value="users" className="mt-4"><UsersTab currentAuthUserId={me?.auth_user_id ?? null} canDelete={false} /></TabsContent>
         </Tabs>
       ) : (
         <Tabs defaultValue="tables" className="mt-6">
@@ -118,7 +121,7 @@ function AdminPage() {
           <TabsContent value="staffAgenda" className="mt-4"><StaffAgendaTab isAdmin /></TabsContent>
           <TabsContent value="checkin" className="mt-4"><CheckinTab /></TabsContent>
           <TabsContent value="staff" className="mt-4"><StaffAssignmentsTab /></TabsContent>
-          <TabsContent value="users" className="mt-4"><UsersTab currentAuthUserId={me?.auth_user_id ?? null} /></TabsContent>
+          <TabsContent value="users" className="mt-4"><UsersTab currentAuthUserId={me?.auth_user_id ?? null} canDelete={isAdmin} /></TabsContent>
           <TabsContent value="requests" className="mt-4"><RequestsTab /></TabsContent>
           <TabsContent value="emails" className="mt-4"><EmailsTab /></TabsContent>
         </Tabs>
@@ -428,7 +431,7 @@ type AdminUser = {
   roles: AppRole[];
 };
 
-function UsersTab({ currentAuthUserId }: { currentAuthUserId: string | null }) {
+function UsersTab({ currentAuthUserId, canDelete }: { currentAuthUserId: string | null; canDelete: boolean }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const [q, setQ] = useState("");
@@ -576,15 +579,17 @@ function UsersTab({ currentAuthUserId }: { currentAuthUserId: string | null }) {
                     <Button size="sm" variant="outline" onClick={() => setEditing(u)}>
                       <Pencil size={14} />
                     </Button>
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      onClick={() => setDeleting(u)}
-                      disabled={isSelf}
-                      title={isSelf ? t("admin.users.cannotDeleteSelf") : undefined}
-                    >
-                      <Trash2 size={14} />
-                    </Button>
+                    {canDelete && (
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => setDeleting(u)}
+                        disabled={isSelf}
+                        title={isSelf ? t("admin.users.cannotDeleteSelf") : undefined}
+                      >
+                        <Trash2 size={14} />
+                      </Button>
+                    )}
                   </div>
                 </div>
               </div>
