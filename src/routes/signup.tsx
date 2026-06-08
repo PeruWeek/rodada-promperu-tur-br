@@ -439,6 +439,34 @@ function Step2({ data, set, errors, t }: StepProps) {
             onChange={(e) => set("linkedin", e.target.value)} className="mt-1.5" />
         </div>
       </div>
+      <div>
+        <Label htmlFor="address">{t("signup.address")}</Label>
+        <Input id="address" value={data.address}
+          onChange={(e) => set("address", e.target.value)} className="mt-1.5" />
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <Label htmlFor="general_phone">{t("signup.generalPhone")}</Label>
+          <Input id="general_phone" inputMode="tel" placeholder="(11) 3000-0000"
+            value={data.general_phone}
+            onChange={(e) => set("general_phone", formatBRPhone(e.target.value))}
+            className="mt-1.5" />
+          <FieldError msg={errors.general_phone} t={t} />
+        </div>
+        <div>
+          <Label htmlFor="specialty">{t("signup.specialty")}</Label>
+          <Input id="specialty" placeholder={t("signup.specialtyPlaceholder")}
+            value={data.specialty}
+            onChange={(e) => set("specialty", e.target.value)} className="mt-1.5" />
+        </div>
+      </div>
+      <div>
+        <Label htmlFor="import_profile">{t("signup.importProfile")}</Label>
+        <Textarea id="import_profile" rows={3}
+          placeholder={t("signup.importProfilePlaceholder")}
+          value={data.import_profile}
+          onChange={(e) => set("import_profile", e.target.value)} className="mt-1.5" />
+      </div>
     </div>
   );
 }
