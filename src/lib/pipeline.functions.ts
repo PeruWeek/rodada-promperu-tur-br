@@ -209,25 +209,25 @@ export const getPipelineAlerts = createServerFn({ method: "POST" })
 
     const baseSelect =
       "id, company_trade_name, primary_contact_name, registration_status, scheduling_status, next_action, next_action_due_at, owner_name, created_at, region_label";
-    const make = async (filter: (q: ReturnType<typeof supabaseAdmin.from>) => unknown) => {
+    const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
+    const base = () => {
       let q = supabaseAdmin
         .from("v_company_event_pipeline")
         .select(baseSelect)
         .eq("event_id", eventId);
       if (scopeOwner) q = q.eq("owner_staff_profile_id", scopeOwner);
-      q = filter(q) as typeof q;
-      const { data: rows } = await q.limit(5);
-      return rows ?? [];
+      return q;
     };
-
-    const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
-
-    const [withoutScheduling, incompleteStale, awaitingContact, awaitingApproval] = await Promise.all([
-      make((q) => q.eq("scheduling_status", "sem_agendamento").eq("registration_status", "cadastro_concluido")),
-      make((q) => q.in("registration_status", ["nao_iniciado", "em_preenchimento"]).lte("created_at", fourteenDaysAgo)),
-      make((q) => q.in("next_action", ["ligar_para_confirmar", "aguardar_retorno", "cobrar_documentos"])),
-      make((q) => q.eq("registration_status", "aguardando_aprovacao")),
+    const [a, b, c, d] = await Promise.all([
+      base().eq("scheduling_status", "sem_agendamento").eq("registration_status", "cadastro_concluido").limit(5),
+      base().in("registration_status", ["nao_iniciado", "em_preenchimento"]).lte("created_at", fourteenDaysAgo).limit(5),
+      base().in("next_action", ["ligar_para_confirmar", "aguardar_retorno", "cobrar_documentos"]).limit(5),
+      base().eq("registration_status", "aguardando_aprovacao").limit(5),
     ]);
+    const withoutScheduling = a.data ?? [];
+    const incompleteStale = b.data ?? [];
+    const awaitingContact = c.data ?? [];
+    const awaitingApproval = d.data ?? [];
 
     return { withoutScheduling, incompleteStale, awaitingContact, awaitingApproval };
   });
@@ -349,7 +349,13 @@ export const completeNextAction = createServerFn({ method: "POST" })
         .maybeSingle();
       if (!row || row.owner_staff_profile_id !== myProfileId) throw new Error("Forbidden");
     }
-    const patch: Record<string, unknown> = {
+    const patch: {
+      next_action: typeof data.nextAction;
+      next_action_due_at: string | null;
+      last_contact_at: string;
+      last_contact_channel?: string | null;
+      notes?: string | null;
+    } = {
       next_action: data.nextAction,
       next_action_due_at: data.dueAt ?? null,
       last_contact_at: new Date().toISOString(),
