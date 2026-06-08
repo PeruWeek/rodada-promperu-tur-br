@@ -27,6 +27,7 @@ function OnboardingPage() {
   const { data: profile } = useProfile();
   const requestExhibitorFn = useServerFn(requestExhibitorAccess);
   const [kind, setKind] = useState<Kind | null>(null);
+  const [fullName, setFullName] = useState("");
   const [companyName, setCompanyName] = useState("");
   const [country, setCountry] = useState("");
   const [city, setCity] = useState("");
@@ -44,6 +45,11 @@ function OnboardingPage() {
   useEffect(() => {
     if (lockedKind && kind !== lockedKind) setKind(lockedKind);
   }, [lockedKind, kind]);
+
+  // Pre-fill full name from current profile so the visitor can correct it here.
+  useEffect(() => {
+    if (profile && !fullName) setFullName(profile.full_name ?? "");
+  }, [profile, fullName]);
 
   // If the user already has a role/profile set up, skip the kind picker entirely.
   useEffect(() => {
@@ -101,8 +107,20 @@ function OnboardingPage() {
     e.preventDefault();
     const submitKind = effectiveKind;
     if (!user || !profile || !submitKind) return;
+    const cleanName = fullName.trim();
+    if (!cleanName) {
+      toast.error(t("auth.fullName") + " *");
+      return;
+    }
     setSaving(true);
     try {
+      if (cleanName !== profile.full_name) {
+        const { error: nErr } = await supabase
+          .from("profiles")
+          .update({ full_name: cleanName })
+          .eq("id", profile.id);
+        if (nErr) throw nErr;
+      }
       const finalCountry = country || (submitKind === "exhibitor" ? "PE" : "BR");
       const { error: cErr } = await supabase.rpc("onboard_company", {
         p_trade_name: companyName,
@@ -146,21 +164,17 @@ function OnboardingPage() {
         <p className="mt-2 text-sm text-muted-foreground">{t("onboarding.subtitle")}</p>
         {!lockedKind && (
           <div className="mt-8 grid gap-4 sm:grid-cols-2">
-            {(["visitor", "exhibitor"] as Kind[]).map((k) => (
+            {(["visitor"] as Kind[]).map((k) => (
               <button key={k} type="button" onClick={() => setKind(k)} className={`text-left rounded-xl border-2 p-5 transition-colors ${kind === k ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"}`}>
                 <div className="font-bold">{t(`onboarding.${k}`)}</div>
                 <div className="mt-1 text-sm text-muted-foreground">{t(`onboarding.${k}Desc`)}</div>
-                {k === "exhibitor" && (
-                  <div className="mt-2 inline-block rounded-full bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-400">
-                    {t("onboarding.requiresApproval")}
-                  </div>
-                )}
               </button>
             ))}
           </div>
         )}
         {effectiveKind && (
           <form onSubmit={onSubmit} className="mt-8 space-y-4">
+            <div><Label htmlFor="fullName">{t("auth.fullName")} *</Label><Input id="fullName" required value={fullName} onChange={(e) => setFullName(e.target.value)} className="mt-1.5" /></div>
             <div><Label htmlFor="company">{t("onboarding.companyName")}</Label><Input id="company" required value={companyName} onChange={(e) => setCompanyName(e.target.value)} className="mt-1.5" /></div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div><Label htmlFor="country">{t("onboarding.country")}</Label>
