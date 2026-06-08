@@ -999,6 +999,52 @@ export type Database = {
         }
         Relationships: []
       }
+      staff_table_assignments: {
+        Row: {
+          created_at: string
+          event_id: string
+          id: string
+          staff_profile_id: string
+          table_id: string
+        }
+        Insert: {
+          created_at?: string
+          event_id: string
+          id?: string
+          staff_profile_id: string
+          table_id: string
+        }
+        Update: {
+          created_at?: string
+          event_id?: string
+          id?: string
+          staff_profile_id?: string
+          table_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_table_assignments_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_table_assignments_staff_profile_id_fkey"
+            columns: ["staff_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_table_assignments_table_id_fkey"
+            columns: ["table_id"]
+            isOneToOne: false
+            referencedRelation: "event_tables"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       time_slots: {
         Row: {
           created_at: string
