@@ -208,6 +208,125 @@ export type Database = {
         }
         Relationships: []
       }
+      company_event_pipeline: {
+        Row: {
+          city: string | null
+          company_category:
+            | Database["public"]["Enums"]["pipeline_company_category"]
+            | null
+          company_id: string
+          company_role: Database["public"]["Enums"]["pipeline_company_role"]
+          company_type:
+            | Database["public"]["Enums"]["pipeline_company_type"]
+            | null
+          country_code: string | null
+          created_at: string
+          event_id: string
+          id: string
+          is_profile_complete: boolean
+          last_contact_at: string | null
+          last_contact_channel: string | null
+          next_action: Database["public"]["Enums"]["pipeline_next_action"]
+          next_action_due_at: string | null
+          notes: string | null
+          owner_staff_profile_id: string | null
+          primary_profile_id: string | null
+          priority: Database["public"]["Enums"]["pipeline_priority"]
+          region_label: string | null
+          registration_status: Database["public"]["Enums"]["pipeline_registration_status"]
+          scheduling_status: Database["public"]["Enums"]["pipeline_scheduling_status"]
+          state_code: string | null
+          updated_at: string
+        }
+        Insert: {
+          city?: string | null
+          company_category?:
+            | Database["public"]["Enums"]["pipeline_company_category"]
+            | null
+          company_id: string
+          company_role?: Database["public"]["Enums"]["pipeline_company_role"]
+          company_type?:
+            | Database["public"]["Enums"]["pipeline_company_type"]
+            | null
+          country_code?: string | null
+          created_at?: string
+          event_id: string
+          id?: string
+          is_profile_complete?: boolean
+          last_contact_at?: string | null
+          last_contact_channel?: string | null
+          next_action?: Database["public"]["Enums"]["pipeline_next_action"]
+          next_action_due_at?: string | null
+          notes?: string | null
+          owner_staff_profile_id?: string | null
+          primary_profile_id?: string | null
+          priority?: Database["public"]["Enums"]["pipeline_priority"]
+          region_label?: string | null
+          registration_status?: Database["public"]["Enums"]["pipeline_registration_status"]
+          scheduling_status?: Database["public"]["Enums"]["pipeline_scheduling_status"]
+          state_code?: string | null
+          updated_at?: string
+        }
+        Update: {
+          city?: string | null
+          company_category?:
+            | Database["public"]["Enums"]["pipeline_company_category"]
+            | null
+          company_id?: string
+          company_role?: Database["public"]["Enums"]["pipeline_company_role"]
+          company_type?:
+            | Database["public"]["Enums"]["pipeline_company_type"]
+            | null
+          country_code?: string | null
+          created_at?: string
+          event_id?: string
+          id?: string
+          is_profile_complete?: boolean
+          last_contact_at?: string | null
+          last_contact_channel?: string | null
+          next_action?: Database["public"]["Enums"]["pipeline_next_action"]
+          next_action_due_at?: string | null
+          notes?: string | null
+          owner_staff_profile_id?: string | null
+          primary_profile_id?: string | null
+          priority?: Database["public"]["Enums"]["pipeline_priority"]
+          region_label?: string | null
+          registration_status?: Database["public"]["Enums"]["pipeline_registration_status"]
+          scheduling_status?: Database["public"]["Enums"]["pipeline_scheduling_status"]
+          state_code?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_event_pipeline_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_event_pipeline_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_event_pipeline_owner_staff_profile_id_fkey"
+            columns: ["owner_staff_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_event_pipeline_primary_profile_id_fkey"
+            columns: ["primary_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       conversation_messages: {
         Row: {
           content: string | null
@@ -1217,11 +1336,100 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      v_company_event_pipeline: {
+        Row: {
+          city: string | null
+          company_category:
+            | Database["public"]["Enums"]["pipeline_company_category"]
+            | null
+          company_id: string | null
+          company_legal_name: string | null
+          company_role:
+            | Database["public"]["Enums"]["pipeline_company_role"]
+            | null
+          company_specialty: string | null
+          company_trade_name: string | null
+          company_type:
+            | Database["public"]["Enums"]["pipeline_company_type"]
+            | null
+          country_code: string | null
+          created_at: string | null
+          event_id: string | null
+          exhibitor_destinations: string[] | null
+          exhibitor_segments: string[] | null
+          exhibitor_services: string[] | null
+          has_pending_exhibitor_request: boolean | null
+          id: string | null
+          is_profile_complete: boolean | null
+          last_contact_at: string | null
+          last_contact_channel: string | null
+          next_action:
+            | Database["public"]["Enums"]["pipeline_next_action"]
+            | null
+          next_action_due_at: string | null
+          notes: string | null
+          owner_name: string | null
+          owner_staff_profile_id: string | null
+          primary_contact_email: string | null
+          primary_contact_name: string | null
+          primary_contact_phone: string | null
+          primary_contact_whatsapp: string | null
+          primary_profile_id: string | null
+          priority: Database["public"]["Enums"]["pipeline_priority"] | null
+          region_label: string | null
+          registration_status:
+            | Database["public"]["Enums"]["pipeline_registration_status"]
+            | null
+          scheduled_meetings_count: number | null
+          scheduling_status:
+            | Database["public"]["Enums"]["pipeline_scheduling_status"]
+            | null
+          state_code: string | null
+          updated_at: string | null
+          visitor_buyer_type: string | null
+          visitor_destinations: string[] | null
+          visitor_segments: string[] | null
+          visitor_services: string[] | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_event_pipeline_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_event_pipeline_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_event_pipeline_owner_staff_profile_id_fkey"
+            columns: ["owner_staff_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_event_pipeline_primary_profile_id_fkey"
+            columns: ["primary_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       complete_buyer_signup: { Args: { p_payload: Json }; Returns: string }
       current_profile_id: { Args: never; Returns: string }
+      derive_region_label: {
+        Args: { p_city: string; p_country: string; p_state: string }
+        Returns: string
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -1242,6 +1450,23 @@ export type Database = {
       onboard_company: {
         Args: { p_city: string; p_country_code: string; p_trade_name: string }
         Returns: string
+      }
+      pipeline_active_event_id: { Args: never; Returns: string }
+      pipeline_compute_complete: {
+        Args: {
+          p_company_id: string
+          p_profile_id: string
+          p_role: Database["public"]["Enums"]["pipeline_company_role"]
+        }
+        Returns: boolean
+      }
+      pipeline_ensure_row: {
+        Args: { p_company_id: string }
+        Returns: undefined
+      }
+      pipeline_recalc_scheduling: {
+        Args: { p_company_id: string; p_event_id: string }
+        Returns: undefined
       }
       rebuild_event_time_slots: {
         Args: { p_deactivate_previous?: boolean; p_event_id: string }
@@ -1271,6 +1496,50 @@ export type Database = {
         | "meeting_rescheduled"
         | "meeting_reminder"
         | "system"
+      pipeline_company_category:
+        | "buyer_prioritario"
+        | "buyer_secundario"
+        | "fornecedor_mice"
+        | "hotelaria"
+        | "destino"
+        | "parceiro_institucional"
+        | "imprensa"
+        | "outro"
+      pipeline_company_role: "exhibitor" | "visitor"
+      pipeline_company_type:
+        | "agencia"
+        | "operadora"
+        | "corporativo"
+        | "organizadora"
+        | "associacao"
+        | "hotel"
+        | "dmc"
+        | "centro_de_convencoes"
+        | "transporte"
+        | "tecnologia_eventos"
+        | "outro"
+      pipeline_next_action:
+        | "nenhuma"
+        | "ligar_para_confirmar"
+        | "cobrar_documentos"
+        | "aguardar_retorno"
+        | "aprovar_cadastro"
+        | "ajustar_perfil"
+        | "estimular_agendamento"
+      pipeline_priority: "baixa" | "media" | "alta"
+      pipeline_registration_status:
+        | "nao_iniciado"
+        | "em_preenchimento"
+        | "cadastro_concluido"
+        | "aguardando_aprovacao"
+        | "aprovado"
+        | "bloqueado"
+      pipeline_scheduling_status:
+        | "sem_agendamento"
+        | "agendamento_iniciado"
+        | "agendado_parcial"
+        | "agendado_ok"
+        | "agenda_fechada"
       skill_scope: "public" | "staff"
     }
     CompositeTypes: {
@@ -1422,6 +1691,55 @@ export const Constants = {
         "meeting_rescheduled",
         "meeting_reminder",
         "system",
+      ],
+      pipeline_company_category: [
+        "buyer_prioritario",
+        "buyer_secundario",
+        "fornecedor_mice",
+        "hotelaria",
+        "destino",
+        "parceiro_institucional",
+        "imprensa",
+        "outro",
+      ],
+      pipeline_company_role: ["exhibitor", "visitor"],
+      pipeline_company_type: [
+        "agencia",
+        "operadora",
+        "corporativo",
+        "organizadora",
+        "associacao",
+        "hotel",
+        "dmc",
+        "centro_de_convencoes",
+        "transporte",
+        "tecnologia_eventos",
+        "outro",
+      ],
+      pipeline_next_action: [
+        "nenhuma",
+        "ligar_para_confirmar",
+        "cobrar_documentos",
+        "aguardar_retorno",
+        "aprovar_cadastro",
+        "ajustar_perfil",
+        "estimular_agendamento",
+      ],
+      pipeline_priority: ["baixa", "media", "alta"],
+      pipeline_registration_status: [
+        "nao_iniciado",
+        "em_preenchimento",
+        "cadastro_concluido",
+        "aguardando_aprovacao",
+        "aprovado",
+        "bloqueado",
+      ],
+      pipeline_scheduling_status: [
+        "sem_agendamento",
+        "agendamento_iniciado",
+        "agendado_parcial",
+        "agendado_ok",
+        "agenda_fechada",
       ],
       skill_scope: ["public", "staff"],
     },
