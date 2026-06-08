@@ -17,10 +17,11 @@ export const stepAccountSchema = z
 export const stepCompanySchema = z.object({
   tax_id: z
     .string()
-    .optional()
-    .or(z.literal(""))
-    .refine((v) => !v || isValidCNPJ(v), { message: "cnpjInvalid" }),
-  legal_name: optTrim,
+    .trim()
+    .min(1, { message: "signup.errors.required" })
+    .refine((v) => isValidCNPJ(v), { message: "cnpjInvalid" }),
+  legal_name: z.string().trim().min(2).max(160),
+  registration_id: z.string().trim().min(1).max(120),
   trade_name: z.string().trim().min(2).max(160),
   city: z.string().trim().min(2).max(120),
   state_code: z.enum(UF_LIST as unknown as [string, ...string[]]),
