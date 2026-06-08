@@ -606,7 +606,6 @@ function UsersTab({ currentAuthUserId }: { currentAuthUserId: string | null }) {
         onSubmit={(patch) => {
           if (!editing?.auth_user_id) return;
           updateMut.mutate({ userId: editing.auth_user_id, ...patch });
-          setEditing(null);
         }}
       />
 
