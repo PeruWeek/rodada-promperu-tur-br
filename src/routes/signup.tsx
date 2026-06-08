@@ -292,10 +292,13 @@ function SignupPage() {
                 />
               )}
               {step === 4 && (
-                <Step4 data={data} set={set} errors={errors} t={t} lang={lang} />
+                <Step4Contacts data={data} set={set} errors={errors} t={t} />
               )}
               {step === 5 && (
-                <Step5 data={data} set={set} errors={errors} t={t} />
+                <Step5 data={data} set={set} errors={errors} t={t} lang={lang} />
+              )}
+              {step === 6 && (
+                <Step6 data={data} set={set} errors={errors} t={t} />
               )}
 
               <div className="flex items-center justify-between pt-2">
