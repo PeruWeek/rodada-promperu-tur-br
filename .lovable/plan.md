@@ -1,55 +1,59 @@
+## Atualização do formulário de visitante
 
-## Objetivo
+Faz sentido — vou aplicar as exigências, com os seguintes pontos:
 
-Atualizar o wizard de cadastro do visitante (`/signup`) para cobrir os campos padronizados no documento: empresa expandida (endereço, telefone geral, especialidade, perfil), múltiplos contatos adicionais e manter consentimentos.
+- "Razão social / CNPJ" será tratado como **dois campos obrigatórios** (sua resposta na pergunta). O label do bloco/seção fica `Razão social / CNPJ` e cada input mantém helper text próprio.
+- `empresa.id_cadastro` será um campo de texto livre, obrigatório, salvo em `companies.registration_id` (sem unicidade, sem validação contra lista — conforme escolha).
+- `empresa.pais` continua fixo = `BR` (já é hoje no RPC).
+- Os demais "obrigatórios do cadastro rápido" listados já são obrigatórios nas etapas atuais (nome fantasia, cidade, UF, contato principal completo, idioma, tipo de buyer, segmentos, consentimento).
 
-## Mudanças no banco
+### 1. Banco
 
-Migração nova adicionando colunas:
+Migration:
 
-- `public.companies`: `address text`, `general_phone text`, `specialty text`, `import_profile text`
-- `public.visitor_profiles`: `additional_contacts jsonb not null default '[]'::jsonb`
-  (cada item: `{ name, job_title, email, phone_whatsapp, linkedin }`)
+- `ALTER TABLE public.companies ADD COLUMN registration_id text` (nullable no schema, mas obrigatório no RPC).
+- Atualizar `public.complete_buyer_signup`:
+  - Exigir `tax_id`, `legal_name` e `registration_id` (raise exception se vazios).
+  - Persistir `registration_id` no INSERT e no UPDATE de `companies`.
 
-A RPC `complete_buyer_signup(p_payload jsonb)` é atualizada para gravar:
+### 2. Validação (`buyer-signup.schema.ts`)
 
-- novos campos em `companies`
-- `additional_contacts` em `visitor_profiles`
+`stepCompanySchema`:
 
-Não há mudança de RLS nem GRANT extra (tabelas já existem).
+- `tax_id`: agora obrigatório (`min(1)` + `isValidCNPJ` — mensagem `cnpjInvalid`).
+- `legal_name`: agora obrigatório (`trim().min(2).max(160)`).
+- Novo `registration_id: z.string().trim().min(1).max(120)` (obrigatório).
 
-## Mudanças no schema do formulário (`src/lib/validation/buyer-signup.schema.ts`)
+`BuyerSignupData`: adicionar `registration_id: string`. `emptyData` recebe `registration_id: ""`.
 
-- `stepCompanySchema`: adicionar `address`, `general_phone` (BR phone, opcional), `specialty`, `import_profile`.
-- Novo `stepContactsExtraSchema` (Step 4): valida `additional_contacts: z.array({...}).max(5)` com cada item opcional, mas se preenchido exige `name`, `email`, `phone_whatsapp` (BR) válidos.
-- `BuyerSignupData`: adicionar os novos campos e `additional_contacts: ContactExtra[]`.
+### 3. Wizard (`src/routes/signup.tsx`) — Passo 2 "Empresa"
 
-## Wizard (`src/routes/signup.tsx`)
+- Reorganizar a seção em um bloco com cabeçalho "Razão social / CNPJ":
+  - Input **Razão social** (obrigatório) + helper `Informe a razão social da empresa`.
+  - Input **CNPJ** (obrigatório, máscara já existente) + helper já existente.
+- Adicionar input **ID de cadastro** (obrigatório) com helper `Informe o ID de cadastro fornecido pela organização`. Posição: logo após o bloco Razão social/CNPJ, antes de "Nome fantasia".
+- Marcar os campos com asterisco `*` (mesma convenção dos outros required).
+- Incluir `registration_id` no payload enviado ao RPC `complete_buyer_signup`.
 
-Passa de 5 para 6 passos:
+### 4. i18n (`pt-BR.json` e `es.json`)
 
-```text
-1 Conta  → 2 Empresa  → 3 Contato principal  → 4 Contatos adicionais
-5 Perfil → 6 Portfólio e consentimentos
-```
+Adicionar em `signup`:
 
-- Step 2 ganha campos: Endereço, Telefone geral, Especialidade, Perfil (textarea).
-- Novo Step 4 "Contatos adicionais": lista de até 5 blocos com Nome*, Cargo, E-mail*, Telefone/WhatsApp*, LinkedIn. Botão "Adicionar contato" e "Remover" por bloco. Bloco zero permitido (campo é opcional).
-- Renumerar Step 4/5 antigos para 5/6 e atualizar `TOTAL_STEPS`, traduções em `pt-BR.json`/`es.json` (`signup.stepTitles.1..6`, novas labels: `address`, `generalPhone`, `specialty`, `importProfile`, `additionalContacts`, `addContact`, `removeContact`, etc.).
-- Payload enviado para `complete_buyer_signup` e armazenado em `sessionStorage`/`user_metadata` ganha os novos campos; telefones de contatos adicionais convertidos para E.164 via `toE164BR`.
+- `companyIdentificationGroup`: `Razão social / CNPJ` (label da seção)
+- `legalName` (atualizar): manter como `Razão social`
+- `legalNameHelp`: `Informe a razão social da empresa`
+- `taxIdHelp`: `Informe o CNPJ da empresa`
+- `registrationId`: `ID de cadastro`
+- `registrationIdHelp`: `Informe o ID de cadastro fornecido pela organização`
 
-## Página `/onboarding`
+Espelhar em espanhol (`Razón social`, `Identificador de registro`, etc.).
 
-Sem mudanças de UI. A RPC `complete_buyer_signup` aceita os novos campos (todos opcionais exceto os já obrigatórios), então o fluxo continua funcionando para payloads antigos.
+### 5. Fora de escopo
 
-## Critérios de aceitação
+- Importador admin / planilhas: a coluna `registration_id` fica disponível para o importador no futuro, mas nenhuma tela admin será alterada agora.
+- Formulário de expositores Peru: inalterado (conforme decisão anterior).
+- Perfis existentes sem `registration_id`: não serão preenchidos retroativamente.
 
-- Wizard de signup exibe 6 passos com todos os campos novos.
-- Salvar cadastro grava endereço, telefone geral, especialidade, perfil em `companies` e `additional_contacts` em `visitor_profiles`.
-- Cadastros sem contatos adicionais continuam funcionando (array vazio).
-- Validação BR aplicada a telefones dos contatos adicionais.
+### Observação importante
 
-## Fora do escopo
-
-- Formulário/schema de expositores Peru (cadastro continua via admin/importação).
-- Importador de planilha — esta plano só padroniza o formulário; o importador admin pode ser feito depois reaproveitando as mesmas colunas.
+Tornar `tax_id` (CNPJ) e `legal_name` obrigatórios é uma exigência mais restritiva que a anterior. Quem já se cadastrou sem preencher esses campos continua válido no banco (não há backfill); apenas novos cadastros passam a exigi-los.
