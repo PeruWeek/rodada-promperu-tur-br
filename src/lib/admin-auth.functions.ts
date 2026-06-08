@@ -50,7 +50,7 @@ export const findAuthUserByEmail = createServerFn({ method: "POST" })
   .inputValidator((input) => z.object({ email: emailSchema }).parse(input))
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
-    await assertAdminStrict(context.userId);
+    await assertAdmin(context.userId);
     const user = await findUserByEmailExact(data.email);
     if (!user) return { user: null as null, hasProfile: false };
     const { data: prof } = await supabaseAdmin
