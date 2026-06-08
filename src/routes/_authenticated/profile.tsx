@@ -200,7 +200,8 @@ function ProfilePage() {
   }
 
   return (
-    <form onSubmit={onSubmit} className="mx-auto max-w-3xl space-y-6 px-4 py-8 sm:py-12">
+    <div className="mx-auto max-w-3xl space-y-6 px-4 py-8 sm:py-12">
+      <form onSubmit={onSubmit} className="space-y-6">
       <header>
         <h1 className="text-3xl font-bold">{t("profile.title")}</h1>
         <p className="mt-1 text-sm text-muted-foreground">{t("profile.subtitle")}</p>
@@ -312,7 +313,65 @@ function ProfilePage() {
           {saving ? t("common.loading") : t("common.save")}
         </Button>
       </div>
-    </form>
+      </form>
+
+      <PasswordCard />
+    </div>
+  );
+}
+
+function PasswordCard() {
+  const { t } = useTranslation();
+  const [pw, setPw] = useState("");
+  const [pw2, setPw2] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const onSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (pw.length < 8) {
+      toast.error(t("profile.passwordMin", { defaultValue: "A senha deve ter ao menos 8 caracteres." }));
+      return;
+    }
+    if (pw !== pw2) {
+      toast.error(t("profile.passwordMismatch", { defaultValue: "As senhas não coincidem." }));
+      return;
+    }
+    setSaving(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ password: pw });
+      if (error) throw error;
+      setPw("");
+      setPw2("");
+      toast.success(t("profile.passwordUpdated", { defaultValue: "Senha atualizada com sucesso." }));
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Card className="p-6">
+      <form onSubmit={onSubmit} className="space-y-4">
+        <h2 className="text-lg font-semibold">{t("profile.security", { defaultValue: "Segurança" })}</h2>
+        <p className="text-sm text-muted-foreground">
+          {t("profile.changePasswordDesc", { defaultValue: "Defina uma nova senha para sua conta." })}
+        </p>
+        <div>
+          <Label htmlFor="newPw">{t("profile.newPassword", { defaultValue: "Nova senha" })}</Label>
+          <Input id="newPw" type="password" autoComplete="new-password" value={pw} onChange={(e) => setPw(e.target.value)} className="mt-1.5" minLength={8} required />
+        </div>
+        <div>
+          <Label htmlFor="newPw2">{t("profile.confirmPassword", { defaultValue: "Confirmar nova senha" })}</Label>
+          <Input id="newPw2" type="password" autoComplete="new-password" value={pw2} onChange={(e) => setPw2(e.target.value)} className="mt-1.5" minLength={8} required />
+        </div>
+        <div className="flex justify-end">
+          <Button type="submit" disabled={saving}>
+            {saving ? t("common.loading") : t("profile.updatePassword", { defaultValue: "Atualizar senha" })}
+          </Button>
+        </div>
+      </form>
+    </Card>
   );
 }
 

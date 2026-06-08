@@ -1,21 +1,21 @@
-Criar o usuário admin `rodada@promperu.tur.br` no novo backend, já com email confirmado e role `admin`.
+## Adicionar troca de senha no perfil
 
-## Passos
+Adicionar uma seção "Segurança" na página `/profile` permitindo que o usuário autenticado altere a própria senha.
 
-1. Rodar um script (via `bun`) usando `SUPABASE_SERVICE_ROLE_KEY` para:
-   - Verificar se o email já existe em `auth.users`.
-   - Se existir: resetar senha para `RodadaAdmin#2026` e marcar `email_confirm: true`.
-   - Se não existir: criar com `email_confirm: true` e metadata `full_name: "Administrador Rodada"`, `preferred_language: "pt-BR"`.
-   - O trigger `handle_new_user` cria `profiles` + role `visitor` automaticamente.
+### O que será feito
 
-2. Promover a `admin` via `INSERT ... ON CONFLICT DO NOTHING` em `public.user_roles` para o `user_id` retornado.
+1. **Nova seção na página de perfil** (`src/routes/_authenticated/profile.tsx`):
+   - Card "Segurança" com formulário de troca de senha
+   - Campos: nova senha + confirmar nova senha
+   - Validação: mínimo 8 caracteres, senhas coincidem
+   - Botão "Atualizar senha" com estado de loading
+   - Toast de sucesso/erro
 
-3. Validar com `SELECT` em `auth.users`, `profiles` e `user_roles`.
+2. **Lógica de atualização**:
+   - Usar `supabase.auth.updateUser({ password })` diretamente no cliente (a sessão atual já autoriza essa operação)
+   - Após sucesso, limpar os campos e exibir confirmação
 
-## Credenciais que serão configuradas
+### Fora do escopo
 
-- Email: `rodada@promperu.tur.br`
-- Senha temporária: `RodadaAdmin#2026` (trocar depois em Perfil)
-- Role: `admin`
-
-Nenhum arquivo do projeto será alterado.
+- Página `/reset-password` para recuperação por email (pode ser adicionada depois se quiser fluxo "esqueci minha senha")
+- Não pediremos a senha atual (Supabase não exige para usuário autenticado), mas posso adicionar verificação reautenticando se preferir mais segurança
