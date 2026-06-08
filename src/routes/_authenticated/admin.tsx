@@ -28,6 +28,7 @@ import {
 import { generalCheckIn } from "@/lib/checkin.functions";
 import { listExhibitorRequests, reviewExhibitorRequest } from "@/lib/exhibitor-requests.functions";
 import { PipelineDashboard } from "@/components/admin/pipeline/pipeline-tabs";
+import { AuditTab } from "@/components/admin/audit-tab";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -120,6 +121,7 @@ function AdminPage() {
             <TabsTrigger value="users">{t("admin.tabs.users")}</TabsTrigger>
             <TabsTrigger value="requests">{t("admin.tabs.requests")}</TabsTrigger>
             <TabsTrigger value="emails">{t("admin.tabs.emails")}</TabsTrigger>
+            <TabsTrigger value="audit">Auditoria</TabsTrigger>
           </TabsList>
           <TabsContent value="dashboard" className="mt-4"><PipelineDashboard isAdmin /></TabsContent>
           <TabsContent value="tables" className="mt-4"><TablesTab /></TabsContent>
@@ -129,6 +131,7 @@ function AdminPage() {
           <TabsContent value="users" className="mt-4"><UsersTab currentAuthUserId={me?.auth_user_id ?? null} canDelete={isAdmin} /></TabsContent>
           <TabsContent value="requests" className="mt-4"><RequestsTab /></TabsContent>
           <TabsContent value="emails" className="mt-4"><EmailsTab /></TabsContent>
+          <TabsContent value="audit" className="mt-4"><AuditTab /></TabsContent>
         </Tabs>
       )}
     </div>
