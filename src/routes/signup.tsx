@@ -23,7 +23,9 @@ import {
 import {
   BUYER_SIGNUP_STORAGE_KEY,
   type BuyerSignupData,
+  type AdditionalContact,
   stepAccountSchema,
+  stepAdditionalContactsSchema,
   stepBuyerProfileSchema,
   stepCompanySchema,
   stepContactSchema,
@@ -41,7 +43,7 @@ export const Route = createFileRoute("/signup")({
   component: SignupPage,
 });
 
-const TOTAL_STEPS = 5;
+const TOTAL_STEPS = 6;
 
 const emptyData: BuyerSignupData = {
   email: "",
@@ -55,11 +57,16 @@ const emptyData: BuyerSignupData = {
   website: "",
   instagram: "",
   linkedin: "",
+  address: "",
+  general_phone: "",
+  specialty: "",
+  import_profile: "",
   full_name: "",
   job_title: "",
   phone: "",
   whatsapp: "",
   preferred_language: "pt-BR",
+  additional_contacts: [],
   buyer_type: "",
   interests_segments: [],
   interests_destinations: [],
@@ -112,6 +119,7 @@ function SignupPage() {
       stepAccountSchema,
       stepCompanySchema,
       stepContactSchema,
+      stepAdditionalContactsSchema,
       stepBuyerProfileSchema,
       stepPortfolioSchema,
     ];
@@ -155,7 +163,7 @@ function SignupPage() {
       setData((d) => ({ ...d, whatsapp: d.phone }));
       data.whatsapp = data.phone;
     }
-    if (!validateStep(5)) return;
+    if (!validateStep(TOTAL_STEPS)) return;
     setLoading(true);
     try {
       // Persist non-auth payload for /onboarding to consume after email confirm.
@@ -168,11 +176,22 @@ function SignupPage() {
         website: data.website,
         instagram: data.instagram,
         linkedin: data.linkedin,
+        address: data.address,
+        general_phone: toE164BR(data.general_phone) || data.general_phone,
+        specialty: data.specialty,
+        import_profile: data.import_profile,
         full_name: data.full_name,
         job_title: data.job_title,
         phone: toE164BR(data.phone),
         whatsapp: toE164BR(data.whatsapp),
         preferred_language: data.preferred_language,
+        additional_contacts: data.additional_contacts.map((c) => ({
+          name: c.name,
+          job_title: c.job_title,
+          email: c.email,
+          phone_whatsapp: toE164BR(c.phone_whatsapp) || c.phone_whatsapp,
+          linkedin: c.linkedin,
+        })),
         buyer_type: data.buyer_type,
         interests_segments: data.interests_segments,
         interests_destinations: data.interests_destinations,
@@ -273,10 +292,13 @@ function SignupPage() {
                 />
               )}
               {step === 4 && (
-                <Step4 data={data} set={set} errors={errors} t={t} lang={lang} />
+                <Step4Contacts data={data} set={set} errors={errors} t={t} />
               )}
               {step === 5 && (
-                <Step5 data={data} set={set} errors={errors} t={t} />
+                <Step5 data={data} set={set} errors={errors} t={t} lang={lang} />
+              )}
+              {step === 6 && (
+                <Step6 data={data} set={set} errors={errors} t={t} />
               )}
 
               <div className="flex items-center justify-between pt-2">
@@ -417,6 +439,34 @@ function Step2({ data, set, errors, t }: StepProps) {
             onChange={(e) => set("linkedin", e.target.value)} className="mt-1.5" />
         </div>
       </div>
+      <div>
+        <Label htmlFor="address">{t("signup.address")}</Label>
+        <Input id="address" value={data.address}
+          onChange={(e) => set("address", e.target.value)} className="mt-1.5" />
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <Label htmlFor="general_phone">{t("signup.generalPhone")}</Label>
+          <Input id="general_phone" inputMode="tel" placeholder="(11) 3000-0000"
+            value={data.general_phone}
+            onChange={(e) => set("general_phone", formatBRPhone(e.target.value))}
+            className="mt-1.5" />
+          <FieldError msg={errors.general_phone} t={t} />
+        </div>
+        <div>
+          <Label htmlFor="specialty">{t("signup.specialty")}</Label>
+          <Input id="specialty" placeholder={t("signup.specialtyPlaceholder")}
+            value={data.specialty}
+            onChange={(e) => set("specialty", e.target.value)} className="mt-1.5" />
+        </div>
+      </div>
+      <div>
+        <Label htmlFor="import_profile">{t("signup.importProfile")}</Label>
+        <Textarea id="import_profile" rows={3}
+          placeholder={t("signup.importProfilePlaceholder")}
+          value={data.import_profile}
+          onChange={(e) => set("import_profile", e.target.value)} className="mt-1.5" />
+      </div>
     </div>
   );
 }
@@ -502,7 +552,92 @@ function Step3({
   );
 }
 
-function Step4({ data, set, errors, t, lang }: StepProps & { lang: "pt" | "es" }) {
+function Step4Contacts({ data, set, errors, t }: StepProps) {
+  const contacts = data.additional_contacts;
+  const update = (i: number, patch: Partial<AdditionalContact>) => {
+    const next = contacts.map((c, idx) => (idx === i ? { ...c, ...patch } : c));
+    set("additional_contacts", next);
+  };
+  const add = () => {
+    if (contacts.length >= 5) return;
+    set("additional_contacts", [
+      ...contacts,
+      { name: "", job_title: "", email: "", phone_whatsapp: "", linkedin: "" },
+    ]);
+  };
+  const remove = (i: number) => {
+    set("additional_contacts", contacts.filter((_, idx) => idx !== i));
+  };
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-muted-foreground">{t("signup.additionalContactsHint")}</p>
+      {contacts.length === 0 && (
+        <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+          {t("signup.noAdditionalContacts")}
+        </p>
+      )}
+      {contacts.map((c, i) => {
+        const errBase = `additional_contacts.${i}`;
+        return (
+          <div key={i} className="space-y-3 rounded-md border p-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold">
+                {t("signup.contactN", { n: i + 2 })}
+              </h3>
+              <Button type="button" variant="ghost" size="sm" onClick={() => remove(i)}>
+                {t("signup.removeContact")}
+              </Button>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <Label>{t("auth.fullName")} *</Label>
+                <Input value={c.name} onChange={(e) => update(i, { name: e.target.value })}
+                  className="mt-1.5" />
+                <FieldError msg={errors[`${errBase}.name`]} t={t} />
+              </div>
+              <div>
+                <Label>{t("signup.jobTitle")}</Label>
+                <Input value={c.job_title}
+                  onChange={(e) => update(i, { job_title: e.target.value })}
+                  className="mt-1.5" />
+              </div>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <Label>{t("auth.email")} *</Label>
+                <Input type="email" value={c.email}
+                  onChange={(e) => update(i, { email: e.target.value })}
+                  className="mt-1.5" />
+                <FieldError msg={errors[`${errBase}.email`]} t={t} />
+              </div>
+              <div>
+                <Label>{t("signup.whatsapp")} *</Label>
+                <Input inputMode="tel" placeholder="(DDD) 9XXXX-XXXX"
+                  value={c.phone_whatsapp}
+                  onChange={(e) => update(i, { phone_whatsapp: formatBRPhone(e.target.value) })}
+                  className="mt-1.5" />
+                <FieldError msg={errors[`${errBase}.phone_whatsapp`]} t={t} />
+              </div>
+            </div>
+            <div>
+              <Label>LinkedIn</Label>
+              <Input placeholder="linkedin.com/in/..." value={c.linkedin}
+                onChange={(e) => update(i, { linkedin: e.target.value })}
+                className="mt-1.5" />
+            </div>
+          </div>
+        );
+      })}
+      {contacts.length < 5 && (
+        <Button type="button" variant="outline" onClick={add}>
+          {t("signup.addContact")}
+        </Button>
+      )}
+    </div>
+  );
+}
+
+function Step5({ data, set, errors, t, lang }: StepProps & { lang: "pt" | "es" }) {
   return (
     <div className="space-y-5">
       <div>
@@ -551,7 +686,7 @@ function Step4({ data, set, errors, t, lang }: StepProps & { lang: "pt" | "es" }
   );
 }
 
-function Step5({ data, set, errors, t }: StepProps) {
+function Step6({ data, set, errors, t }: StepProps) {
   return (
     <div className="space-y-4">
       <div>

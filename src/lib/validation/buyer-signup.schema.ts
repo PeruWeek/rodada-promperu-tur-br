@@ -32,6 +32,19 @@ export const stepCompanySchema = z.object({
     .refine((v) => !v || /^https?:\/\/.+\..+/.test(v), { message: "urlInvalid" }),
   instagram: optTrim,
   linkedin: optTrim,
+  address: optTrim,
+  general_phone: z.string().optional().or(z.literal("")).superRefine((v, ctx) => {
+    if (!v) return;
+    const r = validateBRPhoneDetailed(v);
+    if (!r.ok) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `signup.errors.phone${r.reason[0].toUpperCase()}${r.reason.slice(1)}`,
+      });
+    }
+  }),
+  specialty: optTrim,
+  import_profile: z.string().trim().max(2000).optional().or(z.literal("")),
 });
 
 export const stepContactSchema = z.object({
@@ -66,6 +79,32 @@ export const stepContactSchema = z.object({
   preferred_language: z.enum(["pt-BR", "es"]),
 });
 
+const additionalContactSchema = z.object({
+  name: z.string().trim().min(2).max(160),
+  job_title: z.string().trim().max(120).optional().or(z.literal("")),
+  email: z.string().trim().email().max(255),
+  phone_whatsapp: z.string().superRefine((v, ctx) => {
+    if (!v) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "signup.errors.required" });
+      return;
+    }
+    const r = validateBRPhoneDetailed(v);
+    if (!r.ok) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `signup.errors.phone${r.reason[0].toUpperCase()}${r.reason.slice(1)}`,
+      });
+    }
+  }),
+  linkedin: z.string().trim().max(255).optional().or(z.literal("")),
+});
+
+export const stepAdditionalContactsSchema = z.object({
+  additional_contacts: z.array(additionalContactSchema).max(5),
+});
+
+export type AdditionalContact = z.infer<typeof additionalContactSchema>;
+
 export const stepBuyerProfileSchema = z.object({
   buyer_type: z.string().min(1),
   interests_segments: z.array(z.string()),
@@ -97,20 +136,26 @@ export type BuyerSignupData = {
   website: string;
   instagram: string;
   linkedin: string;
+  address: string;
+  general_phone: string;
+  specialty: string;
+  import_profile: string;
   // step 3
   full_name: string;
   job_title: string;
   phone: string;
   whatsapp: string;
   preferred_language: "pt-BR" | "es";
-  // step 4
+  // step 4 (additional contacts)
+  additional_contacts: AdditionalContact[];
+  // step 5 (buyer profile)
   buyer_type: string;
   interests_segments: string[];
   interests_destinations: string[];
   interests_destinations_free: string;
   interests_services: string[];
   demand_profile: string;
-  // step 5
+  // step 6 (portfolio + consent)
   portfolio_pt: string;
   portfolio_es: string;
   notes: string;
