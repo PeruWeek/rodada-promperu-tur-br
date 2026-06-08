@@ -49,3 +49,13 @@ export function hasRole(roles: AppRole[] | undefined, ...accepted: AppRole[]): b
   if (!roles) return false;
   return roles.some((r) => accepted.includes(r));
 }
+
+const ROLE_PRIORITY: AppRole[] = ["admin", "staff", "exhibitor", "visitor"];
+
+export function getPrimaryRole(roles: AppRole[] | undefined): AppRole | null {
+  if (!roles || roles.length === 0) return null;
+  for (const r of ROLE_PRIORITY) {
+    if (roles.includes(r)) return r;
+  }
+  return null;
+}
