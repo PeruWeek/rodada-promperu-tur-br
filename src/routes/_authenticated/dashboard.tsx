@@ -1,11 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { useQuery } from "@tanstack/react-query";
 import { ArrowRight } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { useProfile, hasRole } from "@/hooks/use-profile";
-import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   component: DashboardPage,
@@ -14,20 +12,6 @@ export const Route = createFileRoute("/_authenticated/dashboard")({
 function DashboardPage() {
   const { t } = useTranslation();
   const { data: profile } = useProfile();
-  const isExhibitor = hasRole(profile?.roles, "exhibitor");
-
-  const { data: hasTable } = useQuery({
-    queryKey: ["my-exhibitor-table", profile?.id ?? "anon"],
-    enabled: !!profile && isExhibitor,
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("event_tables")
-        .select("id")
-        .eq("exhibitor_profile_id", profile!.id)
-        .limit(1);
-      return (data ?? []).length > 0;
-    },
-  });
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-10">
@@ -37,11 +21,6 @@ function DashboardPage() {
           <span key={r} className="rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold uppercase text-primary">{t(`roles.${r}`)}</span>
         ))}
       </div>
-      {isExhibitor && hasTable === false && (
-        <div className="mt-6 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-900 dark:text-amber-200">
-          {t("dashboard.awaitingTable")}
-        </div>
-      )}
       <div className="mt-8 grid gap-4 sm:grid-cols-2">
         <div className="rounded-xl border border-border bg-card p-6">
           <h2 className="text-lg font-bold">{t("dashboard.nextMeetingTitle")}</h2>
