@@ -1,38 +1,48 @@
-## Problema
+## Situação
 
-O componente `PipelineDashboard` (`src/components/admin/pipeline/pipeline-tabs.tsx`) e as server functions (`src/lib/pipeline.functions.ts`) já existem e a migration já rodou, mas o componente **nunca foi adicionado** ao arquivo `src/routes/_authenticated/admin.tsx`. Por isso nada aparece no perfil admin nem no staff.
+O hook de e-mail de cadastro **executou com sucesso** no Auth às 22:06:07 para `peruweek@gmail.com` (status 200 no `api.lovable.dev/.../email-hook`). Ou seja: o Supabase chamou o serviço de e-mail do Lovable, que aceitou e enfileirou o envio.
 
-## O que será feito
+Mesmo assim você não recebeu. As causas possíveis, em ordem de probabilidade:
 
-Editar apenas `src/routes/_authenticated/admin.tsx` para expor a dashboard tanto para admin quanto para staff, sem mexer em nenhuma outra lógica.
+1. **Caixa de spam / promoções do Gmail** — o mais comum quando "antes chegava e agora não".
+2. **Endereço suprimido pelo provedor** — se em testes anteriores o Gmail devolveu bounce ou você clicou em "marcar como spam", o endereço entra numa lista de supressão e os próximos envios são silenciosamente bloqueados.
+3. **Throttling temporário do Gmail** para o domínio remetente (`rsvp.promperu.tur.br`) por excesso de testes recentes para o mesmo endereço.
 
-### 1. Adicionar nova aba "Dashboard" (primeira aba, default)
+Hoje o projeto **não tem a infraestrutura padrão de logs de e-mail instalada** (`email_send_log`, `suppressed_emails`, fila pgmq). A tabela existente `email_delivery_logs` está vazia e não é alimentada por nada. Por isso não consigo ver no banco se o e-mail saiu, foi entregue, deu bounce ou foi suprimido — só vejo que o Auth chamou o hook.
 
-Tanto no bloco staff (linhas 99–108) quanto no bloco admin (linhas 110–127):
+## Plano
 
-- Adicionar `<TabsTrigger value="dashboard">Dashboard</TabsTrigger>` como **primeira** trigger
-- Adicionar `<TabsContent value="dashboard"><PipelineDashboard isAdmin={...} /></TabsContent>`
-- Trocar `defaultValue` para `"dashboard"` em ambos os `<Tabs>` para que abra direto nela
-- Passar `isAdmin={false}` no bloco staff e `isAdmin={true}` no bloco admin (o componente já trata as diferenças: staff vê só sua carteira por padrão, admin tem toggle Todos/Meus)
+### 1. Ação imediata sua (sem código)
+- Verificar **Spam**, **Promoções** e **Lixeira** do Gmail filtrando por `rsvp.promperu.tur.br` ou "Rodada".
+- Se encontrar, marcar como "Não é spam" / mover para Caixa de entrada — isso destrava entregas futuras.
+- Tentar **reenviar a confirmação** pela tela de login (já existe o botão "Reenviar confirmação" quando o link expira) ou se cadastrar com um endereço alternativo (ex.: outro Gmail, Outlook) para confirmar que o envio funciona em geral.
 
-### 2. Import
+### 2. Instalar a infraestrutura de e-mails do Lovable
+Para que daqui em diante tenhamos rastreabilidade real (e não dependamos só de "o hook respondeu 200"):
 
-Adicionar no topo de `admin.tsx`:
-```ts
-import { PipelineDashboard } from "@/components/admin/pipeline/pipeline-tabs";
-```
+- Rodar `setup_email_infra` para criar:
+  - tabela `email_send_log` (status por mensagem: pending / sent / dlq / suppressed / bounced / complained)
+  - tabela `suppressed_emails` (endereços bloqueados por bounce/spam)
+  - fila pgmq + cron de processamento + retries
+- Migrar o hook de auth atual para a versão enfileirada via `scaffold_auth_email_templates` (com `confirm_overwrite: true`), preservando os templates existentes em `src/lib/email-templates/signup.tsx` etc. Isso passa o envio pelo `email_send_log`.
 
-### 3. i18n (opcional nesta entrega)
+Depois disso eu consigo te responder com precisão "o e-mail para peruweek@gmail.com saiu? bounceu? está suprimido?" — basta consultar a tabela.
 
-Para manter consistência com as outras abas que usam `t("admin.tabs.*")`, posso adicionar a chave `admin.tabs.dashboard` em `pt-BR.json` e `es.json` e usar `{t("admin.tabs.dashboard")}` no trigger. Se preferir entrega mínima, deixo o label fixo "Dashboard" e adiciono a tradução depois.
+### 3. Painel de e-mails na dashboard admin (opcional, mas recomendado)
+Como você já tem a dashboard admin/staff em `/admin`, faz sentido adicionar uma aba **"E-mails"** com:
+- filtros por período (24h / 7d / 30d / custom), template e status
+- contadores de enviados / falhos / suprimidos (deduplicados por `message_id`)
+- tabela com último status de cada envio (template, destinatário, status, timestamp, erro)
+- ação rápida "remover da supressão" para liberar um endereço
 
-## Fora do escopo
+Assim qualquer falha futura ("fulano não recebeu") é resolvida sem precisar me chamar.
 
-- Nenhuma mudança no backend, RLS, server functions ou no componente `PipelineDashboard` em si
-- Nenhuma mudança em outras abas existentes (Mesas, Check-in, Staff, Usuários, Solicitações, E-mails)
+## Fora de escopo
+- Trocar provedor de e-mail (Resend/SendGrid). O domínio `rsvp.promperu.tur.br` já está verificado e delegado ao Lovable; trocar agora exigiria remover NS no registrador e esperar até 72h.
+- Mexer em templates de e-mail (visual, copy) — fica para outro pedido se precisar.
+- Mexer em RLS de outras tabelas.
 
-## Resultado esperado
-
-Ao abrir `/admin`:
-- **Admin** vê a nova aba **Dashboard** (default) com Visão Geral, Cadastros, Agendamentos e Follow-up — com toggle Todos/Meus.
-- **Staff** também vê a aba Dashboard como default, restrita à sua carteira por padrão.
+## O que eu preciso de você antes de implementar
+Confirma só duas coisas:
+1. Você já checou Spam/Promoções? (para sabermos se é entrega ou supressão)
+2. Posso seguir com os passos **2 e 3** (infra de logs + aba "E-mails" na dashboard admin)?
