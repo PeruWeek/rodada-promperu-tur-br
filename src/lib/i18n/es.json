@@ -208,7 +208,9 @@
       "checkin": "Check-in",
       "users": "Usuarios",
       "requests": "Solicitudes",
-      "emails": "Emails"
+      "emails": "Emails",
+      "staffAgenda": "Agenda del Staff",
+      "staff": "Staff"
     },
     "tables": {
       "help": "Asigna un expositor a cada mesa. Usa 'Regenerar slots' tras cambios.",
@@ -228,7 +230,30 @@
     "users": {
       "searchPlaceholder": "Buscar usuario...",
       "empty": "No se encontraron usuarios.",
-      "saved": "Roles actualizados."
+      "saved": "Roles actualizados.",
+      "created": "Usuario creado.",
+      "deleted": "Usuario eliminado.",
+      "inactive": "Inactivo",
+      "active": "Activo",
+      "primaryRole": "Rol",
+      "cannotDeleteSelf": "No puedes eliminarte a ti mismo.",
+      "create": {
+        "button": "Nuevo usuario",
+        "title": "Crear usuario",
+        "email": "Correo",
+        "password": "Contraseña",
+        "passwordHint": "Mín. 8 caracteres",
+        "fullName": "Nombre completo",
+        "language": "Idioma"
+      },
+      "edit": {
+        "title": "Editar usuario"
+      },
+      "delete": {
+        "title": "Eliminar usuario",
+        "confirm": "¿Eliminar {{name}}? Esta acción no se puede deshacer.",
+        "action": "Eliminar"
+      }
     },
     "requests": {
       "empty": "Sin solicitudes.",
@@ -279,6 +304,20 @@
       "newPasswordPlaceholder": "Nueva contraseña (mínimo 8 caracteres)",
       "setPassword": "Definir contraseña",
       "passwordSet": "Contraseña actualizada."
+    },
+    "staff": {
+      "help": "Asigna miembros del staff a cada mesa.",
+      "noEvent": "Sin evento.",
+      "noStaff": "Ningún usuario con rol staff.",
+      "tableLabel": "Mesa {{n}}"
+    },
+    "staffAgenda": {
+      "filterStaff": "Filtrar por staff",
+      "allForMe": "Mis asignaciones",
+      "empty": "Sin reuniones programadas.",
+      "exhibitor": "Expositor",
+      "checked": "Check-in hecho",
+      "notChecked": "Sin check-in"
     }
   },
   "roles": {

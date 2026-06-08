@@ -5,7 +5,7 @@ import { useServerFn } from "@tanstack/react-start";
 
 import { supabase } from "@/integrations/supabase/client";
 import { SiteHeader } from "@/components/site-header";
-import { useProfile, hasRole } from "@/hooks/use-profile";
+import { useProfile, hasRole, getPrimaryRole } from "@/hooks/use-profile";
 import { getMyExhibitorRequest } from "@/lib/exhibitor-requests.functions";
 
 export const Route = createFileRoute("/_authenticated")({
@@ -23,6 +23,7 @@ function AuthenticatedLayout() {
   const fetchReq = useServerFn(getMyExhibitorRequest);
 
   const isAdminStaff = hasRole(profile?.roles, "admin", "staff");
+  const primaryRole = getPrimaryRole(profile?.roles);
 
   const { data: reqData, isLoading: reqLoading } = useQuery({
     queryKey: ["my-exhibitor-request"],
@@ -32,6 +33,26 @@ function AuthenticatedLayout() {
 
   useEffect(() => {
     if (profileLoading || reqLoading || !profile) return;
+
+    // Route gating by primary role
+    const adminStaffForbidden = ["/explore", "/agenda", "/table-agenda", "/dashboard", "/onboarding", "/pending-exhibitor"];
+    if (primaryRole === "admin" || primaryRole === "staff") {
+      if (adminStaffForbidden.some((p) => pathname === p || pathname.startsWith(p + "/"))) {
+        navigate({ to: "/admin" });
+        return;
+      }
+    } else if (primaryRole === "visitor") {
+      if (pathname.startsWith("/admin") || pathname === "/table-agenda") {
+        navigate({ to: "/dashboard" });
+        return;
+      }
+    } else if (primaryRole === "exhibitor") {
+      if (pathname.startsWith("/admin") || pathname === "/agenda") {
+        navigate({ to: "/dashboard" });
+        return;
+      }
+    }
+
     if (isAdminStaff) return;
 
     const req = reqData?.request;
@@ -46,7 +67,7 @@ function AuthenticatedLayout() {
     if (req && (req.status === "pending" || req.status === "rejected") && !onPending && !onProfile) {
       navigate({ to: "/pending-exhibitor" });
     }
-  }, [profile, profileLoading, reqData, reqLoading, isAdminStaff, pathname, navigate]);
+  }, [profile, profileLoading, reqData, reqLoading, isAdminStaff, primaryRole, pathname, navigate]);
 
   return (
     <div className="min-h-screen bg-background">

@@ -6,7 +6,7 @@ import { Menu, X } from "lucide-react";
 import { LanguageSwitcher } from "./language-switcher";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
-import { useProfile, hasRole } from "@/hooks/use-profile";
+import { useProfile, getPrimaryRole } from "@/hooks/use-profile";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import promperuLogo from "@/assets/promperu-logo.png";
@@ -25,20 +25,31 @@ export function SiteHeader() {
     navigate({ to: "/" });
   };
 
-  const navItems = user
-    ? [
+  const primaryRole = getPrimaryRole(profile?.roles);
+  const navItems = (() => {
+    if (!user) return [] as Array<{ to: string; label: string }>;
+    if (primaryRole === "admin" || primaryRole === "staff") {
+      return [
+        { to: "/admin", label: t("nav.admin") },
+        { to: "/profile", label: t("nav.profile") },
+      ];
+    }
+    if (primaryRole === "exhibitor") {
+      return [
         { to: "/dashboard", label: t("nav.dashboard") },
         { to: "/explore", label: t("nav.explore") },
-        { to: "/agenda", label: t("nav.agenda") },
-        ...(hasRole(profile?.roles, "exhibitor")
-          ? [{ to: "/table-agenda", label: t("nav.tableAgenda") }]
-          : []),
-        ...(hasRole(profile?.roles, "admin", "staff")
-          ? [{ to: "/admin", label: t("nav.admin") }]
-          : []),
+        { to: "/table-agenda", label: t("nav.tableAgenda") },
         { to: "/profile", label: t("nav.profile") },
-      ]
-    : [];
+      ];
+    }
+    // visitor (default)
+    return [
+      { to: "/dashboard", label: t("nav.dashboard") },
+      { to: "/explore", label: t("nav.explore") },
+      { to: "/agenda", label: t("nav.agenda") },
+      { to: "/profile", label: t("nav.profile") },
+    ];
+  })();
 
   return (
     <header className="sticky top-0 z-40 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
