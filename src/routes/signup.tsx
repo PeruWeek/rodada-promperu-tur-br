@@ -552,7 +552,92 @@ function Step3({
   );
 }
 
-function Step4({ data, set, errors, t, lang }: StepProps & { lang: "pt" | "es" }) {
+function Step4Contacts({ data, set, errors, t }: StepProps) {
+  const contacts = data.additional_contacts;
+  const update = (i: number, patch: Partial<AdditionalContact>) => {
+    const next = contacts.map((c, idx) => (idx === i ? { ...c, ...patch } : c));
+    set("additional_contacts", next);
+  };
+  const add = () => {
+    if (contacts.length >= 5) return;
+    set("additional_contacts", [
+      ...contacts,
+      { name: "", job_title: "", email: "", phone_whatsapp: "", linkedin: "" },
+    ]);
+  };
+  const remove = (i: number) => {
+    set("additional_contacts", contacts.filter((_, idx) => idx !== i));
+  };
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-muted-foreground">{t("signup.additionalContactsHint")}</p>
+      {contacts.length === 0 && (
+        <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+          {t("signup.noAdditionalContacts")}
+        </p>
+      )}
+      {contacts.map((c, i) => {
+        const errBase = `additional_contacts.${i}`;
+        return (
+          <div key={i} className="space-y-3 rounded-md border p-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold">
+                {t("signup.contactN", { n: i + 2 })}
+              </h3>
+              <Button type="button" variant="ghost" size="sm" onClick={() => remove(i)}>
+                {t("signup.removeContact")}
+              </Button>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <Label>{t("auth.fullName")} *</Label>
+                <Input value={c.name} onChange={(e) => update(i, { name: e.target.value })}
+                  className="mt-1.5" />
+                <FieldError msg={errors[`${errBase}.name`]} t={t} />
+              </div>
+              <div>
+                <Label>{t("signup.jobTitle")}</Label>
+                <Input value={c.job_title}
+                  onChange={(e) => update(i, { job_title: e.target.value })}
+                  className="mt-1.5" />
+              </div>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <Label>{t("auth.email")} *</Label>
+                <Input type="email" value={c.email}
+                  onChange={(e) => update(i, { email: e.target.value })}
+                  className="mt-1.5" />
+                <FieldError msg={errors[`${errBase}.email`]} t={t} />
+              </div>
+              <div>
+                <Label>{t("signup.whatsapp")} *</Label>
+                <Input inputMode="tel" placeholder="(DDD) 9XXXX-XXXX"
+                  value={c.phone_whatsapp}
+                  onChange={(e) => update(i, { phone_whatsapp: formatBRPhone(e.target.value) })}
+                  className="mt-1.5" />
+                <FieldError msg={errors[`${errBase}.phone_whatsapp`]} t={t} />
+              </div>
+            </div>
+            <div>
+              <Label>LinkedIn</Label>
+              <Input placeholder="linkedin.com/in/..." value={c.linkedin}
+                onChange={(e) => update(i, { linkedin: e.target.value })}
+                className="mt-1.5" />
+            </div>
+          </div>
+        );
+      })}
+      {contacts.length < 5 && (
+        <Button type="button" variant="outline" onClick={add}>
+          {t("signup.addContact")}
+        </Button>
+      )}
+    </div>
+  );
+}
+
+function Step5({ data, set, errors, t, lang }: StepProps & { lang: "pt" | "es" }) {
   return (
     <div className="space-y-5">
       <div>
@@ -601,7 +686,7 @@ function Step4({ data, set, errors, t, lang }: StepProps & { lang: "pt" | "es" }
   );
 }
 
-function Step5({ data, set, errors, t }: StepProps) {
+function Step6({ data, set, errors, t }: StepProps) {
   return (
     <div className="space-y-4">
       <div>
