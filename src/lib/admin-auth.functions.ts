@@ -186,6 +186,58 @@ export const adminUpdateUserProfile = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+export const adminUpsertUserCompany = createServerFn({ method: "POST" })
+  .inputValidator((input) =>
+    z
+      .object({
+        userId: z.string().uuid(),
+        trade_name: z.string().trim().min(1).max(200),
+        country_code: z.string().trim().min(2).max(2).default("BR"),
+        city: z.string().trim().max(120).optional(),
+      })
+      .parse(input),
+  )
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    await assertAdminStrict(context.userId);
+    const { data: prof, error: pErr } = await supabaseAdmin
+      .from("profiles")
+      .select("id, company_id")
+      .eq("auth_user_id", data.userId)
+      .maybeSingle();
+    if (pErr) throw new Error(pErr.message);
+    if (!prof) throw new Error("Perfil não encontrado.");
+    const city = data.city?.trim() ? data.city.trim() : null;
+    if (prof.company_id) {
+      const { error } = await supabaseAdmin
+        .from("companies")
+        .update({ trade_name: data.trade_name, country_code: data.country_code, city })
+        .eq("id", prof.company_id);
+      if (error) throw new Error(error.message);
+      await audit("admin.company_update", context.userId, {
+        target_user_id: data.userId,
+        company_id: prof.company_id,
+      });
+      return { ok: true, companyId: prof.company_id };
+    }
+    const { data: created, error: cErr } = await supabaseAdmin
+      .from("companies")
+      .insert({ trade_name: data.trade_name, country_code: data.country_code, city })
+      .select("id")
+      .single();
+    if (cErr) throw new Error(cErr.message);
+    const { error: uErr } = await supabaseAdmin
+      .from("profiles")
+      .update({ company_id: created.id })
+      .eq("id", prof.id);
+    if (uErr) throw new Error(uErr.message);
+    await audit("admin.company_create", context.userId, {
+      target_user_id: data.userId,
+      company_id: created.id,
+    });
+    return { ok: true, companyId: created.id };
+  });
+
 export const adminDeleteUser = createServerFn({ method: "POST" })
   .inputValidator((input) => z.object({ userId: z.string().uuid() }).parse(input))
   .middleware([requireSupabaseAuth])
@@ -259,7 +311,7 @@ export const adminListUsers = createServerFn({ method: "POST" })
     await assertAdminStrict(context.userId);
     let q = supabaseAdmin
       .from("profiles")
-      .select("id, auth_user_id, full_name, email, is_active, preferred_language, company_id")
+      .select("id, auth_user_id, full_name, email, is_active, preferred_language, company_id, companies:company_id(id, trade_name, country_code, city)")
       .not("auth_user_id", "is", null)
       .order("full_name")
       .limit(data.limit ?? 200);
@@ -274,11 +326,21 @@ export const adminListUsers = createServerFn({ method: "POST" })
       ? await supabaseAdmin.from("user_roles").select("user_id, role").in("user_id", userIds)
       : { data: [] as Array<{ user_id: string; role: string }> };
     return {
-      users: (profs ?? []).map((p) => ({
-        ...p,
-        roles: (roles ?? [])
-          .filter((r) => r.user_id === p.auth_user_id)
-          .map((r) => r.role as "admin" | "staff" | "exhibitor" | "visitor"),
-      })),
+      users: (profs ?? []).map((p) => {
+        const company = (p as unknown as { companies: { id: string; trade_name: string; country_code: string; city: string | null } | null }).companies ?? null;
+        return {
+          id: p.id,
+          auth_user_id: p.auth_user_id,
+          full_name: p.full_name,
+          email: p.email,
+          is_active: p.is_active,
+          preferred_language: p.preferred_language,
+          company_id: p.company_id,
+          company,
+          roles: (roles ?? [])
+            .filter((r) => r.user_id === p.auth_user_id)
+            .map((r) => r.role as "admin" | "staff" | "exhibitor" | "visitor"),
+        };
+      }),
     };
   });
