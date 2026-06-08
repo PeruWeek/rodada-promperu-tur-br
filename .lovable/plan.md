@@ -1,25 +1,35 @@
 ## Diagnóstico
 
-O botão **Reenviar confirmação** está chamando o reenvio do login corretamente, mas o novo e-mail não está sendo registrado no monitoramento de envios. O domínio de envio `rsvp.promperu.tur.br` está verificado e pronto, então o problema provável é que o fluxo de e-mail de autenticação ainda não está passando pela fila/logs configurados ou precisa ser reativado no backend publicado.
+A linha **"Teste de cadastro LTda"** existe na tabela de empresas, mas é um registro **órfão**:
+
+- Foi criada em 08/06 às 17:54.
+- Tem uma linha no pipeline marcada como `cadastro_concluido`.
+- **Não tem perfil de usuário vinculado** (nenhum contato, nenhum responsável).
+- **Não existe um usuário autenticado** com essa empresa.
+
+Provavelmente sobrou de um teste manual feito antes de existirem as travas do fluxo atual (o wizard de cadastro só grava a empresa no final, junto com o perfil). Por isso não aparece em nenhum log: a tabela de auditoria está vazia hoje — o sistema **não está registrando eventos de criação/edição de empresas, perfis e cadastros**.
+
+A linha "Teste Expositor" também não tem usuário vinculado, mas tem o e-mail `comercial@kronedesign.com.br` registrado como contato — outro caso de cadastro incompleto.
 
 ## Plano de correção
 
-1. **Revisar o fluxo do botão de reenvio**
-   - Garantir que o e-mail digitado seja normalizado.
-   - Melhorar a mensagem de erro para não mostrar textos técnicos ao visitante.
-   - Manter o redirecionamento para `/onboarding` após confirmação.
+1. **Limpar registros órfãos**
+   - Remover a empresa "Teste de cadastro LTda" (sem perfil, sem usuário, sem agendamentos).
+   - Remover a empresa "Teste Expositor" se também estiver órfã (sem perfil), preservando "Kronedesign".
+   - Remover as linhas correspondentes do pipeline.
 
-2. **Reativar os e-mails de autenticação pela infraestrutura atual**
-   - Atualizar/reestruturar os templates e o webhook de e-mail de autenticação para usar a fila com logs.
-   - Preservar o visual e textos atuais dos e-mails.
-   - Confirmar que o domínio verificado continua sendo o remetente.
+2. **Travar criação de empresas sem usuário**
+   - Garantir, por regra no banco, que toda nova empresa precise estar vinculada a um perfil/usuário criado pelo wizard de cadastro.
+   - Bloquear inserções diretas sem `created_by` válido.
 
-3. **Validar o caso do usuário**
-   - Testar novamente o reenvio para o e-mail usado na tela.
-   - Verificar se aparece um registro no monitoramento de e-mails.
-   - Se o registro ficar como enviado, orientar a checar Caixa de entrada, Spam, Promoções e Lixeira.
-   - Se ficar com falha/suprimido, apontar o motivo exato.
+3. **Ativar logs de auditoria de cadastro**
+   - Registrar eventos de criação e mudança de status de empresas, perfis e linhas do pipeline na tabela de auditoria.
+   - Adicionar uma aba/seção no Admin para visualizar esses eventos (quem criou, quando, qual ação, e-mail envolvido).
 
-## Observação importante
+4. **Indicador de "cadastro incompleto" na Dashboard**
+   - Marcar visualmente empresas sem perfil/usuário vinculado para o admin reconhecer registros parciais.
 
-O e-mail mostrado na captura é `luizantoniotibirica@gmail.com`, diferente de `peruweek@gmail.com`. Vou validar os dois se necessário, mas a correção será no fluxo geral de reenvio de confirmação.
+## Perguntas antes de executar
+
+- Posso apagar "Teste de cadastro LTda" e "Teste Expositor"? (Kronedesign será preservada — tem usuário real.)
+- A aba de logs deve incluir só ações de cadastro, ou também ações administrativas (mudança manual de status, atribuição de responsável, exclusão)?
