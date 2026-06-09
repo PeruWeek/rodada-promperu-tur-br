@@ -1,35 +1,59 @@
-## Diagnóstico
+# Migrar envio de e-mails para SendGrid
 
-A linha **"Teste de cadastro LTda"** existe na tabela de empresas, mas é um registro **órfão**:
+## Objetivo
 
-- Foi criada em 08/06 às 17:54.
-- Tem uma linha no pipeline marcada como `cadastro_concluido`.
-- **Não tem perfil de usuário vinculado** (nenhum contato, nenhum responsável).
-- **Não existe um usuário autenticado** com essa empresa.
+Trocar o provedor de envio dos e-mails transacionais (confirmação/cancelamento de reunião, e quaisquer próximos templates) da infra interna Lovable para a API do SendGrid, usando como remetente:
 
-Provavelmente sobrou de um teste manual feito antes de existirem as travas do fluxo atual (o wizard de cadastro só grava a empresa no final, junto com o perfil). Por isso não aparece em nenhum log: a tabela de auditoria está vazia hoje — o sistema **não está registrando eventos de criação/edição de empresas, perfis e cadastros**.
+- **From:** `Rodada de Negócios PromPerú <rodada@promperu.tur.br>`
+- **Reply-To:** `rodada@promperu.tur.br`
 
-A linha "Teste Expositor" também não tem usuário vinculado, mas tem o e-mail `comercial@kronedesign.com.br` registrado como contato — outro caso de cadastro incompleto.
+O sender `rodada@promperu.tur.br` já está validado no SendGrid (Single Sender ou domínio autenticado), então não é necessário mexer em DNS.
 
-## Plano de correção
+## O que preciso de você
 
-1. **Limpar registros órfãos**
-   - Remover a empresa "Teste de cadastro LTda" (sem perfil, sem usuário, sem agendamentos).
-   - Remover a empresa "Teste Expositor" se também estiver órfã (sem perfil), preservando "Kronedesign".
-   - Remover as linhas correspondentes do pipeline.
+1. **`SENDGRID_API_KEY`** — uma API Key do SendGrid com permissão **Mail Send** (Restricted Access → Mail Send: Full). Vou abrir um campo seguro pra você colar; nunca aparece no código.
+2. Confirmação de que `rodada@promperu.tur.br` está mesmo verificado no SendGrid (Settings → Sender Authentication). Se for Single Sender, ok; se for domínio autenticado em `promperu.tur.br`, melhor ainda (DKIM já assina).
+3. Um e-mail destino para o teste de envio (pode ser o seu).
 
-2. **Travar criação de empresas sem usuário**
-   - Garantir, por regra no banco, que toda nova empresa precise estar vinculada a um perfil/usuário criado pelo wizard de cadastro.
-   - Bloquear inserções diretas sem `created_by` válido.
+Não precisa mexer em DNS nem desligar a infra Lovable atual — o domínio `rsvp.promperu.tur.br` continua delegado à Lovable mas deixa de ser usado pra envio. Os e-mails de **autenticação** (signup, recuperação de senha, etc.) continuarão pela Lovable, porque o Supabase Auth chama um webhook próprio; só os **transacionais do app** mudam para SendGrid.
 
-3. **Ativar logs de auditoria de cadastro**
-   - Registrar eventos de criação e mudança de status de empresas, perfis e linhas do pipeline na tabela de auditoria.
-   - Adicionar uma aba/seção no Admin para visualizar esses eventos (quem criou, quando, qual ação, e-mail envolvido).
+## O que vai mudar no código
 
-4. **Indicador de "cadastro incompleto" na Dashboard**
-   - Marcar visualmente empresas sem perfil/usuário vinculado para o admin reconhecer registros parciais.
+### 1. Reescrever o `POST /lovable/email/transactional/send`
+Em vez de chamar `supabase.rpc('enqueue_email', ...)` (fila pgmq + dispatcher Lovable), o handler:
+- Renderiza o template React Email (igual hoje).
+- Faz `POST https://api.sendgrid.com/v3/mail/send` com `Authorization: Bearer ${SENDGRID_API_KEY}`.
+- Mantém todas as checagens atuais: autenticação Supabase do chamador, supressão (`suppressed_emails`), token de unsubscribe (`email_unsubscribe_tokens`), log em `email_send_log` (status `sent` / `failed` + `error_message` do SendGrid).
+- Adiciona header `Reply-To: rodada@promperu.tur.br` e categoria/`custom_args` com `template_name` e `message_id` pra rastreio no painel SendGrid.
 
-## Perguntas antes de executar
+### 2. Footer de unsubscribe
+Hoje a infra Lovable injeta o rodapé automaticamente. Com SendGrid, isso some — então passo a inserir o link `https://rodada.promperu.tur.br/unsubscribe?token=...` no HTML/texto renderizado antes do envio (mesma página de unsubscribe que já existe).
 
-- Posso apagar "Teste de cadastro LTda" e "Teste Expositor"? (Kronedesign será preservada — tem usuário real.)
-- A aba de logs deve incluir só ações de cadastro, ou também ações administrativas (mudança manual de status, atribuição de responsável, exclusão)?
+### 3. Webhook de bounces/spam (opcional, recomendado)
+Crio uma rota pública `/api/public/sendgrid-webhook` que recebe Event Webhook do SendGrid (`bounce`, `dropped`, `spamreport`, `unsubscribe`) e insere em `suppressed_emails`. Assim a lista de supressão continua viva. Verifica assinatura ECDSA do SendGrid (`X-Twilio-Email-Event-Webhook-Signature`).
+
+Se você não quiser configurar webhook agora, pulo esse item — supressão por bounce deixa de ser automática.
+
+### 4. Botão de teste no Admin
+Adiciono na aba **Auditoria** (ou crio uma aba **E-mails**) um botão "Enviar e-mail de teste" que dispara o template `meeting-confirmation` com dados fictícios para um endereço informado, e mostra o resultado (id do SendGrid + status gravado em `email_send_log`).
+
+## O que NÃO muda
+
+- Templates React Email em `src/lib/email-templates/` (visual idêntico).
+- Tabelas `email_send_log`, `suppressed_emails`, `email_unsubscribe_tokens`, página `/unsubscribe`.
+- Fluxo de auth (signup/recuperação) continua pela Lovable.
+- Domínio `rsvp.promperu.tur.br` permanece configurado (pode remover depois se quiser; não atrapalha).
+
+## Passos da execução (quando você aprovar)
+
+1. Você fornece `SENDGRID_API_KEY` no campo seguro.
+2. Reescrevo o handler de envio + injeção do footer de unsubscribe.
+3. (Opcional) Crio o webhook de eventos e te passo a URL pra colar em SendGrid → Settings → Mail Settings → Event Webhook.
+4. Adiciono o botão de teste no Admin.
+5. Disparo um teste pro endereço que você indicar e te mostro o registro em `email_send_log`.
+
+## Me confirma antes de eu começar
+
+- Pode usar **Reply-To** = `rodada@promperu.tur.br` e **From name** = "Rodada de Negócios PromPerú"? (ou prefere outro nome de exibição)
+- Quer o **webhook de bounces/spam** do SendGrid agora ou deixa pra depois?
+- Qual e-mail usar no teste final?
