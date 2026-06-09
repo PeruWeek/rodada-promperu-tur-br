@@ -21,7 +21,7 @@ import { EditCompanyDrawer } from "./edit-company-drawer";
 
 type RoleFilter = "all" | "visitor" | "exhibitor";
 
-export function CompaniesTab() {
+export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) {
   const { t } = useTranslation();
   const listFn = useServerFn(listAdminCompanies);
   const [search, setSearch] = useState("");
@@ -94,9 +94,11 @@ export function CompaniesTab() {
                   {c.primary_contact?.email ? ` · ${c.primary_contact.email}` : ""}
                 </p>
               </div>
-              <Button size="sm" variant="outline" onClick={() => setEditingId(c.id)}>
-                <Pencil size={14} /> {t("admin.companies.edit")}
-              </Button>
+              {!readOnly && (
+                <Button size="sm" variant="outline" onClick={() => setEditingId(c.id)}>
+                  <Pencil size={14} /> {t("admin.companies.edit")}
+                </Button>
+              )}
             </div>
           ))}
         </div>
