@@ -32,6 +32,7 @@ import { PipelineDashboard } from "@/components/admin/pipeline/pipeline-tabs";
 import { AuditTab } from "@/components/admin/audit-tab";
 import { EmailTemplatesTab } from "@/components/admin/email-templates-tab";
 import { CompaniesTab } from "@/components/admin/companies/companies-tab";
+import { RegistrantsTab } from "@/components/admin/registrants-tab";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -105,13 +106,13 @@ function AdminPage() {
           <TabsList className="flex flex-wrap h-auto">
             <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
             <TabsTrigger value="staffAgenda">{t("admin.tabs.staffAgenda")}</TabsTrigger>
-            <TabsTrigger value="checkin">{t("admin.tabs.checkin")}</TabsTrigger>
-            <TabsTrigger value="users">{t("admin.tabs.users")}</TabsTrigger>
+            <TabsTrigger value="companies">{t("admin.tabs.companies")}</TabsTrigger>
+            <TabsTrigger value="registrants">{t("admin.tabs.registrants")}</TabsTrigger>
           </TabsList>
           <TabsContent value="dashboard" className="mt-4"><PipelineDashboard isAdmin={false} /></TabsContent>
           <TabsContent value="staffAgenda" className="mt-4"><StaffAgendaTab isAdmin={false} /></TabsContent>
-          <TabsContent value="checkin" className="mt-4"><CheckinTab /></TabsContent>
-          <TabsContent value="users" className="mt-4"><UsersTab currentAuthUserId={me?.auth_user_id ?? null} canDelete={false} /></TabsContent>
+          <TabsContent value="companies" className="mt-4"><CompaniesTab readOnly /></TabsContent>
+          <TabsContent value="registrants" className="mt-4"><RegistrantsTab /></TabsContent>
         </Tabs>
       ) : (
         <Tabs defaultValue="dashboard" className="mt-6">
@@ -123,6 +124,7 @@ function AdminPage() {
             <TabsTrigger value="staff">{t("admin.tabs.staff")}</TabsTrigger>
             <TabsTrigger value="users">{t("admin.tabs.users")}</TabsTrigger>
             <TabsTrigger value="companies">{t("admin.tabs.companies")}</TabsTrigger>
+            <TabsTrigger value="registrants">{t("admin.tabs.registrants")}</TabsTrigger>
             <TabsTrigger value="requests">{t("admin.tabs.requests")}</TabsTrigger>
             <TabsTrigger value="emails">{t("admin.tabs.emails")}</TabsTrigger>
             <TabsTrigger value="emailTemplates">{t("admin.tabs.emailTemplates")}</TabsTrigger>
@@ -135,6 +137,7 @@ function AdminPage() {
           <TabsContent value="staff" className="mt-4"><StaffAssignmentsTab /></TabsContent>
           <TabsContent value="users" className="mt-4"><UsersTab currentAuthUserId={me?.auth_user_id ?? null} canDelete={isAdmin} /></TabsContent>
           <TabsContent value="companies" className="mt-4"><CompaniesTab /></TabsContent>
+          <TabsContent value="registrants" className="mt-4"><RegistrantsTab /></TabsContent>
           <TabsContent value="requests" className="mt-4"><RequestsTab /></TabsContent>
           <TabsContent value="emails" className="mt-4"><EmailsTab /></TabsContent>
           <TabsContent value="emailTemplates" className="mt-4"><EmailTemplatesTab /></TabsContent>

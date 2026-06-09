@@ -23,7 +23,7 @@ async function getMyProfileId(userId: string) {
 
 async function assertAdmin(userId: string) {
   const roles = await getMyRoles(userId);
-  if (!roles.includes("admin")) throw new Error("Forbidden");
+  if (!roles.includes("admin")) throw new Error("Forbidden: admin only");
 }
 
 async function assertAdminOrStaff(userId: string) {

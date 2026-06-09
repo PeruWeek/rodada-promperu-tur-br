@@ -4,12 +4,12 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
-async function isAdminOrStaff(userId: string) {
+async function isAdmin(userId: string) {
   const { data } = await supabaseAdmin
     .from("user_roles")
     .select("role")
     .eq("user_id", userId);
-  return (data ?? []).some((r) => r.role === "admin" || r.role === "staff");
+  return (data ?? []).some((r) => r.role === "admin");
 }
 
 // General event check-in (admin/staff scans/marks a profile as present)
@@ -25,7 +25,7 @@ export const generalCheckIn = createServerFn({ method: "POST" })
   )
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
-    if (!(await isAdminOrStaff(context.userId))) throw new Error("Forbidden");
+    if (!(await isAdmin(context.userId))) throw new Error("Forbidden: admin only");
     const { data: existing } = await supabaseAdmin
       .from("general_checkins")
       .select("id")
@@ -58,9 +58,9 @@ export const meetingCheckIn = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
 
     // verify caller is admin/staff OR exhibitor at this meeting's table
-    const isAdmin = await isAdminOrStaff(userId);
+    const adminFlag = await isAdmin(userId);
     let byRole: "staff" | "exhibitor" | "visitor" = "exhibitor";
-    if (isAdmin) {
+    if (adminFlag) {
       byRole = "staff";
     } else {
       const { data: prof } = await supabase
