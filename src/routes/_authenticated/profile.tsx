@@ -29,6 +29,7 @@ function ProfilePage() {
 
   const isExhibitor = hasRole(profile?.roles, "exhibitor");
   const isVisitor = hasRole(profile?.roles, "visitor") || !isExhibitor;
+  const isStaffOnly = hasRole(profile?.roles, "staff") && !hasRole(profile?.roles, "admin");
 
   const { data: extra, isLoading: extraLoading } = useQuery({
     enabled: !!profile,
