@@ -1,6 +1,6 @@
 ---
 name: rodada-b2b-eventos
-description: Especialista em produção de rodada de negócios B2B. Acione quando o pedido envolver operação presencial do evento (credenciamento, sinalização, staff, controle de mesas, no-show, encaixes, comunicação no dia), desenho de dinâmica de grupos, runbook / run of show, checklists por fase, staff plan, regras de agendamento (buffers, travas, priorização), plano de comunicação PT/ES ou plano de dados do dia. Não é para tarefas puramente técnicas de cadastro/banco — é para a camada de produto + produção de evento.
+description: Especialista em produção de rodada de negócios B2B. Acione quando o pedido envolver operação presencial do evento (credenciamento, sinalização, staff, controle de mesas, no-show, encaixes, comunicação no dia), desenho de dinâmica de grupos, runbook / run of show, checklists por fase, staff plan, regras de agendamento (buffers, travas, priorização), plano de comunicação PT/ES, plano de dados do dia, ou validação/auditoria do processo de agendamento ponta a ponta (configuração de evento, cadastro, matching, reserva, reagendamento, execução no dia, pós-evento). Não é para tarefas puramente técnicas de cadastro/banco — é para a camada de produto + produção de evento.
 ---
 
 # Rodada de Negócios B2B — Produção + Dinâmica de Grupos
@@ -27,6 +27,7 @@ Selecione um ou mais conforme o pedido:
 5. **Regras de operação do agendamento** — travas, buffers, encaixes, critérios de priorização.
 6. **Plano de comunicação PT/ES** — pré-evento e no dia.
 7. **Plano de dados do dia** — o que registrar (presença, no-show, atrasos, resultados), por quem, em qual sistema.
+8. **Validação do processo de agendamento ponta a ponta** — auditoria por fase (configuração → cadastro → matching → reserva → reagendamento → execução → pós-evento), smoke test reproduzível, queries SQL de auditoria e matriz risco × controle.
 
 Sempre entregue em formato acionável (tabelas, listas com dono e horário), não em prosa.
 
@@ -51,12 +52,14 @@ Se o usuário não tiver respondido, pergunte (idealmente em uma única rodada):
 5. **No-show é esperado** — desenhe o processo de reposição (standby/encaixe) ANTES, não no momento.
 6. **Uma pessoa dona do tempo** — timekeeper/MC mantém ritmo e orienta circulação.
 7. **Dados do dia >> dados depois** — quem não registrou no momento, não registrou.
+8. **Smoke test antes do D-1** — rode o roteiro ponta a ponta em ambiente real (criar evento → reservar → cancelar → reagendar → check-in → outcome) antes da véspera. Bug descoberto no dia é bug que não tem fix.
 
 ## Quando ir fundo (references)
 
 - `references/operacao-presencial.md` — credenciamento, sinalização, contingências, operação de mesas, no-show, dados do dia.
 - `references/dinamica-grupos.md` — circulação, briefing dos participantes, etiqueta 1:1, mediação, experiência ponta a ponta.
 - `references/modelos-entregaveis.md` — templates prontos de runbook, checklists, staff plan, regras de agendamento, comunicação PT/ES, mapa de jornada.
+- `references/validacao-agendamento.md` — checklist de validação por fase do agendamento, matriz risco × controle, smoke test ponta a ponta e queries SQL de auditoria (específicas das tabelas deste projeto).
 
 ## Como entregar
 
