@@ -4,6 +4,9 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
+type JsonValue = string | number | boolean | null | JsonValue[] | { [k: string]: JsonValue };
+type JsonObject = { [k: string]: JsonValue };
+
 async function assertAdmin(userId: string) {
   const { data } = await supabaseAdmin
     .from("user_roles")
@@ -212,20 +215,20 @@ export const getCompanyForEdit = createServerFn({ method: "POST" })
       .order("created_at", { ascending: true });
     const primary = owners?.[0] ?? null;
 
-    let visitorProfile: Record<string, unknown> | null = null;
-    let exhibitorProfile: Record<string, unknown> | null = null;
+    let visitorProfile: JsonObject | null = null;
+    let exhibitorProfile: JsonObject | null = null;
     if (primary) {
       const [v, e] = await Promise.all([
         supabaseAdmin.from("visitor_profiles").select("*").eq("profile_id", primary.id).maybeSingle(),
         supabaseAdmin.from("exhibitor_profiles").select("*").eq("profile_id", primary.id).maybeSingle(),
       ]);
-      visitorProfile = (v.data as Record<string, unknown> | null) ?? null;
-      exhibitorProfile = (e.data as Record<string, unknown> | null) ?? null;
+      visitorProfile = (v.data as unknown as JsonObject | null) ?? null;
+      exhibitorProfile = (e.data as unknown as JsonObject | null) ?? null;
     }
     const role: "exhibitor" | "visitor" = exhibitorProfile ? "exhibitor" : "visitor";
     return {
-      company: company as Record<string, unknown>,
-      primaryProfile: primary as Record<string, unknown> | null,
+      company: company as unknown as JsonObject,
+      primaryProfile: (primary as unknown as JsonObject | null) ?? null,
       visitorProfile,
       exhibitorProfile,
       role,
@@ -303,7 +306,7 @@ export const updateCompanyFull = createServerFn({ method: "POST" })
 
     // Empty-string → null for company optional text fields
     const c = data.company;
-    const companyUpdate: Record<string, unknown> = {
+    const companyUpdate = {
       trade_name: c.trade_name,
       legal_name: c.legal_name || null,
       tax_id: c.tax_id || null,
@@ -320,7 +323,24 @@ export const updateCompanyFull = createServerFn({ method: "POST" })
       whatsapp: c.whatsapp || null,
       specialty: c.specialty || null,
       import_profile: c.import_profile || null,
-    };
+    } satisfies Partial<{
+      trade_name: string;
+      legal_name: string | null;
+      tax_id: string | null;
+      registration_id: string | null;
+      country_code: string;
+      state_code: string | null;
+      city: string | null;
+      address: string | null;
+      website: string | null;
+      instagram: string | null;
+      linkedin: string | null;
+      general_phone: string | null;
+      phone: string | null;
+      whatsapp: string | null;
+      specialty: string | null;
+      import_profile: string | null;
+    }>;
     const { error: cErr } = await supabaseAdmin.from("companies").update(companyUpdate).eq("id", data.companyId);
     if (cErr) throw new Error(cErr.message);
 
