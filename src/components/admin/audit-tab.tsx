@@ -1,12 +1,15 @@
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, Send } from "lucide-react";
+import { toast } from "sonner";
 
 import { listAuditLogs } from "@/lib/audit.functions";
+import { sendTestTransactionalEmail } from "@/lib/email-admin.functions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
@@ -39,7 +42,22 @@ const FILTER_OPTIONS = [
 
 export function AuditTab() {
   const fetchLogs = useServerFn(listAuditLogs);
+  const sendTest = useServerFn(sendTestTransactionalEmail);
   const [filter, setFilter] = useState<string>("all");
+  const [testEmail, setTestEmail] = useState<string>("");
+
+  const testMutation = useMutation({
+    mutationFn: async (email: string) => sendTest({ data: { recipientEmail: email } }),
+    onSuccess: (res) => {
+      if (res.ok) {
+        toast.success("E-mail de teste enviado via SendGrid");
+      } else {
+        toast.error(`Falha no envio (HTTP ${res.status})`);
+        console.warn("[email-test] failed", res);
+      }
+    },
+    onError: (err: Error) => toast.error(err.message || "Erro ao enviar teste"),
+  });
 
   const { data, isLoading, refetch, isFetching } = useQuery({
     queryKey: ["audit-logs", filter],
@@ -83,6 +101,30 @@ export function AuditTab() {
           </Select>
           <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
             <RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
+          </Button>
+        </div>
+      </div>
+
+      <div className="mt-4 rounded-md border border-dashed p-3">
+        <p className="text-sm font-medium">Enviar e-mail de teste (SendGrid)</p>
+        <p className="text-xs text-muted-foreground mb-2">
+          Dispara o template <code>meeting-confirmation</code> com dados fictícios para validar a integração.
+        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <Input
+            type="email"
+            placeholder="destinatario@exemplo.com"
+            value={testEmail}
+            onChange={(e) => setTestEmail(e.target.value)}
+            className="max-w-xs"
+          />
+          <Button
+            size="sm"
+            onClick={() => testMutation.mutate(testEmail.trim())}
+            disabled={!testEmail.trim() || testMutation.isPending}
+          >
+            <Send className="h-4 w-4 mr-1" />
+            {testMutation.isPending ? "Enviando..." : "Enviar teste"}
           </Button>
         </div>
       </div>
