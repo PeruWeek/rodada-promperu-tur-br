@@ -1678,6 +1678,33 @@ export type Database = {
         Args: { p_company_id: string; p_event_id: string }
         Returns: undefined
       }
+      public_companies: {
+        Args: { _ids: string[] }
+        Returns: {
+          city: string
+          country_code: string
+          id: string
+          import_profile: string
+          instagram: string
+          legal_name: string
+          linkedin: string
+          specialty: string
+          state_code: string
+          trade_name: string
+          website: string
+        }[]
+      }
+      public_profiles: {
+        Args: { _ids: string[] }
+        Returns: {
+          company_id: string
+          full_name: string
+          id: string
+          is_active: boolean
+          job_title: string
+          preferred_language: Database["public"]["Enums"]["app_language"]
+        }[]
+      }
       read_email_batch: {
         Args: { batch_size: number; queue_name: string; vt: number }
         Returns: {
