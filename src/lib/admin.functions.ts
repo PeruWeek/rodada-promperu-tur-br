@@ -123,3 +123,395 @@ export const adminSearchProfiles = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { profiles: rows ?? [] };
   });
+
+// ============================================================
+// Companies admin: list + full edit (visitor & exhibitor data)
+// ============================================================
+
+export const listAdminCompanies = createServerFn({ method: "POST" })
+  .inputValidator((input) =>
+    z
+      .object({
+        search: z.string().trim().optional(),
+        role: z.enum(["all", "visitor", "exhibitor"]).default("all"),
+        page: z.number().int().min(1).default(1),
+        pageSize: z.number().int().min(1).max(100).default(25),
+      })
+      .parse(input),
+  )
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.userId);
+
+    let q = supabaseAdmin
+      .from("companies")
+      .select("id, trade_name, legal_name, country_code, state_code, city, created_at", { count: "exact" })
+      .order("trade_name", { ascending: true });
+    if (data.search?.trim()) {
+      const s = data.search.trim();
+      q = q.or(`trade_name.ilike.%${s}%,legal_name.ilike.%${s}%,tax_id.ilike.%${s}%`);
+    }
+    const from = (data.page - 1) * data.pageSize;
+    const to = from + data.pageSize - 1;
+    q = q.range(from, to);
+    const { data: companies, count, error } = await q;
+    if (error) throw new Error(error.message);
+    if (!companies || companies.length === 0) return { rows: [], total: count ?? 0 };
+
+    const ids = companies.map((c) => c.id);
+    const [{ data: profs }, { data: exhProfs }] = await Promise.all([
+      supabaseAdmin
+        .from("profiles")
+        .select("id, full_name, email, company_id, created_at")
+        .in("company_id", ids)
+        .order("created_at", { ascending: true }),
+      supabaseAdmin.from("exhibitor_profiles").select("profile_id"),
+    ]);
+    const exhProfileIds = new Set((exhProfs ?? []).map((e) => e.profile_id));
+
+    // Determine company role by checking if any profile of the company is an exhibitor.
+    const rows = companies.map((c) => {
+      const owners = (profs ?? []).filter((p) => p.company_id === c.id);
+      const primary = owners[0] ?? null;
+      const isExh = owners.some((p) => exhProfileIds.has(p.id));
+      const role: "exhibitor" | "visitor" = isExh ? "exhibitor" : "visitor";
+      return {
+        id: c.id,
+        trade_name: c.trade_name,
+        legal_name: c.legal_name,
+        country_code: c.country_code,
+        state_code: c.state_code,
+        city: c.city,
+        primary_contact: primary ? { id: primary.id, full_name: primary.full_name, email: primary.email } : null,
+        role,
+      };
+    });
+
+    let filtered = rows;
+    if (data.role !== "all") filtered = rows.filter((r) => r.role === data.role);
+    return { rows: filtered, total: count ?? 0 };
+  });
+
+export const getCompanyForEdit = createServerFn({ method: "POST" })
+  .inputValidator((input) => z.object({ companyId: z.string().uuid() }).parse(input))
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.userId);
+    const { data: company, error } = await supabaseAdmin
+      .from("companies")
+      .select("*")
+      .eq("id", data.companyId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!company) throw new Error("Empresa não encontrada");
+
+    const { data: owners } = await supabaseAdmin
+      .from("profiles")
+      .select("id, auth_user_id, full_name, email, job_title, phone, whatsapp, preferred_language, created_at")
+      .eq("company_id", data.companyId)
+      .order("created_at", { ascending: true });
+    const primary = owners?.[0] ?? null;
+
+    let visitorProfile = null as null | Record<string, unknown>;
+    let exhibitorProfile = null as null | Record<string, unknown>;
+    if (primary) {
+      const [{ data: vis }, { data: exh }] = await Promise.all([
+        supabaseAdmin.from("visitor_profiles").select("*").eq("profile_id", primary.id).maybeSingle(),
+        supabaseAdmin.from("exhibitor_profiles").select("*").eq("profile_id", primary.id).maybeSingle(),
+      ]);
+      visitorProfile = vis ?? null;
+      exhibitorProfile = exh ?? null;
+    }
+    const role: "exhibitor" | "visitor" = exhibitorProfile ? "exhibitor" : "visitor";
+    return { company, primaryProfile: primary, visitorProfile, exhibitorProfile, role };
+  });
+
+const companyPatchSchema = z.object({
+  trade_name: z.string().trim().min(2).max(160),
+  legal_name: z.string().trim().max(160).nullable().optional(),
+  tax_id: z.string().trim().max(40).nullable().optional(),
+  registration_id: z.string().trim().max(40).nullable().optional(),
+  country_code: z.string().trim().min(2).max(3),
+  state_code: z.string().trim().max(8).nullable().optional(),
+  city: z.string().trim().max(120).nullable().optional(),
+  address: z.string().trim().max(255).nullable().optional(),
+  website: z.string().trim().max(255).nullable().optional(),
+  instagram: z.string().trim().max(255).nullable().optional(),
+  linkedin: z.string().trim().max(255).nullable().optional(),
+  general_phone: z.string().trim().max(40).nullable().optional(),
+  phone: z.string().trim().max(40).nullable().optional(),
+  whatsapp: z.string().trim().max(40).nullable().optional(),
+  specialty: z.string().trim().max(255).nullable().optional(),
+  import_profile: z.string().trim().max(2000).nullable().optional(),
+});
+
+const profilePatchSchema = z.object({
+  full_name: z.string().trim().min(2).max(160),
+  job_title: z.string().trim().max(120).nullable().optional(),
+  phone: z.string().trim().max(40).nullable().optional(),
+  whatsapp: z.string().trim().max(40).nullable().optional(),
+  preferred_language: z.enum(["pt-BR", "es"]),
+});
+
+const visitorPatchSchema = z.object({
+  buyer_type: z.string().trim().max(60).nullable().optional(),
+  interests_segments: z.array(z.string()).max(50),
+  interests_destinations: z.array(z.string()).max(50),
+  interests_destinations_free: z.string().max(500).nullable().optional(),
+  interests_services: z.array(z.string()).max(50),
+  demand_profile: z.string().max(2000).nullable().optional(),
+  portfolio_pt: z.string().max(4000).nullable().optional(),
+  portfolio_es: z.string().max(4000).nullable().optional(),
+  notes: z.string().max(2000).nullable().optional(),
+  consent_marketing: z.boolean(),
+});
+
+const exhibitorPatchSchema = z.object({
+  segments: z.array(z.string()).max(50),
+  destinations: z.array(z.string()).max(50),
+  services: z.array(z.string()).max(50),
+  target_buyers: z.array(z.string()).max(50),
+  pitch_pt: z.string().max(4000).nullable().optional(),
+  pitch_es: z.string().max(4000).nullable().optional(),
+  portfolio_pt: z.string().max(4000).nullable().optional(),
+  portfolio_es: z.string().max(4000).nullable().optional(),
+  materials_links: z.array(z.string().max(500)).max(20),
+});
+
+export const updateCompanyFull = createServerFn({ method: "POST" })
+  .inputValidator((input) =>
+    z
+      .object({
+        companyId: z.string().uuid(),
+        profileId: z.string().uuid().nullable(),
+        company: companyPatchSchema,
+        profile: profilePatchSchema.nullable().optional(),
+        visitor: visitorPatchSchema.nullable().optional(),
+        exhibitor: exhibitorPatchSchema.nullable().optional(),
+      })
+      .parse(input),
+  )
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.userId);
+
+    // Empty-string → null for company optional text fields
+    const c = data.company;
+    const companyUpdate: Record<string, unknown> = {
+      trade_name: c.trade_name,
+      legal_name: c.legal_name || null,
+      tax_id: c.tax_id || null,
+      registration_id: c.registration_id || null,
+      country_code: c.country_code,
+      state_code: c.state_code ? c.state_code.toUpperCase() : null,
+      city: c.city || null,
+      address: c.address || null,
+      website: c.website || null,
+      instagram: c.instagram || null,
+      linkedin: c.linkedin || null,
+      general_phone: c.general_phone || null,
+      phone: c.phone || null,
+      whatsapp: c.whatsapp || null,
+      specialty: c.specialty || null,
+      import_profile: c.import_profile || null,
+    };
+    const { error: cErr } = await supabaseAdmin.from("companies").update(companyUpdate).eq("id", data.companyId);
+    if (cErr) throw new Error(cErr.message);
+
+    if (data.profile && data.profileId) {
+      const p = data.profile;
+      const { error: pErr } = await supabaseAdmin
+        .from("profiles")
+        .update({
+          full_name: p.full_name,
+          job_title: p.job_title || null,
+          phone: p.phone || null,
+          whatsapp: p.whatsapp || null,
+          preferred_language: p.preferred_language,
+        })
+        .eq("id", data.profileId);
+      if (pErr) throw new Error(pErr.message);
+    }
+
+    if (data.visitor && data.profileId) {
+      const v = data.visitor;
+      const { error: vErr } = await supabaseAdmin.from("visitor_profiles").upsert({
+        profile_id: data.profileId,
+        buyer_type: v.buyer_type || null,
+        interests_segments: v.interests_segments,
+        interests_destinations: v.interests_destinations,
+        interests_destinations_free: v.interests_destinations_free || null,
+        interests_services: v.interests_services,
+        demand_profile: v.demand_profile || null,
+        portfolio_pt: v.portfolio_pt || null,
+        portfolio_es: v.portfolio_es || null,
+        notes: v.notes || null,
+        consent_marketing: v.consent_marketing,
+      });
+      if (vErr) throw new Error(vErr.message);
+    }
+
+    if (data.exhibitor && data.profileId) {
+      const e = data.exhibitor;
+      const { error: eErr } = await supabaseAdmin.from("exhibitor_profiles").upsert({
+        profile_id: data.profileId,
+        segments: e.segments,
+        destinations: e.destinations,
+        services: e.services,
+        target_buyers: e.target_buyers,
+        pitch_pt: e.pitch_pt || null,
+        pitch_es: e.pitch_es || null,
+        portfolio_pt: e.portfolio_pt || null,
+        portfolio_es: e.portfolio_es || null,
+        materials_links: e.materials_links.filter((m) => m.trim() !== ""),
+      });
+      if (eErr) throw new Error(eErr.message);
+    }
+
+    return { ok: true };
+  });
+
+// ============================================================
+// Event tables: create / rename / delete
+// ============================================================
+
+export const createEventTable = createServerFn({ method: "POST" })
+  .inputValidator((input) =>
+    z
+      .object({
+        eventId: z.string().uuid(),
+        tableNumber: z.number().int().positive().max(10000).optional(),
+      })
+      .parse(input),
+  )
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    await assertAdminStrict(context.userId);
+
+    let tableNumber = data.tableNumber;
+    if (!tableNumber) {
+      const { data: maxRow } = await supabaseAdmin
+        .from("event_tables")
+        .select("table_number")
+        .eq("event_id", data.eventId)
+        .order("table_number", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      tableNumber = (maxRow?.table_number ?? 0) + 1;
+    } else {
+      const { data: dup } = await supabaseAdmin
+        .from("event_tables")
+        .select("id")
+        .eq("event_id", data.eventId)
+        .eq("table_number", tableNumber)
+        .maybeSingle();
+      if (dup) throw new Error(`Já existe uma mesa com o número ${tableNumber}.`);
+    }
+
+    const { data: inserted, error } = await supabaseAdmin
+      .from("event_tables")
+      .insert({ event_id: data.eventId, table_number: tableNumber })
+      .select("id, table_number")
+      .single();
+    if (error) throw new Error(error.message);
+
+    const actor = await getActorProfileId(context.userId);
+    await supabaseAdmin.from("audit_logs").insert({
+      event_id: data.eventId,
+      actor_profile_id: actor,
+      action: "event_table.created",
+      payload: { table_id: inserted.id, table_number: inserted.table_number },
+    });
+    return { table: inserted };
+  });
+
+export const updateEventTable = createServerFn({ method: "POST" })
+  .inputValidator((input) =>
+    z
+      .object({
+        tableId: z.string().uuid(),
+        tableNumber: z.number().int().positive().max(10000),
+      })
+      .parse(input),
+  )
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    await assertAdminStrict(context.userId);
+    const { data: row, error: gErr } = await supabaseAdmin
+      .from("event_tables")
+      .select("id, event_id, table_number")
+      .eq("id", data.tableId)
+      .maybeSingle();
+    if (gErr) throw new Error(gErr.message);
+    if (!row) throw new Error("Mesa não encontrada");
+    if (row.table_number === data.tableNumber) return { ok: true };
+    const { data: dup } = await supabaseAdmin
+      .from("event_tables")
+      .select("id")
+      .eq("event_id", row.event_id)
+      .eq("table_number", data.tableNumber)
+      .maybeSingle();
+    if (dup) throw new Error(`Já existe uma mesa com o número ${data.tableNumber}.`);
+    const { error } = await supabaseAdmin
+      .from("event_tables")
+      .update({ table_number: data.tableNumber })
+      .eq("id", data.tableId);
+    if (error) throw new Error(error.message);
+
+    const actor = await getActorProfileId(context.userId);
+    await supabaseAdmin.from("audit_logs").insert({
+      event_id: row.event_id,
+      actor_profile_id: actor,
+      action: "event_table.renumbered",
+      payload: { table_id: row.id, old_number: row.table_number, new_number: data.tableNumber },
+    });
+    return { ok: true };
+  });
+
+export const deleteEventTable = createServerFn({ method: "POST" })
+  .inputValidator((input) => z.object({ tableId: z.string().uuid() }).parse(input))
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    await assertAdminStrict(context.userId);
+    const { data: row } = await supabaseAdmin
+      .from("event_tables")
+      .select("id, event_id, table_number")
+      .eq("id", data.tableId)
+      .maybeSingle();
+    if (!row) throw new Error("Mesa não encontrada");
+
+    const { count: scheduledCount } = await supabaseAdmin
+      .from("meetings")
+      .select("id", { count: "exact", head: true })
+      .eq("table_id", data.tableId)
+      .eq("status", "scheduled");
+    if ((scheduledCount ?? 0) > 0) {
+      throw new Error(
+        `Não é possível excluir: existem ${scheduledCount} reunião(ões) agendada(s) nesta mesa. Cancele ou remaneje antes.`,
+      );
+    }
+
+    // Block if any meeting (any status) exists — FK is ON DELETE RESTRICT.
+    const { count: anyMeetings } = await supabaseAdmin
+      .from("meetings")
+      .select("id", { count: "exact", head: true })
+      .eq("table_id", data.tableId);
+    if ((anyMeetings ?? 0) > 0) {
+      throw new Error(
+        `Não é possível excluir: existem ${anyMeetings} reunião(ões) (canceladas ou concluídas) ligadas a esta mesa.`,
+      );
+    }
+
+    // time_slots cascade on delete; staff_table_assignments also cascade.
+    const { error } = await supabaseAdmin.from("event_tables").delete().eq("id", data.tableId);
+    if (error) throw new Error(error.message);
+
+    const actor = await getActorProfileId(context.userId);
+    await supabaseAdmin.from("audit_logs").insert({
+      event_id: row.event_id,
+      actor_profile_id: actor,
+      action: "event_table.deleted",
+      payload: { table_id: row.id, table_number: row.table_number },
+    });
+    return { ok: true };
+  });
