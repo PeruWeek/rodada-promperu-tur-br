@@ -40,8 +40,9 @@ export const listEmailTemplates = createServerFn({ method: "POST" })
       .from("email_template_overrides")
       .select("*")
       .in("template_name", names);
-    const byName = new Map<string, Record<string, unknown>>();
-    for (const r of rows ?? []) byName.set((r as any).template_name, r as any);
+    type OverrideRow = Record<string, string | null>;
+    const byName = new Map<string, OverrideRow>();
+    for (const r of rows ?? []) byName.set((r as any).template_name, r as OverrideRow);
 
     return {
       defaultFromName: DEFAULT_FROM_NAME,
@@ -50,7 +51,7 @@ export const listEmailTemplates = createServerFn({ method: "POST" })
         displayName: TEMPLATE_DISPLAY_NAMES[name] ?? name,
         placeholders: TEMPLATE_PLACEHOLDERS[name] ?? [],
         defaults: TEMPLATE_COPY_DEFAULTS[name],
-        override: byName.get(name) ?? null,
+        override: (byName.get(name) ?? null) as OverrideRow | null,
       })),
     };
   });
@@ -84,7 +85,7 @@ export const updateEmailTemplate = createServerFn({ method: "POST" })
     };
     const { error } = await supabaseAdmin
       .from("email_template_overrides")
-      .upsert(row, { onConflict: "template_name" });
+      .upsert(row as never, { onConflict: "template_name" });
     if (error) throw new Error(error.message);
     invalidateOverrideCache(data.templateName);
     return { ok: true };
@@ -109,7 +110,7 @@ export const resetEmailTemplateField = createServerFn({ method: "POST" })
     };
     const { error } = await supabaseAdmin
       .from("email_template_overrides")
-      .upsert(row, { onConflict: "template_name" });
+      .upsert(row as never, { onConflict: "template_name" });
     if (error) throw new Error(error.message);
     invalidateOverrideCache(data.templateName);
     return { ok: true };
