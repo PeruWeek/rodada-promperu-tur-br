@@ -212,18 +212,21 @@ export const getCompanyForEdit = createServerFn({ method: "POST" })
       .order("created_at", { ascending: true });
     const primary = owners?.[0] ?? null;
 
-    let visitorProfile = null as null | Record<string, unknown>;
-    let exhibitorProfile = null as null | Record<string, unknown>;
+    let visitorProfile: Awaited<ReturnType<typeof supabaseAdmin.from<"visitor_profiles">["select"]>>["data"] extends infer _ ? unknown : never;
+    // Use loose Supabase return types
+    type VisRow = Awaited<ReturnType<typeof supabaseAdmin.from<"visitor_profiles">>["select"]>;
+    let vis: unknown = null;
+    let exh: unknown = null;
     if (primary) {
-      const [{ data: vis }, { data: exh }] = await Promise.all([
+      const [v, e] = await Promise.all([
         supabaseAdmin.from("visitor_profiles").select("*").eq("profile_id", primary.id).maybeSingle(),
         supabaseAdmin.from("exhibitor_profiles").select("*").eq("profile_id", primary.id).maybeSingle(),
       ]);
-      visitorProfile = vis ?? null;
-      exhibitorProfile = exh ?? null;
+      vis = v.data ?? null;
+      exh = e.data ?? null;
     }
-    const role: "exhibitor" | "visitor" = exhibitorProfile ? "exhibitor" : "visitor";
-    return { company, primaryProfile: primary, visitorProfile, exhibitorProfile, role };
+    const role: "exhibitor" | "visitor" = exh ? "exhibitor" : "visitor";
+    return { company, primaryProfile: primary, visitorProfile: vis, exhibitorProfile: exh, role };
   });
 
 const companyPatchSchema = z.object({
