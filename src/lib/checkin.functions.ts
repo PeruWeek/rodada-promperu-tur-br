@@ -58,9 +58,9 @@ export const meetingCheckIn = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
 
     // verify caller is admin/staff OR exhibitor at this meeting's table
-    const isAdmin = await isAdminOrStaff(userId);
+    const adminFlag = await isAdmin(userId);
     let byRole: "staff" | "exhibitor" | "visitor" = "exhibitor";
-    if (isAdmin) {
+    if (adminFlag) {
       byRole = "staff";
     } else {
       const { data: prof } = await supabase
