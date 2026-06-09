@@ -18,6 +18,7 @@ import {
   adminSetPassword,
   adminSetPrimaryRole,
   adminUpdateUserProfile,
+  adminUpdateUserEmail,
   adminUpsertUserCompany,
   findAuthUserByEmail,
 } from "@/lib/admin-auth.functions";
@@ -747,6 +748,7 @@ function UsersTab({ currentAuthUserId, canDelete }: { currentAuthUserId: string 
 
       <EditUserDialog
         user={editing}
+        currentAuthUserId={currentAuthUserId}
         onClose={() => setEditing(null)}
         onSubmit={(patch) => {
           if (!editing?.auth_user_id) return;
@@ -867,10 +869,12 @@ function CreateUserDialog({
 
 function EditUserDialog({
   user,
+  currentAuthUserId,
   onClose,
   onSubmit,
 }: {
   user: AdminUser | null;
+  currentAuthUserId: string | null;
   onClose: () => void;
   onSubmit: (patch: {
     full_name?: string;
@@ -880,12 +884,16 @@ function EditUserDialog({
   }) => void;
 }) {
   const { t } = useTranslation();
+  const qc = useQueryClient();
+  const updateEmailFn = useServerFn(adminUpdateUserEmail);
   const [fullName, setFullName] = useState("");
   const [lang, setLang] = useState<"pt-BR" | "es">("pt-BR");
   const [isActive, setIsActive] = useState(true);
   const [companyName, setCompanyName] = useState("");
   const [country, setCountry] = useState("BR");
   const [city, setCity] = useState("");
+  const [emailEditOpen, setEmailEditOpen] = useState(false);
+  const [newEmail, setNewEmail] = useState("");
 
   useEffect(() => {
     if (user) {
@@ -895,8 +903,23 @@ function EditUserDialog({
       setCompanyName(user.company?.trade_name ?? "");
       setCountry(user.company?.country_code ?? "BR");
       setCity(user.company?.city ?? "");
+      setEmailEditOpen(false);
+      setNewEmail("");
     }
   }, [user]);
+
+  const isSelf = !!user?.auth_user_id && user.auth_user_id === currentAuthUserId;
+  const emailMut = useMutation({
+    mutationFn: async (v: { userId: string; newEmail: string }) =>
+      updateEmailFn({ data: v }),
+    onSuccess: (res) => {
+      toast.success(t("admin.users.email.success", { email: res.email }));
+      qc.invalidateQueries({ queryKey: ["admin-users"] });
+      setEmailEditOpen(false);
+      setNewEmail("");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
 
   return (
     <Dialog open={!!user} onOpenChange={(o) => !o && onClose()}>
@@ -905,6 +928,59 @@ function EditUserDialog({
           <DialogTitle>{t("admin.users.edit.title")}</DialogTitle>
         </DialogHeader>
         <div className="grid gap-3">
+          <div>
+            <Label className="text-xs">{t("admin.users.email.label")}</Label>
+            <div className="flex items-center gap-2">
+              <Input value={user?.email ?? ""} readOnly className="flex-1" />
+              {!isSelf && user?.auth_user_id && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setEmailEditOpen((v) => !v);
+                    setNewEmail("");
+                  }}
+                >
+                  {emailEditOpen ? t("common.cancel") : t("admin.users.email.change")}
+                </Button>
+              )}
+            </div>
+            {emailEditOpen && user?.auth_user_id && (
+              <div className="mt-2 rounded-md border border-border p-3">
+                <p className="mb-2 text-xs text-muted-foreground">
+                  {t("admin.users.email.warning")}
+                </p>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <Input
+                    type="email"
+                    value={newEmail}
+                    onChange={(e) => setNewEmail(e.target.value)}
+                    placeholder={t("admin.users.email.newPlaceholder")}
+                    className="flex-1"
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={
+                      emailMut.isPending ||
+                      newEmail.trim().length < 3 ||
+                      !newEmail.includes("@")
+                    }
+                    onClick={() =>
+                      user.auth_user_id &&
+                      emailMut.mutate({
+                        userId: user.auth_user_id,
+                        newEmail: newEmail.trim().toLowerCase(),
+                      })
+                    }
+                  >
+                    {emailMut.isPending ? t("common.loading") : t("admin.users.email.confirm")}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
           <div>
             <Label className="text-xs">{t("admin.users.create.fullName")}</Label>
             <Input value={fullName} onChange={(e) => setFullName(e.target.value)} />

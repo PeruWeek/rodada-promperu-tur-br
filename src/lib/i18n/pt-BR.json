@@ -335,6 +335,14 @@
       "active": "Ativo",
       "primaryRole": "Papel",
       "cannotDeleteSelf": "Você não pode excluir a si mesmo.",
+      "email": {
+        "label": "E-mail (login)",
+        "change": "Alterar e-mail",
+        "confirm": "Confirmar alteração",
+        "newPlaceholder": "novo@email.com",
+        "warning": "O usuário passará a logar com o novo e-mail imediatamente. Nenhum link de confirmação será enviado.",
+        "success": "E-mail alterado para {{email}}."
+      },
       "create": {
         "button": "Novo usuário",
         "title": "Criar usuário",

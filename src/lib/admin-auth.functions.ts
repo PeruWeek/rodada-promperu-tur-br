@@ -155,6 +155,52 @@ export const adminSetPassword = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+export const adminUpdateUserEmail = createServerFn({ method: "POST" })
+  .inputValidator((input) =>
+    z
+      .object({
+        userId: z.string().uuid(),
+        newEmail: emailSchema,
+      })
+      .parse(input),
+  )
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.userId);
+    if (data.userId === context.userId) {
+      throw new Error("Use o fluxo normal para alterar seu próprio e-mail.");
+    }
+    const { data: current, error: getErr } = await supabaseAdmin.auth.admin.getUserById(
+      data.userId,
+    );
+    if (getErr) throw new Error(getErr.message);
+    const oldEmail = current.user?.email ?? null;
+    if (oldEmail && oldEmail.toLowerCase() === data.newEmail) {
+      throw new Error("O novo e-mail é igual ao atual.");
+    }
+    const { error } = await supabaseAdmin.auth.admin.updateUserById(data.userId, {
+      email: data.newEmail,
+      email_confirm: true,
+    });
+    if (error) {
+      const msg = error.message || "";
+      if (/already|registered|exists|in use/i.test(msg)) {
+        throw new Error("E-mail já está em uso por outra conta.");
+      }
+      throw new Error(msg);
+    }
+    await supabaseAdmin
+      .from("profiles")
+      .update({ email: data.newEmail })
+      .eq("auth_user_id", data.userId);
+    await audit("admin.email_change", context.userId, {
+      target_user_id: data.userId,
+      old_email: oldEmail,
+      new_email: data.newEmail,
+    });
+    return { ok: true, email: data.newEmail };
+  });
+
 export const adminUpdateUserProfile = createServerFn({ method: "POST" })
   .inputValidator((input) =>
     z
