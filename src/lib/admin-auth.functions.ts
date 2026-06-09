@@ -18,8 +18,8 @@ async function assertAdmin(userId: string) {
     .from("user_roles")
     .select("role")
     .eq("user_id", userId);
-  const ok = (data ?? []).some((r) => r.role === "admin" || r.role === "staff");
-  if (!ok) throw new Error("Forbidden");
+  const ok = (data ?? []).some((r) => r.role === "admin");
+  if (!ok) throw new Error("Forbidden: admin only");
 }
 
 async function audit(action: string, userId: string, payload: Record<string, unknown>) {
