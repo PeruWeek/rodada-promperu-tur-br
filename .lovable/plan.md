@@ -1,59 +1,85 @@
-# Plano: criar skill `rodada-b2b-eventos`
+# Plano: ampliar skill `rodada-b2b-eventos` com validação do processo de agendamento
 
-Skill de especialista em produção de rodada de negócios B2B (operação presencial + dinâmica de grupos), conforme briefing fornecido.
+A skill atual cobre operação presencial, dinâmica de grupos e modelos de entregáveis. Falta um eixo: **auditar/validar o processo de agendamento de ponta a ponta** (do convite até a reunião acontecer e ser registrada). Vou adicionar uma nova reference e ligar o SKILL.md a ela.
 
-## Arquivos a criar
+## Arquivos a alterar/criar
 
 ```
 .agents/skills/rodada-b2b-eventos/
-├── SKILL.md
+├── SKILL.md                                 (editar — adicionar gatilho + ponteiro + entregável "validação")
 └── references/
-    ├── operacao-presencial.md
-    ├── dinamica-grupos.md
-    └── modelos-entregaveis.md
+    └── validacao-agendamento.md             (NOVO)
 ```
 
-## Conteúdo de cada arquivo
+## Conteúdo de `references/validacao-agendamento.md`
 
-### SKILL.md
-Frontmatter:
-- `name: rodada-b2b-eventos`
-- `description`: aciona quando o pedido envolver produção/operação presencial de rodada de negócios, runbook, staff plan, dinâmica de grupos, credenciamento, controle de mesas, no-show, ou experiência do participante em eventos B2B.
+Checklist de validação dividido nas 7 fases do agendamento, cada uma com: o que validar, como testar, sinais de falha, correção. Específico para a stack deste projeto (tabelas `events`, `event_tables`, `time_slots`, `meetings`, `meeting_reschedules`, `meeting_checkins`, `meeting_outcomes`, `staff_table_assignments`, `general_checkins`, `exhibitor_requests`).
 
-Corpo:
-- **Papel**: especialista produto + produtor(a) de eventos (foco em atrito, fluidez, regras auditáveis, antecipação de falhas).
-- **Entregáveis possíveis** (lista do briefing: jornada, runbook, checklists T-30..D+1, staff plan, regras de agendamento, plano de comunicação PT/ES, plano de dados).
-- **Perguntas padrão** antes de fechar análise (formato, tempo, check-in, ambiente, no-show, equipe, idiomas).
-- **Regras de ouro** (buffer, controle de tempo, sinalização, listas impressas, no-show esperado, timekeeper).
-- **Ponteiros para references/** com 1 linha cada explicando quando ler.
+### Fase 1 — Configuração do evento
+- Evento ativo único; janelas de início/fim coerentes; fuso correto.
+- Duração de slot + buffer + pausas definidos antes de gerar `time_slots`.
+- Validar: `events` (datas, capacidade), `event_tables` (numeração contínua, sem duplicatas), `rebuild_event_time_slots` rodado após qualquer mudança de horário.
 
-### references/operacao-presencial.md
-- Credenciamento (fluxo, filas, fallback offline)
-- Sinalização e ambiente (mesas numeradas, telão, sonorização)
-- Controle de tempo (cronômetro, sinos, MC/timekeeper)
-- Contingências: Wi-Fi caindo, QR não lendo, troca de mesa, atrasos em cascata
-- Operação de mesas (staff por bloco, rotação, reposição)
-- Política de no-show e encaixe/standby
-- Dados a registrar no dia (presença, atrasos, resultados, fotos)
+### Fase 2 — Cadastro e elegibilidade
+- Expositor: `companies` + `exhibitor_profiles` completos + mesa atribuída em `event_tables.exhibitor_profile_id`.
+- Visitante: `companies` + `visitor_profiles` (interesses/segmentos preenchidos).
+- Aprovação de `exhibitor_requests` antes de virar expositor.
+- Validar: queries de "expositores sem mesa", "mesas sem expositor", "visitantes sem perfil completo".
 
-### references/dinamica-grupos.md
-- Regras de circulação (fluxo livre vs controlado, sentido único, raias)
-- Briefing de participantes (expositor / visitante) antes do evento e na abertura
-- Etiqueta de reunião 1:1 (abertura, troca de cartão/QR, fechamento)
-- Mediação ativa (quando intervir, sinais de mesa "presa")
-- Acessibilidade e idiomas (PT/ES, tradução pontual)
-- Experiência ponta a ponta: chegada → reuniões → coffee → saída/NPS
+### Fase 3 — Matching e abertura de agenda
+- Critérios de priorização explícitos (interesse > setor > porte > região).
+- Limites: máx. reuniões/pessoa, sem par duplicado, sem concorrentes sem opt-in.
+- Visibilidade de `time_slots` no `/explore` respeita janela e mesas com expositor.
+- Validar: simular 1 visitante e contar slots oferecidos.
 
-### references/modelos-entregaveis.md
-Templates prontos em Markdown:
-- Run of show (tabela: HH:MM | bloco | dono | ação | contingência)
-- Checklists T-30 / T-7 / T-1 / D0 / D+1
-- Staff plan (função, qtd, posição, rádio/canal, responsável)
-- Regras de agendamento (buffers, travas, critérios de priorização, encaixe)
-- Plano de comunicação PT/ES (e-mail pré, WhatsApp D-1, scripts MC no dia)
-- Plano de dados (tabela do que registrar, por quem, em qual sistema)
-- Mapa de jornada (visitante / expositor / staff) em formato tabela
+### Fase 4 — Reserva (booking)
+- `bookMeeting` rejeita conflitos: mesma mesa+slot ocupado, mesmo visitante+slot, par duplicado.
+- E-mail de confirmação dispara em PT/ES.
+- Audit log gravado.
+- Validar: tentar duplicar reserva via UI; checar `meetings` (constraint única `(table_id, slot_id)` e `(visitor_profile_id, slot_id)`).
+
+### Fase 5 — Reagendamento e cancelamento
+- `meeting_reschedules` registra origem/destino + motivo.
+- Cancelamento libera o slot imediatamente (status=`cancelled`, não delete).
+- E-mail de cancelamento/reagendamento PT/ES.
+- Validar: cancelar reunião e tentar nova reserva no mesmo slot.
+
+### Fase 6 — Dia do evento (execução)
+- `general_checkins` por chegada; `meeting_checkins` por reunião.
+- Regra de no-show: marcar após 5 min; permitir encaixe imediato.
+- `staff_table_assignments` define quem registra cada mesa.
+- `meeting_outcomes` capturado ao fim de cada reunião.
+- Validar: percorrer 1 reunião completa em ambiente real (smoke test D-1).
+
+### Fase 7 — Pós-evento e auditoria
+- Reconciliação: toda `meeting` com `status` final tem `meeting_checkin` ou justificativa.
+- `audit_logs` cobre criação/cancelamento/reagendamento.
+- KPIs fechados: presença, no-show, encaixe, NPS, "quente".
+
+### Matriz de risco × controle
+Tabela com riscos típicos (overbooking, slot fantasma, expositor sem mesa, e-mail não enviado, no-show não marcado, troca de mesa sem rastro) → controle preventivo + detectivo + corretivo.
+
+### Smoke test ponta a ponta (roteiro reproduzível)
+Passo a passo numerado: criar evento de teste → gerar mesas → gerar slots → cadastrar 1 expositor + 2 visitantes → 1 reserva → 1 cancelamento → 1 reagendamento → 1 check-in geral → 1 check-in de reunião → 1 outcome → checar audit_logs e e-mails.
+
+### Queries SQL de auditoria
+Bloco com 8–10 SELECTs prontos para rodar via `supabase--read_query`:
+- mesas sem expositor / expositores sem mesa
+- slots sem `event_tables` correspondente
+- reuniões com slot fora da janela do evento
+- pares duplicados
+- reuniões `scheduled` em slot passado sem check-in nem no-show
+- reschedules sem origem registrada
+- visitantes acima do limite de reuniões
+- e-mails de confirmação pendentes no `email_send_state`
+
+## Ajustes em SKILL.md
+
+- Adicionar à descrição (gatilhos): "validar/auditar processo de agendamento ponta a ponta".
+- Adicionar entregável **8. Validação do processo de agendamento** (auditoria por fase + smoke test + queries SQL).
+- Adicionar ponteiro `references/validacao-agendamento.md` na seção "Quando ir fundo".
+- Adicionar 1 regra de ouro: "Antes do D-1, rode o smoke test ponta a ponta em ambiente real".
 
 ## Próximo passo após aprovação
 
-No modo build: criar os 4 arquivos em paralelo e aplicar com `skills--apply_draft .agents/skills/rodada-b2b-eventos`.
+No modo build: editar SKILL.md, criar `references/validacao-agendamento.md`, aplicar com `skills--apply_draft .agents/skills/rodada-b2b-eventos`.
