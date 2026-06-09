@@ -47,12 +47,12 @@ function TableAgendaPage() {
           ? supabase.from("time_slots").select("id, start_at, end_at").in("id", slotIds)
           : Promise.resolve({ data: [] as Array<{ id: string; start_at: string; end_at: string }> }),
         visIds.length
-          ? supabase.from("profiles").select("id, full_name, company_id").in("id", visIds)
+          ? supabase.rpc("public_profiles", { _ids: visIds })
           : Promise.resolve({ data: [] as Array<{ id: string; full_name: string; company_id: string | null }> }),
       ]);
       const compIds = (profs ?? []).map((p) => p.company_id).filter(Boolean) as string[];
       const { data: comps } = compIds.length
-        ? await supabase.from("companies").select("id, trade_name, country_code, city").in("id", compIds)
+        ? await supabase.rpc("public_companies", { _ids: compIds })
         : { data: [] as Array<{ id: string; trade_name: string; country_code: string; city: string | null }> };
       const { data: checkins } = (meetings ?? []).length
         ? await supabase.from("meeting_checkins").select("meeting_id, status").in("meeting_id", (meetings ?? []).map((m) => m.id))

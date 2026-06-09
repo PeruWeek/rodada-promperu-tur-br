@@ -30,14 +30,24 @@ function ExhibitorDetailPage() {
         .maybeSingle();
       if (exhErr) throw exhErr;
       if (!exh) return null;
-      const { data: prof } = await supabase
-        .from("profiles")
-        .select("id, auth_user_id, full_name, company_id, preferred_language, is_active")
-        .eq("id", id)
-        .maybeSingle();
-      const { data: comp } = prof?.company_id
-        ? await supabase.from("companies").select("*").eq("id", prof.company_id).maybeSingle()
-        : { data: null };
+      const { data: profRows } = await supabase.rpc("public_profiles", { _ids: [id] });
+      const prof = ((profRows ?? []) as Array<{
+        id: string;
+        full_name: string;
+        company_id: string | null;
+      }>)[0] ?? null;
+      const { data: compRows } = prof?.company_id
+        ? await supabase.rpc("public_companies", { _ids: [prof.company_id] })
+        : { data: [] };
+      const comp = ((compRows ?? []) as Array<{
+        id: string;
+        trade_name: string;
+        country_code: string | null;
+        city: string | null;
+        website: string | null;
+        linkedin: string | null;
+        instagram: string | null;
+      }>)[0] ?? null;
       const { data: table } = await supabase
         .from("event_tables")
         .select("table_number")
