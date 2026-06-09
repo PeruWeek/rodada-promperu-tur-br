@@ -18,6 +18,7 @@ import {
   adminSetPassword,
   adminSetPrimaryRole,
   adminUpdateUserProfile,
+  adminUpdateUserEmail,
   adminUpsertUserCompany,
   findAuthUserByEmail,
 } from "@/lib/admin-auth.functions";
