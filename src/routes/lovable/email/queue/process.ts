@@ -76,15 +76,44 @@ export const Route = createFileRoute("/lovable/email/queue/process")({
           )
         }
 
-        // Verify the caller is authorized with the service role key.
-        // In the TanStack stack, the pg_cron job sends the service role key as a Bearer token.
+        // Verify the caller is authorized.
+        // pg_cron sends a Bearer token pulled from the Vault secret
+        // `email_queue_service_role_key`. That secret is rotated by
+        // `email_domain--setup_email_infra` and may drift out of sync with the
+        // runtime `SUPABASE_SERVICE_ROLE_KEY` after key rotations or stale
+        // deploys. To be resilient, accept the call when EITHER:
+        //  1) the bearer matches the runtime service-role key, OR
+        //  2) the bearer is itself a valid service-role JWT (verified by
+        //     successfully performing a service-role-only Auth Admin call).
         const authHeader = request.headers.get('Authorization')
         if (!authHeader?.startsWith('Bearer ')) {
           return Response.json({ error: 'Unauthorized' }, { status: 401 })
         }
 
         const token = authHeader.slice('Bearer '.length).trim()
-        if (token !== supabaseServiceKey) {
+        let authorized = token === supabaseServiceKey
+        if (!authorized) {
+          try {
+            const probe = createClient(supabaseUrl, token, {
+              auth: { persistSession: false, autoRefreshToken: false },
+            })
+            const { error: probeError } = await probe.auth.admin.listUsers({
+              page: 1,
+              perPage: 1,
+            })
+            authorized = !probeError
+            if (probeError) {
+              console.warn('Queue caller token failed admin probe', {
+                message: probeError.message,
+              })
+            }
+          } catch (err) {
+            console.warn('Queue caller token probe threw', {
+              error: err instanceof Error ? err.message : String(err),
+            })
+          }
+        }
+        if (!authorized) {
           return Response.json({ error: 'Forbidden' }, { status: 403 })
         }
 
