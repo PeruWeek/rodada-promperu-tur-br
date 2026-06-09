@@ -227,7 +227,8 @@
       "emailTemplates": "Modelos de e-mail",
       "staffAgenda": "Agenda do Staff",
       "staff": "Staff",
-      "companies": "Empresas"
+      "companies": "Empresas",
+      "registrants": "Inscritos"
     },
     "tables": {
       "help": "Atribua um expositor a cada mesa. Use 'Regenerar slots' após mudanças.",
