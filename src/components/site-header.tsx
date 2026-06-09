@@ -28,10 +28,15 @@ export function SiteHeader() {
   const primaryRole = getPrimaryRole(profile?.roles);
   const navItems = (() => {
     if (!user) return [] as Array<{ to: string; label: string }>;
-    if (primaryRole === "admin" || primaryRole === "staff") {
+    if (primaryRole === "admin") {
       return [
         { to: "/admin", label: t("nav.admin") },
         { to: "/profile", label: t("nav.profile") },
+      ];
+    }
+    if (primaryRole === "staff") {
+      return [
+        { to: "/admin", label: t("nav.admin") },
       ];
     }
     if (primaryRole === "exhibitor") {
