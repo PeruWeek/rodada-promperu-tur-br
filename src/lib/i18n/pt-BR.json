@@ -226,14 +226,41 @@
       "emails": "E-mails",
       "emailTemplates": "Modelos de e-mail",
       "staffAgenda": "Agenda do Staff",
-      "staff": "Staff"
+      "staff": "Staff",
+      "companies": "Empresas"
     },
     "tables": {
       "help": "Atribua um expositor a cada mesa. Use 'Regenerar slots' após mudanças.",
       "unassigned": "— Sem expositor —",
       "saved": "Mesa atualizada.",
       "rebuildSlots": "Regenerar slots",
-      "slotsRebuilt": "Slots regenerados."
+      "slotsRebuilt": "Slots regenerados.",
+      "create": "Nova mesa",
+      "created": "Mesa criada.",
+      "renumber": "Renumerar",
+      "renumbered": "Mesa renumerada.",
+      "delete": "Excluir mesa",
+      "deleted": "Mesa excluída.",
+      "deleteConfirm": "Excluir a mesa #{{n}}? Esta ação não pode ser desfeita.",
+      "numberLabel": "Número da mesa",
+      "rebuildAfterCreate": "Após criar mesas, regenere os slots para que apareçam horários disponíveis."
+    },
+    "companies": {
+      "help": "Edite os dados de empresas (visitantes e expositores).",
+      "searchPlaceholder": "Buscar por nome fantasia, razão social ou CNPJ...",
+      "filterRole": "Tipo",
+      "roleAll": "Todos",
+      "roleVisitor": "Visitantes",
+      "roleExhibitor": "Expositores",
+      "empty": "Nenhuma empresa encontrada.",
+      "edit": "Editar",
+      "saved": "Dados atualizados.",
+      "tabCompany": "Empresa",
+      "tabContact": "Contato principal",
+      "tabVisitor": "Perfil de visitante",
+      "tabExhibitor": "Perfil de expositor",
+      "noPrimary": "Sem perfil de contato associado a esta empresa.",
+      "primaryContact": "Contato principal"
     },
     "checkin": {
       "searchPlaceholder": "Buscar participante...",
