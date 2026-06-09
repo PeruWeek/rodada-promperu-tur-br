@@ -85,7 +85,6 @@
     "passwordUpdated": "Contraseña actualizada con éxito. Inicia sesión con la nueva contraseña.",
     "savePassword": "Guardar nueva contraseña",
     "backToLogin": "Volver al inicio de sesión",
-    "backToHome": "Volver al inicio",
     "invalidOrExpiredLink": "Enlace inválido o expirado. Solicita un nuevo enlace de recuperación."
   },
   "onboarding": {
