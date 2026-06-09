@@ -123,6 +123,11 @@ function LoginPage() {
               {t("auth.switchToSignup")}
             </Link>
           </p>
+          <p className="text-center text-sm text-muted-foreground">
+            <Link to="/" className="font-medium text-primary hover:underline">
+              {t("auth.backToHome")}
+            </Link>
+          </p>
         </form>
       </div>
     </div>
