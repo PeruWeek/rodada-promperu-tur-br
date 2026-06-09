@@ -135,13 +135,27 @@ export const getPipelineKpis = createServerFn({ method: "POST" })
     let q = supabaseAdmin
       .from("v_company_event_pipeline")
       .select(
-        "id, company_role, company_type, company_category, country_code, state_code, city, region_label, registration_status, scheduling_status, next_action, owner_staff_profile_id, owner_name, created_at, next_action_due_at",
+        "id, company_role, company_type, company_category, country_code, state_code, city, region_label, registration_status, scheduling_status, next_action, owner_staff_profile_id, owner_name, created_at, next_action_due_at, primary_profile_id",
       )
       .eq("event_id", eventId);
     if (scopeOwner) q = q.eq("owner_staff_profile_id", scopeOwner);
 
     const { data: rows, error } = await q;
     if (error) throw new Error(error.message);
+
+    // Determine which primary contacts have actually created an account.
+    const primaryIds = Array.from(
+      new Set((rows ?? []).map((r) => r.primary_profile_id as string | null).filter(Boolean) as string[]),
+    );
+    const { data: confirmedProfs } = primaryIds.length
+      ? await supabaseAdmin
+          .from("profiles")
+          .select("id, auth_user_id")
+          .in("id", primaryIds)
+      : { data: [] as Array<{ id: string; auth_user_id: string | null }> };
+    const confirmedIds = new Set(
+      (confirmedProfs ?? []).filter((p) => !!p.auth_user_id).map((p) => p.id),
+    );
 
     const sinceMs = Date.now() - data.periodDays * 24 * 60 * 60 * 1000;
     const tally = <T extends string>(field: T, source: Array<Record<string, unknown>>) => {
@@ -170,6 +184,7 @@ export const getPipelineKpis = createServerFn({ method: "POST" })
     const kpis = {
       total: all.length,
       newInPeriod: recent.length,
+      confirmedRegistrants: all.filter((r) => confirmedIds.has(r.primary_profile_id as string)).length,
       completed: all.filter((r) => ["cadastro_concluido", "aprovado"].includes(r.registration_status as string)).length,
       incomplete: all.filter((r) => ["nao_iniciado", "em_preenchimento"].includes(r.registration_status as string)).length,
       withoutScheduling: all.filter((r) => r.scheduling_status === "sem_agendamento").length,

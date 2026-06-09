@@ -1,22 +1,31 @@
-## Problema
+## Objetivo
 
-A aba **Inscritos** está mostrando todas as empresas/contatos do pipeline do evento — inclusive os que vieram apenas do **pré-cadastro CSV** (que ainda não criaram conta no site). Pré-cadastro é só pré-preenchimento; só deve virar "inscrito" depois que a pessoa acessar o site e completar o cadastro.
+Distinguir em todos os lugares pré-cadastros (sem login) de inscritos confirmados (já criaram conta no site). Sem migração; só leitura.
 
-## Causa
+## Mudanças
 
-`listEventRegistrants` (em `src/lib/staff-exports.functions.ts`) lê a view `v_company_event_pipeline` e devolve **toda** linha que tenha `primary_profile_id`. Pré-cadastros criam um `profiles` com `auth_user_id = NULL` e `pending_signup = true`, mas eles entram na lista mesmo assim.
+### 1. Aba **Empresas** (admin/staff) — `src/lib/admin.functions.ts` + `src/components/admin/companies/companies-tab.tsx`
 
-## Correção (mínima, só leitura)
+- Em `listAdminCompanies`, no `.select(...)` de `profiles`, incluir `auth_user_id`.
+- Calcular por empresa: `hasConfirmedContact = algum profile com auth_user_id != null`.
+- Retornar o flag no row (`confirmed: boolean`).
+- Na UI da `CompaniesTab`:
+  - Mostrar badge **"Pré-cadastro"** (variant outline/muted) quando `confirmed === false`, ao lado da badge de role.
+  - Adicionar um filtro/Select **Status**: "Todos" (default) / "Confirmados" / "Pré-cadastro". Filtrar `rows` no servidor — adicionar param `confirmed?: 'all' | 'yes' | 'no'`.
 
-Em `listEventRegistrants`, ao buscar os perfis para enriquecer, incluir também `auth_user_id` e **filtrar fora** quem tem `auth_user_id IS NULL`. Assim, só aparece em "Inscritos" quem realmente criou conta no site.
+### 2. **KPIs do Pipeline** (visíveis para staff/admin) — onde está "Total empresas"
 
-### Mudanças
+Arquivo: backend dos KPIs (provavelmente `src/lib/pipeline.functions.ts`); ler para confirmar.
 
-- `src/lib/staff-exports.functions.ts` — no `.select(...)` de `profiles`, adicionar `auth_user_id`; no `.map(...)` final, descartar rows cujo perfil principal tenha `auth_user_id == null`.
+- Adicionar um KPI novo: **"Inscritos confirmados"** = empresas cujo `primary_profile_id` tem `auth_user_id != null`.
+- Manter "Total empresas" e "Cadastros concluídos/incompletos" como estão (refletem pipeline, conceito diferente).
 
-Sem migração, sem alterar importador, sem mexer no pipeline. As empresas pré-cadastradas continuam aparecendo no Kanban/Pipeline (que é onde fazem sentido), só somem da aba "Inscritos" até a pessoa se cadastrar.
+## Fora de escopo
 
-### Verificação
+- Pipeline/Kanban continua mostrando pré-cadastros (foi o propósito da importação).
+- Aba "Inscritos" já foi corrigida na rodada anterior.
 
-- Abrir aba Inscritos → contagem deve cair para apenas quem já tem login.
-- Após uma pessoa pré-cadastrada se cadastrar pelo site (e `auth_user_id` ser preenchido), ela passa a aparecer automaticamente.
+## Verificação
+
+- Empresas: filtrar por "Pré-cadastro" deve listar só as importadas via CSV sem login criado; badge aparece nas linhas certas.
+- KPIs: "Inscritos confirmados" ≤ "Total empresas"; cresce quando um pré-cadastrado completa o cadastro no site.

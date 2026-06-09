@@ -147,6 +147,7 @@ export const listAdminCompanies = createServerFn({ method: "POST" })
       .object({
         search: z.string().trim().optional(),
         role: z.enum(["all", "visitor", "exhibitor"]).default("all"),
+        confirmed: z.enum(["all", "yes", "no"]).default("all"),
         page: z.number().int().min(1).default(1),
         pageSize: z.number().int().min(1).max(100).default(25),
       })
@@ -175,7 +176,7 @@ export const listAdminCompanies = createServerFn({ method: "POST" })
     const [{ data: profs }, { data: exhProfs }] = await Promise.all([
       supabaseAdmin
         .from("profiles")
-        .select("id, full_name, email, company_id, created_at")
+        .select("id, full_name, email, company_id, created_at, auth_user_id")
         .in("company_id", ids)
         .order("created_at", { ascending: true }),
       supabaseAdmin.from("exhibitor_profiles").select("profile_id"),
@@ -188,6 +189,7 @@ export const listAdminCompanies = createServerFn({ method: "POST" })
       const primary = owners[0] ?? null;
       const isExh = owners.some((p) => exhProfileIds.has(p.id));
       const role: "exhibitor" | "visitor" = isExh ? "exhibitor" : "visitor";
+      const confirmed = owners.some((p) => !!p.auth_user_id);
       return {
         id: c.id,
         trade_name: c.trade_name,
@@ -197,11 +199,14 @@ export const listAdminCompanies = createServerFn({ method: "POST" })
         city: c.city,
         primary_contact: primary ? { id: primary.id, full_name: primary.full_name, email: primary.email } : null,
         role,
+        confirmed,
       };
     });
 
     let filtered = rows;
     if (data.role !== "all") filtered = rows.filter((r) => r.role === data.role);
+    if (data.confirmed === "yes") filtered = filtered.filter((r) => r.confirmed);
+    else if (data.confirmed === "no") filtered = filtered.filter((r) => !r.confirmed);
     return { rows: filtered, total: count ?? 0 };
   });
 
