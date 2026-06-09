@@ -13,6 +13,24 @@ async function assertAdmin(userId: string) {
   if (!ok) throw new Error("Forbidden");
 }
 
+async function assertAdminStrict(userId: string) {
+  const { data } = await supabaseAdmin
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", userId);
+  const ok = (data ?? []).some((r) => r.role === "admin");
+  if (!ok) throw new Error("Forbidden: admin only");
+}
+
+async function getActorProfileId(userId: string): Promise<string | null> {
+  const { data } = await supabaseAdmin
+    .from("profiles")
+    .select("id")
+    .eq("auth_user_id", userId)
+    .maybeSingle();
+  return data?.id ?? null;
+}
+
 export const assignExhibitorToTable = createServerFn({ method: "POST" })
   .inputValidator((input) =>
     z
