@@ -1,6 +1,6 @@
 import * as React from 'react'
 import {
-  Body, Button, Container, Head, Heading, Hr, Html, Link, Preview, Text,
+  Body, Button, Container, Head, Heading, Html, Link, Preview, Text,
 } from '@react-email/components'
 import { main, container, h1, text, button, footer, PRIMARY } from './_shared'
 
