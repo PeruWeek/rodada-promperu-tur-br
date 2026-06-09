@@ -1123,6 +1123,7 @@ export type Database = {
           id: string
           is_active: boolean
           job_title: string | null
+          pending_signup: boolean
           phone: string | null
           preferred_language: Database["public"]["Enums"]["app_language"]
           whatsapp: string | null
@@ -1136,6 +1137,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           job_title?: string | null
+          pending_signup?: boolean
           phone?: string | null
           preferred_language?: Database["public"]["Enums"]["app_language"]
           whatsapp?: string | null
@@ -1149,6 +1151,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           job_title?: string | null
+          pending_signup?: boolean
           phone?: string | null
           preferred_language?: Database["public"]["Enums"]["app_language"]
           whatsapp?: string | null
