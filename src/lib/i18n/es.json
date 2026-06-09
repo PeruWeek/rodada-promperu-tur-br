@@ -70,7 +70,22 @@
     "checkEmailTitle": "¡Registro recibido! Revisa tu correo",
     "signupSuccessTitle": "¡Registro realizado con éxito!",
     "checkEmailBody": "Enviamos un enlace de confirmación a {{email}}. Haz clic en el enlace para activar tu cuenta — serás llevado directamente a tu agenda.",
-    "checkEmailHint": "El enlace expira en 1 hora y solo puede usarse una vez. Si no llega, revisa la carpeta de spam. Después de confirmar, ingresa con el correo y la contraseña registrados para acceder a tu agenda."
+    "checkEmailHint": "El enlace expira en 1 hora y solo puede usarse una vez. Si no llega, revisa la carpeta de spam. Después de confirmar, ingresa con el correo y la contraseña registrados para acceder a tu agenda.",
+    "forgotPassword": "Olvidé mi contraseña",
+    "forgotPasswordTitle": "Recuperar contraseña",
+    "forgotPasswordHelp": "Ingresa el correo registrado. Te enviaremos un enlace para definir una nueva contraseña.",
+    "sendResetLink": "Enviar enlace de recuperación",
+    "resetEmailSent": "Si este correo está registrado, te enviaremos un enlace para restablecer la contraseña en unos instantes. Revisa también la carpeta de spam.",
+    "resetPasswordTitle": "Definir nueva contraseña",
+    "resetPasswordHelp": "Elige una nueva contraseña con al menos 8 caracteres.",
+    "newPassword": "Nueva contraseña",
+    "confirmPassword": "Confirmar nueva contraseña",
+    "passwordsDontMatch": "Las contraseñas no coinciden.",
+    "passwordTooShort": "La contraseña debe tener al menos 8 caracteres.",
+    "passwordUpdated": "Contraseña actualizada con éxito. Inicia sesión con la nueva contraseña.",
+    "savePassword": "Guardar nueva contraseña",
+    "backToLogin": "Volver al inicio de sesión",
+    "invalidOrExpiredLink": "Enlace inválido o expirado. Solicita un nuevo enlace de recuperación."
   },
   "onboarding": {
     "title": "Cuéntanos quién eres",
