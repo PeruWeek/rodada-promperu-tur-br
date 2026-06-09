@@ -3,6 +3,7 @@ import { render } from '@react-email/components'
 import { createClient } from '@supabase/supabase-js'
 import { createFileRoute } from '@tanstack/react-router'
 import { TEMPLATES } from '@/lib/email-templates/registry'
+import { resolveTemplateOverrides } from '@/lib/email-templates/overrides.server'
 
 // SendGrid sender (verified Single Sender / Authenticated Domain).
 const FROM_EMAIL = 'rodada@promperu.tur.br'
@@ -47,15 +48,17 @@ async function sendViaSendGrid(payload: {
   unsubscribeUrl: string
   templateName: string
   messageId: string
+  fromName?: string
 }): Promise<{ ok: true; sgMessageId: string | null } | { ok: false; status: number; error: string }> {
   const apiKey = process.env.SENDGRID_API_KEY
   if (!apiKey) {
     return { ok: false, status: 500, error: 'SENDGRID_API_KEY not configured' }
   }
+  const fromName = payload.fromName?.trim() || FROM_NAME
   const body = {
     personalizations: [{ to: [{ email: payload.to }], subject: payload.subject }],
-    from: { email: FROM_EMAIL, name: FROM_NAME },
-    reply_to: { email: REPLY_TO_EMAIL, name: FROM_NAME },
+    from: { email: FROM_EMAIL, name: fromName },
+    reply_to: { email: REPLY_TO_EMAIL, name: fromName },
     content: [
       { type: 'text/plain', value: payload.text },
       { type: 'text/html', value: payload.html },
@@ -241,15 +244,19 @@ export const Route = createFileRoute('/lovable/email/transactional/send')({
           return Response.json({ success: false, reason: 'email_suppressed' })
         }
 
-        // Render template
-        const element = React.createElement(template.component, templateData)
+        // Resolve admin overrides for subject/from/copy
+        const language = templateData.language === 'es' ? 'es' : 'pt-BR'
+        const overrides = await resolveTemplateOverrides(templateName, language)
+        const componentProps = { ...templateData, overrides: overrides.copy }
+        const element = React.createElement(template.component, componentProps)
         const renderedHtml = await render(element)
         const renderedText = await render(element, { plainText: true })
         const unsubscribeUrl = buildUnsubscribeUrl(unsubscribeToken)
         const { html, text } = appendUnsubscribeFooter(renderedHtml, renderedText, unsubscribeUrl)
 
+        const subjectData = { ...templateData, overrideSubject: overrides.subjectTemplate }
         const resolvedSubject =
-          typeof template.subject === 'function' ? template.subject(templateData) : template.subject
+          typeof template.subject === 'function' ? template.subject(subjectData) : template.subject
 
         // Pending log row
         await supabase.from('email_send_log').insert({
@@ -267,6 +274,7 @@ export const Route = createFileRoute('/lovable/email/transactional/send')({
           unsubscribeUrl,
           templateName,
           messageId,
+          fromName: overrides.fromName,
         })
 
         if (!result.ok) {
