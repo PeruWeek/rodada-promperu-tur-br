@@ -314,6 +314,14 @@
       "active": "Activo",
       "primaryRole": "Rol",
       "cannotDeleteSelf": "No puedes eliminarte a ti mismo.",
+      "email": {
+        "label": "Correo (acceso)",
+        "change": "Cambiar correo",
+        "confirm": "Confirmar cambio",
+        "newPlaceholder": "nuevo@correo.com",
+        "warning": "El usuario iniciará sesión con el nuevo correo de inmediato. No se enviará ningún enlace de confirmación.",
+        "success": "Correo cambiado a {{email}}."
+      },
       "create": {
         "button": "Nuevo usuario",
         "title": "Crear usuario",
