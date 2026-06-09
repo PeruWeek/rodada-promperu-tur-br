@@ -748,6 +748,7 @@ function UsersTab({ currentAuthUserId, canDelete }: { currentAuthUserId: string 
 
       <EditUserDialog
         user={editing}
+        currentAuthUserId={currentAuthUserId}
         onClose={() => setEditing(null)}
         onSubmit={(patch) => {
           if (!editing?.auth_user_id) return;
