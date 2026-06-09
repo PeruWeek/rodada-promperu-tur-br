@@ -237,6 +237,11 @@
       "rebuildSlots": "Regenerar slots",
       "slotsRebuilt": "Slots regenerados."
     },
+    "companies": {
+      "roleAll": "Todos",
+      "roleVisitor": "Visitantes",
+      "roleExhibitor": "Expositores"
+    },
     "registrants": {
       "help": "Lista de inscritos al evento. Usa los botones para exportar en XLSX/CSV o descargar la agenda individual en PDF.",
       "searchPlaceholder": "Buscar por empresa, contacto o correo...",
