@@ -104,11 +104,6 @@ function LoginPage() {
           <div>
             <Label htmlFor="password">{t("auth.password")}</Label>
             <PasswordInput id="password" required value={password} onChange={(e) => setPassword(e.target.value)} className="mt-1.5" />
-            <div className="mt-1.5 text-right">
-              <Link to="/forgot-password" className="text-sm font-medium text-primary hover:underline">
-                {t("auth.forgotPassword")}
-              </Link>
-            </div>
           </div>
           <Button type="submit" className="w-full" size="lg" disabled={loading}>
             {t("auth.submitLogin")}
@@ -124,8 +119,8 @@ function LoginPage() {
             </Link>
           </p>
           <p className="text-center text-sm text-muted-foreground">
-            <Link to="/" className="font-medium text-primary hover:underline">
-              {t("auth.backToHome")}
+            <Link to="/forgot-password" className="font-medium text-primary hover:underline">
+              {t("auth.forgotPassword")}
             </Link>
           </p>
         </form>
