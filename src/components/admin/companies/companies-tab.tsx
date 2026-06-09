@@ -20,18 +20,20 @@ import {
 import { EditCompanyDrawer } from "./edit-company-drawer";
 
 type RoleFilter = "all" | "visitor" | "exhibitor";
+type ConfirmedFilter = "all" | "yes" | "no";
 
 export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) {
   const { t } = useTranslation();
   const listFn = useServerFn(listAdminCompanies);
   const [search, setSearch] = useState("");
   const [role, setRole] = useState<RoleFilter>("all");
+  const [confirmed, setConfirmed] = useState<ConfirmedFilter>("all");
   const [page, setPage] = useState(1);
   const [editingId, setEditingId] = useState<string | null>(null);
 
   const { data, isLoading, refetch } = useQuery({
-    queryKey: ["admin-companies", search, role, page],
-    queryFn: () => listFn({ data: { search, role, page, pageSize: 25 } }),
+    queryKey: ["admin-companies", search, role, confirmed, page],
+    queryFn: () => listFn({ data: { search, role, confirmed, page, pageSize: 25 } }),
   });
 
   return (
@@ -66,6 +68,22 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
             <SelectItem value="exhibitor">{t("admin.companies.roleExhibitor")}</SelectItem>
           </SelectContent>
         </Select>
+        <Select
+          value={confirmed}
+          onValueChange={(v) => {
+            setPage(1);
+            setConfirmed(v as ConfirmedFilter);
+          }}
+        >
+          <SelectTrigger className="w-full sm:w-48">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos os status</SelectItem>
+            <SelectItem value="yes">Confirmados</SelectItem>
+            <SelectItem value="no">Pré-cadastro</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       {isLoading ? (
@@ -87,6 +105,11 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
                       ? t("admin.companies.roleExhibitor")
                       : t("admin.companies.roleVisitor")}
                   </Badge>
+                  {!c.confirmed && (
+                    <Badge variant="outline" className="text-muted-foreground">
+                      Pré-cadastro
+                    </Badge>
+                  )}
                 </div>
                 <p className="truncate text-xs text-muted-foreground">
                   {[c.city, c.state_code, c.country_code].filter(Boolean).join(" / ")}
