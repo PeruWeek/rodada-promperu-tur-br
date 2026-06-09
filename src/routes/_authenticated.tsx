@@ -41,6 +41,10 @@ function AuthenticatedLayout() {
         navigate({ to: "/admin" });
         return;
       }
+      if (primaryRole === "staff" && (pathname === "/profile" || pathname.startsWith("/profile/"))) {
+        navigate({ to: "/admin" });
+        return;
+      }
     } else if (primaryRole === "visitor") {
       if (pathname.startsWith("/admin") || pathname === "/table-agenda") {
         navigate({ to: "/dashboard" });

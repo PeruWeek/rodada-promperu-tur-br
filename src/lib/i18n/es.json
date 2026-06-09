@@ -115,6 +115,7 @@
   "profile": {
     "title": "Mi perfil",
     "subtitle": "Mantén tus datos actualizados para un mejor matchmaking.",
+    "staffManagedByAdmin": "Tu perfil es gestionado por el organizador del evento.",
     "personal": "Datos personales",
     "preferredLanguage": "Idioma preferido",
     "company": "Empresa",

@@ -29,6 +29,7 @@ function ProfilePage() {
 
   const isExhibitor = hasRole(profile?.roles, "exhibitor");
   const isVisitor = hasRole(profile?.roles, "visitor") || !isExhibitor;
+  const isStaffOnly = hasRole(profile?.roles, "staff") && !hasRole(profile?.roles, "admin");
 
   const { data: extra, isLoading: extraLoading } = useQuery({
     enabled: !!profile,
@@ -196,6 +197,20 @@ function ProfilePage() {
         <Skeleton className="h-8 w-1/3" />
         <Skeleton className="h-48 w-full" />
         <Skeleton className="h-48 w-full" />
+      </div>
+    );
+  }
+
+  if (isStaffOnly) {
+    return (
+      <div className="mx-auto max-w-2xl px-4 py-12">
+        <Card className="space-y-4 p-6">
+          <h1 className="text-2xl font-bold">{t("profile.title")}</h1>
+          <p className="text-sm text-muted-foreground">{t("profile.staffManagedByAdmin")}</p>
+          <Button asChild>
+            <a href="/admin">{t("nav.admin")}</a>
+          </Button>
+        </Card>
       </div>
     );
   }
