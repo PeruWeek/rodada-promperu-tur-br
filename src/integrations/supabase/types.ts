@@ -534,6 +534,71 @@ export type Database = {
         }
         Relationships: []
       }
+      email_template_overrides: {
+        Row: {
+          cta_label_es: string | null
+          cta_label_pt: string | null
+          from_name: string | null
+          greeting_es: string | null
+          greeting_pt: string | null
+          intro_es: string | null
+          intro_pt: string | null
+          outro_es: string | null
+          outro_pt: string | null
+          signature_es: string | null
+          signature_pt: string | null
+          subject_es: string | null
+          subject_pt: string | null
+          template_name: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          cta_label_es?: string | null
+          cta_label_pt?: string | null
+          from_name?: string | null
+          greeting_es?: string | null
+          greeting_pt?: string | null
+          intro_es?: string | null
+          intro_pt?: string | null
+          outro_es?: string | null
+          outro_pt?: string | null
+          signature_es?: string | null
+          signature_pt?: string | null
+          subject_es?: string | null
+          subject_pt?: string | null
+          template_name: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          cta_label_es?: string | null
+          cta_label_pt?: string | null
+          from_name?: string | null
+          greeting_es?: string | null
+          greeting_pt?: string | null
+          intro_es?: string | null
+          intro_pt?: string | null
+          outro_es?: string | null
+          outro_pt?: string | null
+          signature_es?: string | null
+          signature_pt?: string | null
+          subject_es?: string | null
+          subject_pt?: string | null
+          template_name?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_template_overrides_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       email_unsubscribe_tokens: {
         Row: {
           created_at: string
