@@ -1549,6 +1549,14 @@ export type Database = {
         Args: { payload: Json; queue_name: string }
         Returns: number
       }
+      has_meeting_with_company: {
+        Args: { _company_id: string }
+        Returns: boolean
+      }
+      has_meeting_with_profile: {
+        Args: { _profile_id: string }
+        Returns: boolean
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -1557,6 +1565,8 @@ export type Database = {
         Returns: boolean
       }
       is_admin_or_staff: { Args: { _user_id: string }; Returns: boolean }
+      is_exhibitor_company: { Args: { _company_id: string }; Returns: boolean }
+      is_exhibitor_profile: { Args: { _profile_id: string }; Returns: boolean }
       log_audit: {
         Args: { p_action: string; p_event_id?: string; p_payload: Json }
         Returns: undefined
