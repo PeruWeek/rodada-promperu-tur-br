@@ -26,6 +26,7 @@ import { Route as AuthenticatedAssistenteRouteImport } from './routes/_authentic
 import { Route as AuthenticatedAgendaRouteImport } from './routes/_authenticated/agenda'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as LovableEmailSuppressionRouteImport } from './routes/lovable/email/suppression'
+import { Route as ApiPublicSendgridWebhookRouteImport } from './routes/api/public/sendgrid-webhook'
 import { Route as AuthenticatedExhibitorIdRouteImport } from './routes/_authenticated/exhibitor.$id'
 import { Route as LovableEmailTransactionalSendRouteImport } from './routes/lovable/email/transactional/send'
 import { Route as LovableEmailTransactionalPreviewRouteImport } from './routes/lovable/email/transactional/preview'
@@ -120,6 +121,12 @@ const LovableEmailSuppressionRoute = LovableEmailSuppressionRouteImport.update({
   path: '/lovable/email/suppression',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicSendgridWebhookRoute =
+  ApiPublicSendgridWebhookRouteImport.update({
+    id: '/api/public/sendgrid-webhook',
+    path: '/api/public/sendgrid-webhook',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const AuthenticatedExhibitorIdRoute =
   AuthenticatedExhibitorIdRouteImport.update({
     id: '/exhibitor/$id',
@@ -172,6 +179,7 @@ export interface FileRoutesByFullPath {
   '/table-agenda': typeof AuthenticatedTableAgendaRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/exhibitor/$id': typeof AuthenticatedExhibitorIdRoute
+  '/api/public/sendgrid-webhook': typeof ApiPublicSendgridWebhookRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
@@ -196,6 +204,7 @@ export interface FileRoutesByTo {
   '/table-agenda': typeof AuthenticatedTableAgendaRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/exhibitor/$id': typeof AuthenticatedExhibitorIdRoute
+  '/api/public/sendgrid-webhook': typeof ApiPublicSendgridWebhookRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
@@ -222,6 +231,7 @@ export interface FileRoutesById {
   '/_authenticated/table-agenda': typeof AuthenticatedTableAgendaRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/_authenticated/exhibitor/$id': typeof AuthenticatedExhibitorIdRoute
+  '/api/public/sendgrid-webhook': typeof ApiPublicSendgridWebhookRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
@@ -248,6 +258,7 @@ export interface FileRouteTypes {
     | '/table-agenda'
     | '/email/unsubscribe'
     | '/exhibitor/$id'
+    | '/api/public/sendgrid-webhook'
     | '/lovable/email/suppression'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
@@ -272,6 +283,7 @@ export interface FileRouteTypes {
     | '/table-agenda'
     | '/email/unsubscribe'
     | '/exhibitor/$id'
+    | '/api/public/sendgrid-webhook'
     | '/lovable/email/suppression'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
@@ -297,6 +309,7 @@ export interface FileRouteTypes {
     | '/_authenticated/table-agenda'
     | '/email/unsubscribe'
     | '/_authenticated/exhibitor/$id'
+    | '/api/public/sendgrid-webhook'
     | '/lovable/email/suppression'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
@@ -313,6 +326,7 @@ export interface RootRouteChildren {
   SignupRoute: typeof SignupRoute
   UnsubscribeRoute: typeof UnsubscribeRoute
   EmailUnsubscribeRoute: typeof EmailUnsubscribeRoute
+  ApiPublicSendgridWebhookRoute: typeof ApiPublicSendgridWebhookRoute
   LovableEmailSuppressionRoute: typeof LovableEmailSuppressionRoute
   LovableEmailAuthPreviewRoute: typeof LovableEmailAuthPreviewRoute
   LovableEmailAuthWebhookRoute: typeof LovableEmailAuthWebhookRoute
@@ -442,6 +456,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LovableEmailSuppressionRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/sendgrid-webhook': {
+      id: '/api/public/sendgrid-webhook'
+      path: '/api/public/sendgrid-webhook'
+      fullPath: '/api/public/sendgrid-webhook'
+      preLoaderRoute: typeof ApiPublicSendgridWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated/exhibitor/$id': {
       id: '/_authenticated/exhibitor/$id'
       path: '/exhibitor/$id'
@@ -525,6 +546,7 @@ const rootRouteChildren: RootRouteChildren = {
   SignupRoute: SignupRoute,
   UnsubscribeRoute: UnsubscribeRoute,
   EmailUnsubscribeRoute: EmailUnsubscribeRoute,
+  ApiPublicSendgridWebhookRoute: ApiPublicSendgridWebhookRoute,
   LovableEmailSuppressionRoute: LovableEmailSuppressionRoute,
   LovableEmailAuthPreviewRoute: LovableEmailAuthPreviewRoute,
   LovableEmailAuthWebhookRoute: LovableEmailAuthWebhookRoute,
@@ -535,13 +557,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
