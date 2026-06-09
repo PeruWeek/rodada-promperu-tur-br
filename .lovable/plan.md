@@ -1,48 +1,59 @@
-## O que será adicionado em `/admin`
+# Plano: criar skill `rodada-b2b-eventos`
 
-### 1) Aba "Empresas" (nova) — editar visitantes e expositores
+Skill de especialista em produção de rodada de negócios B2B (operação presencial + dinâmica de grupos), conforme briefing fornecido.
 
-Uma única lista de empresas (com filtro Visitante / Expositor / Todos) onde o admin clica em **Editar** e abre um drawer com **abas** equivalentes ao onboarding:
+## Arquivos a criar
 
-- **Empresa** — `companies`: trade_name, legal_name, tax_id, registration_id, país, estado, cidade, endereço, website, instagram, linkedin, general_phone, specialty, import_profile.
-- **Contato principal** — `profiles` do dono: full_name, job_title, phone, whatsapp, e-mail (somente leitura), idioma.
-- **Visitante** (se a empresa for visitante) — `visitor_profiles`: buyer_type, interests_segments, interests_destinations, interests_destinations_free, interests_services, demand_profile, portfolio_pt/es, notes, consent_marketing, additional_contacts.
-- **Expositor** (se for expositor) — `exhibitor_profiles`: segments, destinations, services, target_buyers, pitch_pt/es, portfolio_pt/es, materials_links.
+```
+.agents/skills/rodada-b2b-eventos/
+├── SKILL.md
+└── references/
+    ├── operacao-presencial.md
+    ├── dinamica-grupos.md
+    └── modelos-entregaveis.md
+```
 
-Botão **Salvar** persiste tudo via uma server fn admin (`updateCompanyFull`) usando `supabaseAdmin` (bypass RLS, gravando audit). Os mesmos componentes de chips/multi-select usados no onboarding serão reaproveitados para manter consistência.
+## Conteúdo de cada arquivo
 
-### 2) Aba "Mesas" — passa a permitir criar / renumerar / excluir
+### SKILL.md
+Frontmatter:
+- `name: rodada-b2b-eventos`
+- `description`: aciona quando o pedido envolver produção/operação presencial de rodada de negócios, runbook, staff plan, dinâmica de grupos, credenciamento, controle de mesas, no-show, ou experiência do participante em eventos B2B.
 
-Na aba já existente:
+Corpo:
+- **Papel**: especialista produto + produtor(a) de eventos (foco em atrito, fluidez, regras auditáveis, antecipação de falhas).
+- **Entregáveis possíveis** (lista do briefing: jornada, runbook, checklists T-30..D+1, staff plan, regras de agendamento, plano de comunicação PT/ES, plano de dados).
+- **Perguntas padrão** antes de fechar análise (formato, tempo, check-in, ambiente, no-show, equipe, idiomas).
+- **Regras de ouro** (buffer, controle de tempo, sinalização, listas impressas, no-show esperado, timekeeper).
+- **Ponteiros para references/** com 1 linha cada explicando quando ler.
 
-- **+ Nova mesa**: cria uma `event_tables` no evento ativo. Número sugerido = `max(table_number)+1`, editável.
-- **Editar número** (ícone lápis em cada linha): troca `table_number`. Bloqueia se já existir outra mesa com o mesmo número.
-- **Excluir** (ícone lixeira): só permite se a mesa NÃO tiver reuniões com `status='scheduled'`. Se tiver, mostra erro listando quantas e pedindo para cancelar/remanejar antes. Ao excluir, remove os `time_slots` da mesa também.
-- Botão **Reconstruir slots** (já existe) continua funcionando — recomendado depois de criar mesas novas.
+### references/operacao-presencial.md
+- Credenciamento (fluxo, filas, fallback offline)
+- Sinalização e ambiente (mesas numeradas, telão, sonorização)
+- Controle de tempo (cronômetro, sinos, MC/timekeeper)
+- Contingências: Wi-Fi caindo, QR não lendo, troca de mesa, atrasos em cascata
+- Operação de mesas (staff por bloco, rotação, reposição)
+- Política de no-show e encaixe/standby
+- Dados a registrar no dia (presença, atrasos, resultados, fotos)
 
-### Detalhes técnicos
+### references/dinamica-grupos.md
+- Regras de circulação (fluxo livre vs controlado, sentido único, raias)
+- Briefing de participantes (expositor / visitante) antes do evento e na abertura
+- Etiqueta de reunião 1:1 (abertura, troca de cartão/QR, fechamento)
+- Mediação ativa (quando intervir, sinais de mesa "presa")
+- Acessibilidade e idiomas (PT/ES, tradução pontual)
+- Experiência ponta a ponta: chegada → reuniões → coffee → saída/NPS
 
-**Server functions novas em `src/lib/admin.functions.ts`** (todas com `assertAdmin` + `supabaseAdmin`):
+### references/modelos-entregaveis.md
+Templates prontos em Markdown:
+- Run of show (tabela: HH:MM | bloco | dono | ação | contingência)
+- Checklists T-30 / T-7 / T-1 / D0 / D+1
+- Staff plan (função, qtd, posição, rádio/canal, responsável)
+- Regras de agendamento (buffers, travas, critérios de priorização, encaixe)
+- Plano de comunicação PT/ES (e-mail pré, WhatsApp D-1, scripts MC no dia)
+- Plano de dados (tabela do que registrar, por quem, em qual sistema)
+- Mapa de jornada (visitante / expositor / staff) em formato tabela
 
-- `getCompanyForEdit({ companyId })` — devolve `company`, `ownerProfile`, `visitorProfile`, `exhibitorProfile`, role da empresa.
-- `updateCompanyFull({ companyId, company, profile, visitor?, exhibitor? })` — Zod valida cada bloco e faz update nas 4 tabelas em paralelo. Faz upsert em `visitor_profiles`/`exhibitor_profiles` se ainda não existir linha.
-- `listAdminCompanies({ search, role, page })` — lê de `v_company_event_pipeline` (já existe) para reaproveitar filtros e paginação.
-- `createEventTable({ eventId, tableNumber? })` — calcula próximo número se omitido; valida unicidade.
-- `updateEventTable({ tableId, tableNumber })` — renumera; valida unicidade.
-- `deleteEventTable({ tableId })` — checa `meetings` com `status='scheduled'`; se houver, lança erro com a contagem. Senão, apaga `time_slots` da mesa e em seguida a mesa.
+## Próximo passo após aprovação
 
-**UI novas:**
-
-- `src/components/admin/companies/companies-tab.tsx` — lista + filtros + botão Editar.
-- `src/components/admin/companies/edit-company-drawer.tsx` — Sheet com `Tabs` (Empresa / Contato / Visitante|Expositor) e `react-hook-form` + zod.
-- Pequenas adições inline em `TablesTab` do `admin.tsx`: botão "+ Nova mesa", ícones de editar/excluir por linha, AlertDialog de confirmação.
-
-**Permissões:** todas as ações exigem papel `admin` ou `staff` (igual aos demais admin fns). Toda escrita gera linha em `audit_logs` via os triggers já existentes em `companies`, `profiles` e `user_roles`; vou adicionar `log_audit` manual nas operações de mesa.
-
-**i18n:** novas chaves em `src/lib/i18n/pt-BR.json` (e `es.json`) para os rótulos da aba Empresas e ações de mesa.
-
-### Fora do escopo
-
-- Edição em massa / import CSV.
-- Cancelamento automático de reuniões ao excluir mesa (você optou por bloquear).
-- Mudar o evento de uma mesa (mesa nasce vinculada ao evento ativo).
+No modo build: criar os 4 arquivos em paralelo e aplicar com `skills--apply_draft .agents/skills/rodada-b2b-eventos`.
