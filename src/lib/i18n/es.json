@@ -229,7 +229,32 @@
       "staffAgenda": "Agenda del Staff",
       "staff": "Staff",
       "companies": "Empresas",
-      "registrants": "Inscritos"
+      "registrants": "Inscritos",
+      "preRegistration": "Pre-registros"
+    },
+    "preRegistration": {
+      "title": "Pre-registros por CSV",
+      "subtitle": "Importa una lista de invitados. Cuando la persona se registre con el mismo correo, vincularemos los datos automáticamente.",
+      "event": "Evento",
+      "selectEvent": "Selecciona un evento",
+      "selectFile": "Selecciona un archivo CSV",
+      "downloadTemplate": "Descargar plantilla CSV",
+      "pickFile": "Elegir archivo",
+      "noFile": "Ningún archivo seleccionado",
+      "headerHint": "Encabezados esperados (separados por punto y coma): {{headers}}",
+      "import": "Importar",
+      "invalidType": "El archivo debe ser .csv",
+      "tooLarge": "Archivo mayor a 2MB",
+      "done": "Importación finalizada — {{created}} creados, {{updated}} actualizados, {{skipped}} ignorados, {{errors}} errores",
+      "downloadReport": "Descargar reporte",
+      "errorsHeader": "Líneas con error",
+      "summary": {
+        "total": "Total",
+        "created": "Creados",
+        "updated": "Actualizados",
+        "skipped": "Ignorados",
+        "errors": "Errores"
+      }
     },
     "tables": {
       "help": "Asigna un expositor a cada mesa. Usa 'Regenerar slots' tras cambios.",
