@@ -108,7 +108,7 @@ export type Database = {
           action: string
           actor_profile_id: string | null
           created_at: string
-          event_id: string
+          event_id: string | null
           id: string
           payload: Json
         }
@@ -116,7 +116,7 @@ export type Database = {
           action: string
           actor_profile_id?: string | null
           created_at?: string
-          event_id: string
+          event_id?: string | null
           id?: string
           payload?: Json
         }
@@ -124,7 +124,7 @@ export type Database = {
           action?: string
           actor_profile_id?: string | null
           created_at?: string
-          event_id?: string
+          event_id?: string | null
           id?: string
           payload?: Json
         }
