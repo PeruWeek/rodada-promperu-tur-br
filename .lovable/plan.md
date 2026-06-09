@@ -1,48 +1,22 @@
-## Permitir admin alterar e-mail de usuários
+## Problema
 
-### 1. Backend — nova serverFn `adminUpdateUserEmail`
-Arquivo: `src/lib/admin-auth.functions.ts`
+A aba **Inscritos** está mostrando todas as empresas/contatos do pipeline do evento — inclusive os que vieram apenas do **pré-cadastro CSV** (que ainda não criaram conta no site). Pré-cadastro é só pré-preenchimento; só deve virar "inscrito" depois que a pessoa acessar o site e completar o cadastro.
 
-- Input (Zod): `{ userId: uuid, newEmail: email (lowercase/trim) }`
-- Guards:
-  - `assertAdmin(context.userId)`
-  - Bloquear `data.userId === context.userId` → erro "Use o fluxo normal para alterar seu próprio e-mail."
-- Buscar usuário atual via `supabaseAdmin.auth.admin.getUserById(userId)`; se `newEmail === currentEmail` → erro "E-mail igual ao atual."
-- Chamar `supabaseAdmin.auth.admin.updateUserById(userId, { email: newEmail, email_confirm: true })` (auto-confirma, sem link de confirmação).
-- Tratar erro de e-mail em uso (mensagem do Supabase contém "already") → erro amigável "E-mail já está em uso por outra conta."
-- Sincronizar `profiles.email = newEmail` onde `auth_user_id = userId`.
-- `audit("admin.email_change", actor, { target_user_id, old_email, new_email })`.
-- Retorno: `{ ok: true, email: newEmail }`.
+## Causa
 
-### 2. UI — botão "Alterar e-mail" no editor de usuário
-Localizar o drawer/dialog de edição de usuário do admin (provavelmente em `src/components/admin/registrants-tab.tsx` ou um `edit-user-drawer`; verificar e reutilizar).
+`listEventRegistrants` (em `src/lib/staff-exports.functions.ts`) lê a view `v_company_event_pipeline` e devolve **toda** linha que tenha `primary_profile_id`. Pré-cadastros criam um `profiles` com `auth_user_id = NULL` e `pending_signup = true`, mas eles entram na lista mesmo assim.
 
-- Adicionar botão "Alterar e-mail" ao lado do e-mail atual (read-only).
-- Abre `AlertDialog` com:
-  - E-mail atual (texto)
-  - Input "Novo e-mail" (validação client-side básica)
-  - Aviso: "O usuário passará a logar com o novo e-mail imediatamente. Nenhum link de confirmação será enviado."
-  - Botões: Cancelar / Confirmar alteração.
-- Ao confirmar: chama `adminUpdateUserEmail` via `useServerFn`.
-- Sucesso: `toast.success`, fecha dialog, `queryClient.invalidateQueries` da lista de usuários.
-- Erro: `toast.error(error.message)`.
-- Esconder o botão quando `user.auth_user_id === currentAdmin.auth_user_id`.
+## Correção (mínima, só leitura)
 
-### 3. i18n
-Adicionar em `src/lib/i18n/pt-BR.json` e `es.json`:
-- `admin.users.changeEmail.button` → "Alterar e-mail" / "Cambiar correo"
-- `admin.users.changeEmail.title`
-- `admin.users.changeEmail.description` (com aviso de troca imediata)
-- `admin.users.changeEmail.currentLabel`, `newLabel`
-- `admin.users.changeEmail.confirm`, `cancel`
-- `admin.users.changeEmail.success`
-- `admin.users.changeEmail.errors.same`, `inUse`, `self`, `invalid`
+Em `listEventRegistrants`, ao buscar os perfis para enriquecer, incluir também `auth_user_id` e **filtrar fora** quem tem `auth_user_id IS NULL`. Assim, só aparece em "Inscritos" quem realmente criou conta no site.
 
-### 4. Sem migration
-Auth API já suporta; apenas sincronizamos `profiles.email`.
+### Mudanças
 
-### Detalhes técnicos
-- Não tocar em `src/integrations/supabase/*` (autogerado).
-- `audit()` reusa o logger já presente no arquivo.
-- Validação de e-mail server-side via `emailSchema` já existente.
-- Erro de auto-edição é bloqueado server-side (defesa em profundidade) e ocultado client-side.
+- `src/lib/staff-exports.functions.ts` — no `.select(...)` de `profiles`, adicionar `auth_user_id`; no `.map(...)` final, descartar rows cujo perfil principal tenha `auth_user_id == null`.
+
+Sem migração, sem alterar importador, sem mexer no pipeline. As empresas pré-cadastradas continuam aparecendo no Kanban/Pipeline (que é onde fazem sentido), só somem da aba "Inscritos" até a pessoa se cadastrar.
+
+### Verificação
+
+- Abrir aba Inscritos → contagem deve cair para apenas quem já tem login.
+- Após uma pessoa pré-cadastrada se cadastrar pelo site (e `auth_user_id` ser preenchido), ela passa a aparecer automaticamente.

@@ -91,13 +91,17 @@ export const listEventRegistrants = createServerFn({ method: "POST" })
     const { data: profs } = profileIds.length
       ? await supabaseAdmin
           .from("profiles")
-          .select("id, job_title, phone, whatsapp")
+          .select("id, job_title, phone, whatsapp, auth_user_id")
           .in("id", profileIds)
-      : { data: [] as Array<{ id: string; job_title: string | null; phone: string | null; whatsapp: string | null }> };
+      : { data: [] as Array<{ id: string; job_title: string | null; phone: string | null; whatsapp: string | null; auth_user_id: string | null }> };
     const profById = new Map((profs ?? []).map((p) => [p.id, p]));
 
     const out: RegistrantRow[] = (rows ?? [])
       .filter((r) => r.company_id && r.primary_profile_id)
+      .filter((r) => {
+        const p = profById.get(r.primary_profile_id as string);
+        return !!p?.auth_user_id;
+      })
       .map((r) => {
         const p = profById.get(r.primary_profile_id as string);
         return {
