@@ -43,11 +43,11 @@ function AgendaPage() {
       ]);
       const exhProfileIds = (tables ?? []).map((t) => t.exhibitor_profile_id).filter(Boolean) as string[];
       const { data: profs } = exhProfileIds.length
-        ? await supabase.from("profiles").select("id, full_name, company_id").in("id", exhProfileIds)
+        ? await supabase.rpc("public_profiles", { _ids: exhProfileIds })
         : { data: [] as Array<{ id: string; full_name: string; company_id: string | null }> };
       const companyIds = (profs ?? []).map((p) => p.company_id).filter(Boolean) as string[];
       const { data: comps } = companyIds.length
-        ? await supabase.from("companies").select("id, trade_name, country_code").in("id", companyIds)
+        ? await supabase.rpc("public_companies", { _ids: companyIds })
         : { data: [] as Array<{ id: string; trade_name: string; country_code: string }> };
       return m.map((mtg) => {
         const slot = slots?.find((s) => s.id === mtg.slot_id);
