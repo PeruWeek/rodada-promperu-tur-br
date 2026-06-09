@@ -9,6 +9,7 @@ import { Check, Copy, Mail, Pencil, Plus, RefreshCw, Search, Trash2, UserCheck }
 import { supabase } from "@/integrations/supabase/client";
 import { useProfile, hasRole, getPrimaryRole, type AppRole } from "@/hooks/use-profile";
 import { adminSearchProfiles, assignExhibitorToTable, rebuildSlots } from "@/lib/admin.functions";
+import { createEventTable, deleteEventTable, updateEventTable } from "@/lib/admin.functions";
 import {
   adminConfirmEmail,
   adminCreateConfirmedUser,
@@ -30,6 +31,7 @@ import { listExhibitorRequests, reviewExhibitorRequest } from "@/lib/exhibitor-r
 import { PipelineDashboard } from "@/components/admin/pipeline/pipeline-tabs";
 import { AuditTab } from "@/components/admin/audit-tab";
 import { EmailTemplatesTab } from "@/components/admin/email-templates-tab";
+import { CompaniesTab } from "@/components/admin/companies/companies-tab";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -120,6 +122,7 @@ function AdminPage() {
             <TabsTrigger value="checkin">{t("admin.tabs.checkin")}</TabsTrigger>
             <TabsTrigger value="staff">{t("admin.tabs.staff")}</TabsTrigger>
             <TabsTrigger value="users">{t("admin.tabs.users")}</TabsTrigger>
+            <TabsTrigger value="companies">{t("admin.tabs.companies")}</TabsTrigger>
             <TabsTrigger value="requests">{t("admin.tabs.requests")}</TabsTrigger>
             <TabsTrigger value="emails">{t("admin.tabs.emails")}</TabsTrigger>
             <TabsTrigger value="emailTemplates">{t("admin.tabs.emailTemplates")}</TabsTrigger>
@@ -131,6 +134,7 @@ function AdminPage() {
           <TabsContent value="checkin" className="mt-4"><CheckinTab /></TabsContent>
           <TabsContent value="staff" className="mt-4"><StaffAssignmentsTab /></TabsContent>
           <TabsContent value="users" className="mt-4"><UsersTab currentAuthUserId={me?.auth_user_id ?? null} canDelete={isAdmin} /></TabsContent>
+          <TabsContent value="companies" className="mt-4"><CompaniesTab /></TabsContent>
           <TabsContent value="requests" className="mt-4"><RequestsTab /></TabsContent>
           <TabsContent value="emails" className="mt-4"><EmailsTab /></TabsContent>
           <TabsContent value="emailTemplates" className="mt-4"><EmailTemplatesTab /></TabsContent>
