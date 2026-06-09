@@ -263,6 +263,34 @@
       "noPrimary": "Sem perfil de contato associado a esta empresa.",
       "primaryContact": "Contato principal"
     },
+    "registrants": {
+      "help": "Lista de inscritos no evento. Use os botões para exportar em XLSX/CSV ou baixar a agenda individual em PDF.",
+      "searchPlaceholder": "Buscar por empresa, contato ou e-mail...",
+      "empty": "Nenhum inscrito encontrado.",
+      "downloadAgenda": "Agenda (PDF)",
+      "noAgenda": "Este participante não possui reuniões agendadas.",
+      "total": "{{count}} inscrito(s)",
+      "meetingsCount_one": "{{count}} reunião",
+      "meetingsCount_other": "{{count}} reuniões",
+      "sheetName": "Inscritos",
+      "cols": {
+        "company": "Empresa",
+        "legalName": "Razão social",
+        "taxId": "CNPJ/RUC",
+        "role": "Tipo",
+        "contact": "Contato",
+        "jobTitle": "Cargo",
+        "email": "E-mail",
+        "phone": "Telefone",
+        "whatsapp": "WhatsApp",
+        "country": "País",
+        "state": "UF",
+        "city": "Cidade",
+        "registrationStatus": "Status",
+        "scheduledMeetings": "Reuniões",
+        "createdAt": "Cadastrado em"
+      }
+    },
     "checkin": {
       "searchPlaceholder": "Buscar participante...",
       "noResults": "Nenhum participante encontrado.",
