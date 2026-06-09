@@ -147,7 +147,12 @@ export const importPreRegistrationsCsv = createServerFn({ method: "POST" })
             .maybeSingle();
           if (existing) {
             companyId = existing.id;
-            const patch: Record<string, string | null> = {};
+            const patch: {
+              legal_name?: string;
+              country_code?: string;
+              state_code?: string;
+              city?: string;
+            } = {};
             if (!existing.legal_name && r.legal_name) patch.legal_name = r.legal_name;
             if (!existing.country_code && r.country_code) patch.country_code = r.country_code;
             if (!existing.state_code && r.state_code) patch.state_code = r.state_code.toUpperCase();
@@ -191,7 +196,14 @@ export const importPreRegistrationsCsv = createServerFn({ method: "POST" })
             // Just ensure pipeline exists. Count as skipped for the row.
             profileOutcome = "skipped_existing_filled";
           } else {
-            const patch: Record<string, string | null | boolean> = {};
+            const patch: {
+              full_name?: string;
+              job_title?: string;
+              phone?: string | null;
+              whatsapp?: string | null;
+              company_id?: string;
+              pending_signup?: boolean;
+            } = {};
             if (!existingProfile.full_name?.trim() && r.full_name) patch.full_name = r.full_name;
             if (!existingProfile.job_title && r.job_title) patch.job_title = r.job_title;
             if (!existingProfile.phone && r.phone) patch.phone = normPhone(r.phone);
@@ -242,7 +254,7 @@ export const importPreRegistrationsCsv = createServerFn({ method: "POST" })
           .eq("company_id", companyId)
           .maybeSingle();
         if (existingPipe) {
-          const patch: Record<string, string | null> = {};
+          const patch: { primary_profile_id?: string } = {};
           if (!existingPipe.primary_profile_id) patch.primary_profile_id = profileId;
           if (Object.keys(patch).length > 0) {
             await supabaseAdmin
