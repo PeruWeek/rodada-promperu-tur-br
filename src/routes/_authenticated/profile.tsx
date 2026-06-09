@@ -201,6 +201,20 @@ function ProfilePage() {
     );
   }
 
+  if (isStaffOnly) {
+    return (
+      <div className="mx-auto max-w-2xl px-4 py-12">
+        <Card className="space-y-4 p-6">
+          <h1 className="text-2xl font-bold">{t("profile.title")}</h1>
+          <p className="text-sm text-muted-foreground">{t("profile.staffManagedByAdmin")}</p>
+          <Button asChild>
+            <a href="/admin">{t("nav.admin")}</a>
+          </Button>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto max-w-3xl space-y-6 px-4 py-8 sm:py-12">
       <form onSubmit={onSubmit} className="space-y-6">
