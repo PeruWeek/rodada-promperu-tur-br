@@ -209,6 +209,7 @@
       "users": "Usuarios",
       "requests": "Solicitudes",
       "emails": "Emails",
+      "emailTemplates": "Plantillas de email",
       "staffAgenda": "Agenda del Staff",
       "staff": "Staff"
     },
