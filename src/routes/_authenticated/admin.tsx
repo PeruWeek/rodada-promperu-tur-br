@@ -255,6 +255,12 @@ function TablesTab() {
   const qc = useQueryClient();
   const assignFn = useServerFn(assignExhibitorToTable);
   const rebuildFn = useServerFn(rebuildSlots);
+  const createFn = useServerFn(createEventTable);
+  const updateTblFn = useServerFn(updateEventTable);
+  const deleteFn = useServerFn(deleteEventTable);
+  const [renumberId, setRenumberId] = useState<string | null>(null);
+  const [renumberValue, setRenumberValue] = useState<string>("");
+  const [deleteId, setDeleteId] = useState<{ id: string; n: number } | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ["admin-tables"],
@@ -298,6 +304,34 @@ function TablesTab() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const createMut = useMutation({
+    mutationFn: async (eventId: string) => createFn({ data: { eventId } }),
+    onSuccess: () => {
+      toast.success(t("admin.tables.created"));
+      qc.invalidateQueries({ queryKey: ["admin-tables"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+  const renumberMut = useMutation({
+    mutationFn: async (vars: { tableId: string; tableNumber: number }) =>
+      updateTblFn({ data: vars }),
+    onSuccess: () => {
+      toast.success(t("admin.tables.renumbered"));
+      setRenumberId(null);
+      qc.invalidateQueries({ queryKey: ["admin-tables"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+  const deleteMut = useMutation({
+    mutationFn: async (tableId: string) => deleteFn({ data: { tableId } }),
+    onSuccess: () => {
+      toast.success(t("admin.tables.deleted"));
+      setDeleteId(null);
+      qc.invalidateQueries({ queryKey: ["admin-tables"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   if (isLoading) return <Skeleton className="h-64 w-full" />;
 
   return (
@@ -306,16 +340,27 @@ function TablesTab() {
         <div>
           <p className="text-sm font-semibold">{data?.event?.name ?? "—"}</p>
           <p className="text-xs text-muted-foreground">{t("admin.tables.help")}</p>
+          <p className="text-xs text-muted-foreground">{t("admin.tables.rebuildAfterCreate")}</p>
         </div>
         {data?.event && (
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => rebuildMut.mutate(data.event!.id)}
-            disabled={rebuildMut.isPending}
-          >
-            <RefreshCw size={14} /> {t("admin.tables.rebuildSlots")}
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => createMut.mutate(data.event!.id)}
+              disabled={createMut.isPending}
+            >
+              <Plus size={14} /> {t("admin.tables.create")}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => rebuildMut.mutate(data.event!.id)}
+              disabled={rebuildMut.isPending}
+            >
+              <RefreshCw size={14} /> {t("admin.tables.rebuildSlots")}
+            </Button>
+          </div>
         )}
       </div>
       <div className="space-y-2">
@@ -338,9 +383,83 @@ function TablesTab() {
                 ))}
               </SelectContent>
             </Select>
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={() => {
+                setRenumberId(tbl.id);
+                setRenumberValue(String(tbl.table_number));
+              }}
+              title={t("admin.tables.renumber")}
+            >
+              <Pencil size={14} />
+            </Button>
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={() => setDeleteId({ id: tbl.id, n: tbl.table_number })}
+              title={t("admin.tables.delete")}
+            >
+              <Trash2 size={14} />
+            </Button>
           </div>
         ))}
       </div>
+
+      <Dialog open={renumberId !== null} onOpenChange={(o) => !o && setRenumberId(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("admin.tables.renumber")}</DialogTitle>
+          </DialogHeader>
+          <div>
+            <Label>{t("admin.tables.numberLabel")}</Label>
+            <Input
+              type="number"
+              min={1}
+              value={renumberValue}
+              onChange={(e) => setRenumberValue(e.target.value)}
+              className="mt-1.5"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRenumberId(null)}>
+              {t("common.cancel")}
+            </Button>
+            <Button
+              onClick={() => {
+                const n = parseInt(renumberValue, 10);
+                if (!Number.isFinite(n) || n < 1) return;
+                renumberMut.mutate({ tableId: renumberId!, tableNumber: n });
+              }}
+              disabled={renumberMut.isPending}
+            >
+              {t("common.save")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={deleteId !== null} onOpenChange={(o) => !o && setDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("admin.tables.delete")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("admin.tables.deleteConfirm", { n: deleteId?.n ?? "" })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                if (deleteId) deleteMut.mutate(deleteId.id);
+              }}
+            >
+              {t("admin.tables.delete")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }
