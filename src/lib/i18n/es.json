@@ -226,7 +226,9 @@
       "emails": "Emails",
       "emailTemplates": "Plantillas de email",
       "staffAgenda": "Agenda del Staff",
-      "staff": "Staff"
+      "staff": "Staff",
+      "companies": "Empresas",
+      "registrants": "Inscritos"
     },
     "tables": {
       "help": "Asigna un expositor a cada mesa. Usa 'Regenerar slots' tras cambios.",
@@ -234,6 +236,34 @@
       "saved": "Mesa actualizada.",
       "rebuildSlots": "Regenerar slots",
       "slotsRebuilt": "Slots regenerados."
+    },
+    "registrants": {
+      "help": "Lista de inscritos al evento. Usa los botones para exportar en XLSX/CSV o descargar la agenda individual en PDF.",
+      "searchPlaceholder": "Buscar por empresa, contacto o correo...",
+      "empty": "No se encontraron inscritos.",
+      "downloadAgenda": "Agenda (PDF)",
+      "noAgenda": "Este participante no tiene reuniones agendadas.",
+      "total": "{{count}} inscrito(s)",
+      "meetingsCount_one": "{{count}} reunión",
+      "meetingsCount_other": "{{count}} reuniones",
+      "sheetName": "Inscritos",
+      "cols": {
+        "company": "Empresa",
+        "legalName": "Razón social",
+        "taxId": "RUC/CNPJ",
+        "role": "Tipo",
+        "contact": "Contacto",
+        "jobTitle": "Cargo",
+        "email": "Correo",
+        "phone": "Teléfono",
+        "whatsapp": "WhatsApp",
+        "country": "País",
+        "state": "Región",
+        "city": "Ciudad",
+        "registrationStatus": "Estado",
+        "scheduledMeetings": "Reuniones",
+        "createdAt": "Registrado el"
+      }
     },
     "checkin": {
       "searchPlaceholder": "Buscar participante...",
