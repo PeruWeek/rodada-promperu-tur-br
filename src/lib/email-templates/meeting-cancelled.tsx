@@ -22,45 +22,28 @@ import {
   small,
   text,
 } from "./_shared";
+import {
+  TEMPLATE_COPY_DEFAULTS,
+  interpolate,
+  type CopyFields,
+  type EmailLang,
+} from "./copy-defaults";
 
-const SITE_NAME = "Rodada de Negócios Promperu 2026";
+const LABELS = {
+  "pt-BR": { h1: "Reunião cancelada", company: "Expositor", table: "Mesa", when: "Horário", previewPrefix: "Sua reunião com" },
+  es: { h1: "Reunión cancelada", company: "Expositor", table: "Mesa", when: "Horario", previewPrefix: "Tu reunión con" },
+} as const;
 
 interface Props {
-  language?: "pt-BR" | "es";
+  language?: EmailLang;
   visitorName?: string;
   exhibitorCompany?: string;
   tableNumber?: number | string;
   slotStart?: string;
   slotEnd?: string;
   exploreUrl?: string;
+  overrides?: Partial<CopyFields>;
 }
-
-const T = {
-  "pt-BR": {
-    preview: (c: string) => `Sua reunião com ${c} foi cancelada`,
-    h1: "Reunião cancelada",
-    hi: (n?: string) => (n ? `Olá, ${n}!` : "Olá!"),
-    intro: "Sua reunião foi cancelada. Resumo do que estava agendado:",
-    company: "Expositor",
-    table: "Mesa",
-    when: "Horário",
-    cta: "Agendar outro horário",
-    tip: "O slot voltou a ficar disponível para outros visitantes.",
-    footer: `Você está recebendo este e-mail porque tinha uma reunião agendada na ${SITE_NAME}.`,
-  },
-  es: {
-    preview: (c: string) => `Tu reunión con ${c} fue cancelada`,
-    h1: "Reunión cancelada",
-    hi: (n?: string) => (n ? `¡Hola, ${n}!` : "¡Hola!"),
-    intro: "Tu reunión fue cancelada. Resumen de lo que estaba agendado:",
-    company: "Expositor",
-    table: "Mesa",
-    when: "Horario",
-    cta: "Agendar otro horario",
-    tip: "El espacio volvió a quedar disponible para otros visitantes.",
-    footer: `Recibes este correo porque tenías una reunión agendada en la ${SITE_NAME}.`,
-  },
-} as const;
 
 const MeetingCancelledEmail = ({
   language = "pt-BR",
@@ -70,38 +53,46 @@ const MeetingCancelledEmail = ({
   slotStart,
   slotEnd,
   exploreUrl = "https://rodada.promperu.tur.br/explore",
+  overrides,
 }: Props) => {
   const lang = language === "es" ? "es" : "pt-BR";
-  const t = T[lang];
+  const labels = LABELS[lang];
+  const defaults = TEMPLATE_COPY_DEFAULTS["meeting-cancelled"].copy[lang];
+  const interpData = { visitorName: visitorName ?? "", exhibitorCompany, tableNumber, slotStart: slotStart ?? "", slotEnd: slotEnd ?? "" };
+  const greeting = interpolate(overrides?.greeting ?? defaults.greeting, interpData);
+  const intro = interpolate(overrides?.intro ?? defaults.intro, interpData);
+  const outro = interpolate(overrides?.outro ?? defaults.outro, interpData);
+  const ctaLabel = interpolate(overrides?.ctaLabel ?? defaults.ctaLabel, interpData);
+  const signature = interpolate(overrides?.signature ?? defaults.signature, interpData);
   const when =
     slotStart && slotEnd ? formatSlot(slotStart, slotEnd, lang) : "—";
   return (
     <Html lang={lang} dir="ltr">
       <Head />
-      <Preview>{t.preview(exhibitorCompany)}</Preview>
+      <Preview>{`${labels.previewPrefix} ${exhibitorCompany}`}</Preview>
       <Body style={main}>
         <Container style={container}>
-          <Heading style={h1}>{t.h1}</Heading>
-          <Text style={text}>{t.hi(visitorName)}</Text>
-          <Text style={text}>{t.intro}</Text>
+          <Heading style={h1}>{labels.h1}</Heading>
+          <Text style={text}>{greeting}</Text>
+          <Text style={text}>{intro}</Text>
           <Section style={card}>
             <Text style={small}>
-              <strong>{t.company}:</strong> {exhibitorCompany}
+              <strong>{labels.company}:</strong> {exhibitorCompany}
             </Text>
             <Text style={small}>
-              <strong>{t.table}:</strong> {tableNumber}
+              <strong>{labels.table}:</strong> {tableNumber}
             </Text>
             <Text style={small}>
-              <strong>{t.when}:</strong> {when}
+              <strong>{labels.when}:</strong> {when}
             </Text>
           </Section>
           <Section style={{ textAlign: "center", margin: "8px 0 24px" }}>
             <Button href={exploreUrl} style={button}>
-              {t.cta}
+              {ctaLabel}
             </Button>
           </Section>
-          <Text style={small}>{t.tip}</Text>
-          <Text style={footer}>{t.footer}</Text>
+          <Text style={small}>{outro}</Text>
+          <Text style={footer}>{signature}</Text>
         </Container>
       </Body>
     </Html>
@@ -112,10 +103,10 @@ export const template = {
   component: MeetingCancelledEmail,
   subject: (d: Record<string, any>) => {
     const lang = d?.language === "es" ? "es" : "pt-BR";
-    const c = d?.exhibitorCompany ?? "";
-    return lang === "es"
-      ? `Reunión cancelada — ${c}`
-      : `Reunião cancelada — ${c}`;
+    const subjectTpl =
+      d?.overrideSubject ??
+      TEMPLATE_COPY_DEFAULTS["meeting-cancelled"].subject[lang];
+    return interpolate(subjectTpl, d ?? {});
   },
   displayName: "Meeting cancelled",
   previewData: {
