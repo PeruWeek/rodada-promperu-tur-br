@@ -70,7 +70,22 @@
     "checkEmailTitle": "Cadastro recebido! Verifique seu e-mail",
     "signupSuccessTitle": "Registro realizado com sucesso!",
     "checkEmailBody": "Enviamos um link de confirmação para {{email}}. Clique no link para ativar sua conta — você será levado direto à sua agenda.",
-    "checkEmailHint": "O link expira em 1 hora e só pode ser usado uma vez. Se não chegar, verifique a pasta de spam. Depois de confirmar, entre com o e-mail e a senha cadastrados para acessar sua agenda."
+    "checkEmailHint": "O link expira em 1 hora e só pode ser usado uma vez. Se não chegar, verifique a pasta de spam. Depois de confirmar, entre com o e-mail e a senha cadastrados para acessar sua agenda.",
+    "forgotPassword": "Esqueci minha senha",
+    "forgotPasswordTitle": "Recuperar senha",
+    "forgotPasswordHelp": "Informe o e-mail cadastrado. Enviaremos um link para você definir uma nova senha.",
+    "sendResetLink": "Enviar link de recuperação",
+    "resetEmailSent": "Se este e-mail estiver cadastrado, enviaremos um link para redefinir a senha em instantes. Verifique também a pasta de spam.",
+    "resetPasswordTitle": "Definir nova senha",
+    "resetPasswordHelp": "Escolha uma nova senha com pelo menos 8 caracteres.",
+    "newPassword": "Nova senha",
+    "confirmPassword": "Confirmar nova senha",
+    "passwordsDontMatch": "As senhas não coincidem.",
+    "passwordTooShort": "A senha deve ter pelo menos 8 caracteres.",
+    "passwordUpdated": "Senha atualizada com sucesso. Faça login com a nova senha.",
+    "savePassword": "Salvar nova senha",
+    "backToLogin": "Voltar para o login",
+    "invalidOrExpiredLink": "Link inválido ou expirado. Solicite um novo link de recuperação."
   },
   "onboarding": {
     "title": "Conte-nos quem você é",
