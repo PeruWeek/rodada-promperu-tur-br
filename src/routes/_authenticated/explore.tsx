@@ -35,13 +35,13 @@ function ExplorePage() {
 
       const profileIds = exh.map((e) => e.profile_id);
       const [{ data: profs }, { data: tables }] = await Promise.all([
-        supabase.from("profiles").select("id, full_name, company_id").in("id", profileIds),
+        supabase.rpc("public_profiles", { _ids: profileIds }),
         supabase.from("event_tables").select("table_number, exhibitor_profile_id").in("exhibitor_profile_id", profileIds),
       ]);
 
       const companyIds = (profs ?? []).map((p) => p.company_id).filter((x): x is string => !!x);
       const { data: companies } = companyIds.length
-        ? await supabase.from("companies").select("id, trade_name, country_code, city").in("id", companyIds)
+        ? await supabase.rpc("public_companies", { _ids: companyIds })
         : { data: [] as any[] };
 
       const profMap = new Map((profs ?? []).map((p) => [p.id, p]));
