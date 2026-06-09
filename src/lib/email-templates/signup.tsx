@@ -23,7 +23,7 @@ const secondaryButton = {
 export const SignupEmail = ({ siteName, siteUrl, recipient, confirmationUrl }: SignupEmailProps) => (
   <Html lang="pt-BR" dir="ltr">
     <Head />
-    <Preview>Cadastro recebido — confirme seu e-mail e acesse sua agenda · Registro recibido — confirma tu correo y accede a tu agenda</Preview>
+    <Preview>Cadastro recebido — confirme seu e-mail e acesse sua agenda</Preview>
     <Body style={main}>
       <Container style={container}>
         <Heading style={h1}>Cadastro recebido com sucesso!</Heading>
@@ -38,22 +38,6 @@ export const SignupEmail = ({ siteName, siteUrl, recipient, confirmationUrl }: S
         <Button style={secondaryButton} href={LOGIN_URL}>Entrar e ver minha agenda</Button>
         <Text style={{ ...text, marginTop: '16px', fontSize: '13px', color: '#666' }}>
           Se você não criou esta conta, pode ignorar este e-mail com segurança.
-        </Text>
-
-        <Hr style={{ borderColor: '#eeeeee', margin: '32px 0' }} />
-
-        <Heading style={h1}>¡Registro recibido con éxito!</Heading>
-        <Text style={text}>
-          Gracias por registrarte en{' '}
-          <Link href={siteUrl} style={{ color: PRIMARY }}><strong>{siteName}</strong></Link>. Para activar tu cuenta, confirma tu dirección de correo ({recipient}) haciendo clic en el botón:
-        </Text>
-        <Button style={button} href={confirmationUrl}>Confirmar correo</Button>
-        <Text style={{ ...text, marginTop: '16px' }}>
-          Después de confirmar, ingresa con el correo y la contraseña registrados para acceder a tu agenda de la Rueda de Negocios.
-        </Text>
-        <Button style={secondaryButton} href={LOGIN_URL}>Ingresar y ver mi agenda</Button>
-        <Text style={{ ...text, marginTop: '16px', fontSize: '13px', color: '#666' }}>
-          Si no creaste esta cuenta, puedes ignorar este correo con seguridad.
         </Text>
 
         <Text style={footer}>Rodada de Negócios MICE · Peru × Brasil — 08/07/2026</Text>
