@@ -291,16 +291,8 @@ export const updatePipelineEntry = createServerFn({ method: "POST" })
   )
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
-    const roles = await assertAdminOrStaff(context.userId);
-    if (!roles.includes("admin")) {
-      const myProfileId = await getCurrentProfileId(context.userId);
-      const { data: row } = await supabaseAdmin
-        .from("company_event_pipeline")
-        .select("owner_staff_profile_id")
-        .eq("id", data.id)
-        .maybeSingle();
-      if (!row || row.owner_staff_profile_id !== myProfileId) throw new Error("Forbidden");
-    }
+    const roles = await getRoles(context.userId);
+    if (!roles.includes("admin")) throw new Error("Forbidden: admin only");
     const { error } = await supabaseAdmin
       .from("company_event_pipeline")
       .update(data.patch)
@@ -339,16 +331,8 @@ export const completeNextAction = createServerFn({ method: "POST" })
   )
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
-    const roles = await assertAdminOrStaff(context.userId);
-    if (!roles.includes("admin")) {
-      const myProfileId = await getCurrentProfileId(context.userId);
-      const { data: row } = await supabaseAdmin
-        .from("company_event_pipeline")
-        .select("owner_staff_profile_id")
-        .eq("id", data.id)
-        .maybeSingle();
-      if (!row || row.owner_staff_profile_id !== myProfileId) throw new Error("Forbidden");
-    }
+    const roles = await getRoles(context.userId);
+    if (!roles.includes("admin")) throw new Error("Forbidden: admin only");
     const patch: {
       next_action: typeof data.nextAction;
       next_action_due_at: string | null;
