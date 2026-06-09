@@ -123,7 +123,7 @@ export const adminSearchProfiles = createServerFn({ method: "POST" })
   )
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
-    await assertAdmin(context.userId);
+    await assertAdminOrStaffRead(context.userId);
     let q = supabaseAdmin
       .from("profiles")
       .select("id, auth_user_id, full_name, email, company_id")
@@ -154,7 +154,7 @@ export const listAdminCompanies = createServerFn({ method: "POST" })
   )
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
-    await assertAdmin(context.userId);
+    await assertAdminOrStaffRead(context.userId);
 
     let q = supabaseAdmin
       .from("companies")
