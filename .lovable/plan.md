@@ -1,60 +1,68 @@
-## Rodada — CRUD admin de expositores
+## Objetivo
 
-Causa raiz da ambiguidade: "expositor" é um papel transversal, não
-uma entidade. Operações estão distribuídas em Usuários (CRUD do
-usuário/papel/ativo), Empresas (ficha comercial), Pré-cadastros (CSV)
-e Solicitações (workflow). Nenhuma aba se chamava "Expositores", o
-que dificultava a descoberta.
+No formulário público `/signup`, quando o usuário digita um e-mail que já existe como pré-cadastro pendente (importado pelo admin), oferecer autopreenchimento dos Steps 2 e 3 com consentimento explícito. Campos permanecem editáveis. Sem mudanças em trigger, schema, RLS ou no fluxo `handle_new_user` (que já reaproveita o `profile` existente quando `pending_signup=true` e `auth_user_id IS NULL`).
 
-### Mudanças aplicadas
+## 1. `lookupPreRegistration` em `src/lib/pre-registration.functions.ts`
 
-1. **Aba Usuários** — filtro por papel (Todos / Admin / Staff /
-   Expositor / Visitante), botão **Power** para Ativar/Inativar
-   diretamente na linha, tooltips/aria-labels nos 3 botões da linha
-   (editar, ativar/inativar, excluir), texto-guia no topo explicando
-   o escopo da aba.
-2. **Diálogo "Novo usuário"** — legenda sob o seletor de papel
-   indicando que "Expositor" cria um expositor.
-3. **AlertDialog de exclusão** — texto reforçado: cascata definitiva,
-   sugere inativar para preservar histórico.
-4. **Aba Empresas** — `admin.companies.help` reescrito para deixar
-   claro o escopo (ficha comercial) e direcionar criação/exclusão para
-   Usuários.
-5. **Aba Pré-cadastros** — subtítulo reescrito explicando que a conta
-   de acesso real só é criada na confirmação do convite, e que para
-   cadastro direto deve-se usar Usuários.
-6. **Documentação** — `docs/admin-expositores.md` cobrindo regra,
-   mapa de operações, fluxos passo a passo, diferença
-   inativar × excluir, e checklist de QA.
+Server function pública (sem `requireSupabaseAuth`).
 
-### Arquivos alterados
+- **Input** (Zod): `{ email: string }` — `.trim().toLowerCase().email().max(255)`. Falha de validação → `{ found: false }` (não vaza detalhe).
+- **Query** via `supabaseAdmin` (import dentro do handler):
+  - `profiles` por `email` (match exato após normalização — sem `ilike`), filtrando `pending_signup=true AND auth_user_id IS NULL`.
+  - Join leve em `companies` pelo `company_id`.
+- **Mitigação de enumeração**:
+  - Delay constante (~250ms) em **todos** os caminhos (sucesso, não encontrado, erro, validação inválida).
+  - Mesma resposta `{ found: false }` para: e-mail malformado, sem registro, registro já reivindicado (`auth_user_id` preenchido), erro interno.
+- **Payload** (`{ found: true; data }`) — apenas campos do formulário, nada de IDs, e-mails secundários ou contatos adicionais:
+  - de `companies`: `trade_name`, `legal_name`, `tax_id`, `city`, `state_code`, `website`, `instagram`, `linkedin`, `address`, `general_phone`, `specialty`, `import_profile`.
+  - de `profiles`: `full_name`, `job_title`, `phone` (reformatado com `formatBRPhone`), `whatsapp` (idem), `preferred_language`.
+- Telefones armazenados em E.164/dígitos são convertidos via `formatBRPhone` para casar com a máscara do formulário.
 
-- `src/routes/_authenticated/admin.tsx`
-- `src/lib/i18n/pt-BR.json`
-- `src/lib/i18n/es.json`
-- `docs/admin-expositores.md` (novo)
-- `.lovable/plan.md`
+## 2. Ajustes em `src/routes/signup.tsx`
 
-### Fora de escopo
+Novo estado `prefill`:
 
-- Sem aba "Expositores" separada.
-- Sem nova entidade, migration, RLS, trigger ou endpoint.
-- Sem alteração em CompaniesTab/PreRegistrationsTab além das strings
-  i18n já consumidas por `t("admin.companies.help")` e
-  `t("admin.preRegistration.subtitle")`.
+```ts
+type Prefill =
+  | { status: "idle" }
+  | { status: "loading" }
+  | { status: "none" }
+  | { status: "found"; data: Partial<BuyerSignupData> }
+  | { status: "consumed"; email: string };
+```
 
-### Validação manual
+- No **Step 1** (campo email), `onBlur` dispara `useServerFn(lookupPreRegistration)` quando o e-mail é válido e diferente do último consultado. Pequena guarda anti-duplicação (in-flight token).
+- Quando `status === "found"`, renderiza **banner azul** acima dos campos do Step 1 (e visível no topo do Step 2 também):
+  - Texto: "Encontramos um pré-cadastro com este e-mail. Quer preencher automaticamente?"
+  - Botão primário: "Usar meus dados" → mescla `prefill.data` no `data` (somente campos vazios; nunca sobrescreve o que o usuário já digitou), seta `status: "consumed"`, mostra toast de sucesso.
+  - Botão secundário: "Começar em branco" → seta `status: "consumed"` (sem mesclar) e esconde o banner.
+- Se o usuário alterar o e-mail depois de consumir, reseta para `idle` e refaz lookup no próximo blur.
+- `onFinish` permanece como está — `supabase.auth.signUp` + trigger `handle_new_user` cuidam da reivindicação do `profile` existente.
 
-1. Logar como admin, ir em **Admin → Usuários**: ver o hint no topo,
-   o filtro de papel e o botão Power em cada linha.
-2. Trocar o filtro para **Expositor**: lista mostra apenas
-   expositores.
-3. Clicar **Novo usuário**: ver a legenda sob o seletor de papel.
-4. Clicar **Power** em um usuário não-próprio: badge "Inativo" alterna
-   imediatamente.
-5. Clicar lixeira (admin): diálogo mostra texto reforçado sobre
-   cascata.
-6. **Admin → Empresas**: hint no topo direciona criação para Usuários.
-7. **Admin → Pré-cadastros**: subtítulo explica o fluxo de
-   confirmação.
-8. Trocar idioma para ES: todos os textos novos aparecem traduzidos.
+## 3. i18n (`pt-BR.json` e `es.json`)
+
+Novas chaves dentro de `signup`:
+
+```json
+"prefill": {
+  "bannerTitle": "Pré-cadastro encontrado",
+  "bannerBody": "Encontramos seus dados na base do evento. Quer preencher o formulário automaticamente? Você poderá editar tudo.",
+  "useMyData": "Usar meus dados",
+  "startBlank": "Começar em branco",
+  "toastFilled": "Campos preenchidos. Revise e ajuste se precisar."
+}
+```
+
+## Fora de escopo
+
+Trigger, schema, RLS, `complete_buyer_signup`, abas admin, fluxo de e-mail "já cadastrado" (deixado com a mensagem nativa do Supabase Auth).
+
+## Critérios de aceite (QA pós-deploy, aba anônima)
+
+1. Digitar e-mail de um pré-cadastro pendente e sair do campo → banner aparece.
+2. Clicar "Usar meus dados" → campos vazios dos Steps 2 e 3 são preenchidos; campos já digitados não são sobrescritos.
+3. Editar manualmente qualquer campo preenchido funciona.
+4. E-mail sem pré-cadastro → nenhum banner, nenhuma diferença visível.
+5. E-mail de usuário já cadastrado (com `auth_user_id`) → nenhum banner (mesma resposta de "não encontrado").
+6. Após concluir o signup com pré-cadastro, no admin: o registro existente é reivindicado, sem duplicar `companies` ou `profiles`.
+7. Caixa de QA real: placeholder `<email-qa-confirmar>` será substituído no momento da validação final.

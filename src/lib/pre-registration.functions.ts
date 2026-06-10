@@ -3,6 +3,7 @@ import Papa from "papaparse";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { formatBRPhone } from "@/lib/validation/br-masks";
 
 // Canonical CSV headers (case-insensitive, language-independent). Admins
 // download a template from the Pré-cadastros tab.
@@ -334,4 +335,146 @@ export const importPreRegistrationsCsv = createServerFn({ method: "POST" })
       errors,
       results,
     };
+  });
+
+// ============================================================================
+// Public lookup: prefill /signup form when an imported pre-registration exists
+// for the typed email. No auth (callable from anonymous /signup), but:
+//  - exact match on normalized email
+//  - only returns when pending_signup=true AND auth_user_id IS NULL
+//  - identical {found:false} response for: invalid email, no match,
+//    already-claimed account, internal error
+//  - constant ~250ms delay on every code path to flatten timing-based enumeration
+//  - payload limited to form-relevant fields (no ids, no other contacts)
+// ============================================================================
+
+const ENUM_DELAY_MS = 250;
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+export type PreRegPrefill = {
+  trade_name?: string;
+  legal_name?: string;
+  tax_id?: string;
+  city?: string;
+  state_code?: string;
+  website?: string;
+  instagram?: string;
+  linkedin?: string;
+  address?: string;
+  general_phone?: string;
+  specialty?: string;
+  import_profile?: string;
+  full_name?: string;
+  job_title?: string;
+  phone?: string;
+  whatsapp?: string;
+  preferred_language?: "pt-BR" | "es";
+};
+
+export type PreRegLookupResult =
+  | { found: false }
+  | { found: true; data: PreRegPrefill };
+
+const lookupEmailSchema = z.object({
+  email: z.string().trim().toLowerCase().email().max(255),
+});
+
+function strOrUndef(v: unknown): string | undefined {
+  if (typeof v !== "string") return undefined;
+  const t = v.trim();
+  return t.length === 0 ? undefined : t;
+}
+
+export const lookupPreRegistration = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) => input)
+  .handler(async ({ data }): Promise<PreRegLookupResult> => {
+    const started = Date.now();
+    const finish = async (result: PreRegLookupResult): Promise<PreRegLookupResult> => {
+      const elapsed = Date.now() - started;
+      if (elapsed < ENUM_DELAY_MS) await sleep(ENUM_DELAY_MS - elapsed);
+      return result;
+    };
+
+    const parsed = lookupEmailSchema.safeParse(data);
+    if (!parsed.success) return finish({ found: false });
+    const normEmail = parsed.data.email;
+
+    try {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const { data: profile } = await supabaseAdmin
+        .from("profiles")
+        .select(
+          "auth_user_id, pending_signup, full_name, job_title, phone, whatsapp, preferred_language, company_id, email",
+        )
+        .eq("email", normEmail)
+        .maybeSingle();
+
+      if (!profile) return finish({ found: false });
+      if (profile.auth_user_id) return finish({ found: false });
+      if (!profile.pending_signup) return finish({ found: false });
+      // Defense in depth: exact normalized-email match.
+      if ((profile.email ?? "").trim().toLowerCase() !== normEmail) {
+        return finish({ found: false });
+      }
+
+      let company:
+        | {
+            trade_name: string | null;
+            legal_name: string | null;
+            tax_id: string | null;
+            city: string | null;
+            state_code: string | null;
+            website: string | null;
+            instagram: string | null;
+            linkedin: string | null;
+            address: string | null;
+            general_phone: string | null;
+            specialty: string | null;
+            import_profile: string | null;
+          }
+        | null = null;
+      if (profile.company_id) {
+        const { data: c } = await supabaseAdmin
+          .from("companies")
+          .select(
+            "trade_name, legal_name, tax_id, city, state_code, website, instagram, linkedin, address, general_phone, specialty, import_profile",
+          )
+          .eq("id", profile.company_id)
+          .maybeSingle();
+        company = c ?? null;
+      }
+
+      const prefill: PreRegPrefill = {
+        trade_name: strOrUndef(company?.trade_name),
+        legal_name: strOrUndef(company?.legal_name),
+        tax_id: strOrUndef(company?.tax_id),
+        city: strOrUndef(company?.city),
+        state_code: strOrUndef(company?.state_code),
+        website: strOrUndef(company?.website),
+        instagram: strOrUndef(company?.instagram),
+        linkedin: strOrUndef(company?.linkedin),
+        address: strOrUndef(company?.address),
+        general_phone: company?.general_phone ? formatBRPhone(company.general_phone) : undefined,
+        specialty: strOrUndef(company?.specialty),
+        import_profile: strOrUndef(company?.import_profile),
+        full_name: strOrUndef(profile.full_name),
+        job_title: strOrUndef(profile.job_title),
+        phone: profile.phone ? formatBRPhone(profile.phone) : undefined,
+        whatsapp: profile.whatsapp ? formatBRPhone(profile.whatsapp) : undefined,
+        preferred_language:
+          profile.preferred_language === "es" || profile.preferred_language === "pt-BR"
+            ? profile.preferred_language
+            : undefined,
+      };
+
+      // Strip undefined keys for a clean DTO.
+      const out: PreRegPrefill = {};
+      for (const [k, v] of Object.entries(prefill)) {
+        if (v !== undefined) (out as Record<string, unknown>)[k] = v;
+      }
+
+      return finish({ found: true, data: out });
+    } catch {
+      return finish({ found: false });
+    }
   });

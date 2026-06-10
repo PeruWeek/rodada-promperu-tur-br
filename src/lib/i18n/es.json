@@ -497,6 +497,13 @@
     },
     "hints": {
       "includeDDD": "Incluye el DDD (2 dígitos) antes del número"
+    },
+    "prefill": {
+      "bannerTitle": "Pre-registro encontrado",
+      "bannerBody": "Encontramos tus datos en la base del evento. ¿Quieres completar el formulario automáticamente? Podrás editar todo.",
+      "useMyData": "Usar mis datos",
+      "startBlank": "Empezar en blanco",
+      "toastFilled": "Campos completados. Revisa y ajusta si lo necesitas."
     }
   }
 }

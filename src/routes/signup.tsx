@@ -1,5 +1,6 @@
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -32,6 +33,7 @@ import {
   stepPortfolioSchema,
 } from "@/lib/validation/buyer-signup.schema";
 import { TAXONOMY } from "@/lib/taxonomy";
+import { lookupPreRegistration, type PreRegPrefill } from "@/lib/pre-registration.functions";
 
 export const Route = createFileRoute("/signup")({
   head: () => ({ meta: [{ title: "Cadastro — Rodada de Negócios Promperu 2026" }] }),
@@ -82,6 +84,13 @@ const emptyData: BuyerSignupData = {
 
 type Errors = Record<string, string>;
 
+type Prefill =
+  | { status: "idle" }
+  | { status: "loading"; email: string }
+  | { status: "none"; email: string }
+  | { status: "found"; email: string; data: PreRegPrefill }
+  | { status: "consumed"; email: string };
+
 function flattenZodErrors(err: z.ZodError): Errors {
   const out: Errors = {};
   for (const issue of err.issues) {
@@ -103,9 +112,74 @@ function SignupPage() {
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
   const [whatsappSameAsPhone, setWhatsappSameAsPhone] = useState(false);
+  const [prefill, setPrefill] = useState<Prefill>({ status: "idle" });
+  const prefillRequestId = useRef(0);
+  const lookupFn = useServerFn(lookupPreRegistration);
 
   const set = <K extends keyof BuyerSignupData>(key: K, value: BuyerSignupData[K]) =>
     setData((d) => ({ ...d, [key]: value }));
+
+  // Run the pre-registration lookup when the email field is left.
+  const runLookup = async (rawEmail: string) => {
+    const email = rawEmail.trim().toLowerCase();
+    if (!email) {
+      setPrefill({ status: "idle" });
+      return;
+    }
+    const ok = z.string().email().max(255).safeParse(email).success;
+    if (!ok) return;
+    // Skip if we already have a result for this exact email.
+    if (
+      (prefill.status === "found" ||
+        prefill.status === "none" ||
+        prefill.status === "consumed" ||
+        prefill.status === "loading") &&
+      prefill.email === email
+    ) {
+      return;
+    }
+    const reqId = ++prefillRequestId.current;
+    setPrefill({ status: "loading", email });
+    try {
+      const result = await lookupFn({ data: { email } });
+      if (reqId !== prefillRequestId.current) return;
+      if (result.found) setPrefill({ status: "found", email, data: result.data });
+      else setPrefill({ status: "none", email });
+    } catch {
+      if (reqId === prefillRequestId.current) setPrefill({ status: "none", email });
+    }
+  };
+
+  // Reset prefill when the email changes after a result was returned.
+  useEffect(() => {
+    const current = data.email.trim().toLowerCase();
+    if (prefill.status === "idle" || prefill.status === "loading") return;
+    if (prefill.email !== current) setPrefill({ status: "idle" });
+  }, [data.email, prefill]);
+
+  const acceptPrefill = () => {
+    if (prefill.status !== "found") return;
+    setData((d) => {
+      const merged: BuyerSignupData = { ...d };
+      for (const [k, v] of Object.entries(prefill.data)) {
+        if (v === undefined || v === null || v === "") continue;
+        const key = k as keyof BuyerSignupData;
+        const cur = merged[key];
+        // Fill only empty fields; never overwrite user input.
+        if (cur === "" || cur === undefined || cur === null) {
+          (merged as Record<string, unknown>)[key] = v;
+        }
+      }
+      return merged;
+    });
+    setPrefill({ status: "consumed", email: prefill.email });
+    toast.success(t("signup.prefill.toastFilled"));
+  };
+
+  const dismissPrefill = () => {
+    if (prefill.status !== "found") return;
+    setPrefill({ status: "consumed", email: prefill.email });
+  };
 
   // Keep whatsapp synced with phone while the checkbox is on (no loops).
   useEffect(() => {
@@ -276,10 +350,26 @@ function SignupPage() {
               }}
             >
               {step === 1 && (
-                <Step1 data={data} set={set} errors={errors} t={t} />
+                <>
+                  {prefill.status === "found" && (
+                    <PrefillBanner t={t} onAccept={acceptPrefill} onDismiss={dismissPrefill} />
+                  )}
+                  <Step1
+                    data={data}
+                    set={set}
+                    errors={errors}
+                    t={t}
+                    onEmailBlur={() => void runLookup(data.email)}
+                  />
+                </>
               )}
               {step === 2 && (
-                <Step2 data={data} set={set} errors={errors} t={t} />
+                <>
+                  {prefill.status === "found" && (
+                    <PrefillBanner t={t} onAccept={acceptPrefill} onDismiss={dismissPrefill} />
+                  )}
+                  <Step2 data={data} set={set} errors={errors} t={t} />
+                </>
               )}
               {step === 3 && (
                 <Step3
@@ -346,13 +436,50 @@ function FieldError({ msg, t }: { msg?: string; t: StepProps["t"] }) {
   return <p className="mt-1 text-xs font-medium text-destructive">{text}</p>;
 }
 
-function Step1({ data, set, errors, t }: StepProps) {
+function PrefillBanner({
+  t,
+  onAccept,
+  onDismiss,
+}: {
+  t: StepProps["t"];
+  onAccept: () => void;
+  onDismiss: () => void;
+}) {
+  return (
+    <div className="rounded-md border border-blue-200 bg-blue-50 p-4 dark:border-blue-900 dark:bg-blue-950/40">
+      <h3 className="text-sm font-semibold text-blue-900 dark:text-blue-100">
+        {t("signup.prefill.bannerTitle")}
+      </h3>
+      <p className="mt-1 text-sm text-blue-900/80 dark:text-blue-100/80">
+        {t("signup.prefill.bannerBody")}
+      </p>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <Button type="button" size="sm" onClick={onAccept}>
+          {t("signup.prefill.useMyData")}
+        </Button>
+        <Button type="button" size="sm" variant="outline" onClick={onDismiss}>
+          {t("signup.prefill.startBlank")}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function Step1({
+  data,
+  set,
+  errors,
+  t,
+  onEmailBlur,
+}: StepProps & { onEmailBlur?: () => void }) {
   return (
     <div className="space-y-4">
       <div>
         <Label htmlFor="email">{t("auth.email")} *</Label>
         <Input id="email" type="email" autoComplete="email" value={data.email}
-          onChange={(e) => set("email", e.target.value)} className="mt-1.5" />
+          onChange={(e) => set("email", e.target.value)}
+          onBlur={onEmailBlur}
+          className="mt-1.5" />
         <FieldError msg={errors.email} t={t} />
       </div>
       <div>
