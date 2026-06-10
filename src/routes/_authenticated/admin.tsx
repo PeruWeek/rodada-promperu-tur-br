@@ -261,7 +261,7 @@ function RequestsTab() {
   );
 }
 
-function TablesTab() {
+function TablesTab({ readOnly = false }: { readOnly?: boolean } = {}) {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const assignFn = useServerFn(assignExhibitorToTable);
@@ -354,7 +354,7 @@ function TablesTab() {
           <p className="text-xs text-muted-foreground">{t("admin.tables.rebuildAfterCreate")}</p>
         </div>
         {data?.event && (
-          <div className="flex gap-2">
+          !readOnly && <div className="flex gap-2">
             <Button
               size="sm"
               variant="outline"
@@ -383,6 +383,7 @@ function TablesTab() {
               onValueChange={(v) =>
                 assignMut.mutate({ tableId: tbl.id, exhibitorProfileId: v === "__none" ? null : v })
               }
+              disabled={readOnly}
             >
               <SelectTrigger className="w-full">
                 <SelectValue placeholder={t("admin.tables.unassigned")} />
@@ -394,7 +395,7 @@ function TablesTab() {
                 ))}
               </SelectContent>
             </Select>
-            <Button
+            {!readOnly && <Button
               size="icon"
               variant="ghost"
               onClick={() => {
@@ -404,15 +405,15 @@ function TablesTab() {
               title={t("admin.tables.renumber")}
             >
               <Pencil size={14} />
-            </Button>
-            <Button
+            </Button>}
+            {!readOnly && <Button
               size="icon"
               variant="ghost"
               onClick={() => setDeleteId({ id: tbl.id, n: tbl.table_number })}
               title={t("admin.tables.delete")}
             >
               <Trash2 size={14} />
-            </Button>
+            </Button>}
           </div>
         ))}
       </div>
