@@ -12,6 +12,14 @@ async function isAdmin(userId: string) {
   return (data ?? []).some((r) => r.role === "admin");
 }
 
+async function isAdminOrStaff(userId: string) {
+  const { data } = await supabaseAdmin
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", userId);
+  return (data ?? []).some((r) => r.role === "admin" || r.role === "staff");
+}
+
 // General event check-in (admin/staff scans/marks a profile as present)
 export const generalCheckIn = createServerFn({ method: "POST" })
   .inputValidator((input) =>
@@ -25,7 +33,8 @@ export const generalCheckIn = createServerFn({ method: "POST" })
   )
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
-    if (!(await isAdmin(context.userId))) throw new Error("Forbidden: admin only");
+    if (!(await isAdminOrStaff(context.userId)))
+      throw new Error("Forbidden: admin/staff only");
     const { data: existing } = await supabaseAdmin
       .from("general_checkins")
       .select("id")
