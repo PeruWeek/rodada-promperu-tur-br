@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
-import { Link as LinkIcon, Plus, UserX } from "lucide-react";
+import { AlertTriangle, Link as LinkIcon, Plus, RefreshCw, UserX } from "lucide-react";
 
 import { createCompanyForOrphan, listOrphanExhibitors } from "@/lib/admin.functions";
 import { Card } from "@/components/ui/card";
@@ -37,15 +37,23 @@ export function OrphanExhibitorsPanel() {
   const { t } = useTranslation();
   const listFn = useServerFn(listOrphanExhibitors);
   const createFn = useServerFn(createCompanyForOrphan);
-  const { data, isLoading, refetch } = useQuery({
+  const queryClient = useQueryClient();
+  const { data, isLoading, error, isFetching, refetch } = useQuery({
     queryKey: ["admin-orphan-exhibitors"],
     queryFn: () => listFn(),
+    retry: 1,
   });
 
   const [linkTarget, setLinkTarget] = useState<OrphanRow | null>(null);
   const [createTarget, setCreateTarget] = useState<OrphanRow | null>(null);
   const [form, setForm] = useState({ trade_name: "", country_code: "BR", city: "", legal_name: "", state_code: "" });
   const [submitting, setSubmitting] = useState(false);
+
+  const invalidateRelated = () => {
+    queryClient.invalidateQueries({ queryKey: ["admin-orphan-exhibitors"] });
+    queryClient.invalidateQueries({ queryKey: ["admin-unpublished-exhibitors"] });
+    queryClient.invalidateQueries({ queryKey: ["admin-companies"] });
+  };
 
   const submitCreate = async () => {
     if (!createTarget) return;
@@ -64,7 +72,7 @@ export function OrphanExhibitorsPanel() {
       toast.success(t("admin.orphans.created"));
       setCreateTarget(null);
       setForm({ trade_name: "", country_code: "BR", city: "", legal_name: "", state_code: "" });
-      refetch();
+      invalidateRelated();
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
@@ -74,17 +82,50 @@ export function OrphanExhibitorsPanel() {
 
   const rows = (data?.rows ?? []) as OrphanRow[];
 
-  if (isLoading) return <Skeleton className="h-24 w-full" />;
-  if (rows.length === 0) return null;
-
   return (
     <Card className="p-5 border-amber-500/40 bg-amber-500/5">
       <div className="mb-3 flex items-center gap-2">
         <UserX size={18} className="text-amber-600 dark:text-amber-400" />
         <h3 className="font-semibold">{t("admin.orphans.title")}</h3>
-        <Badge variant="outline" className="ml-auto">{rows.length}</Badge>
+        <Badge variant="outline" className="ml-auto">{isLoading ? "…" : rows.length}</Badge>
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={() => refetch()}
+          disabled={isFetching}
+          aria-label="refresh"
+        >
+          <RefreshCw size={14} className={isFetching ? "animate-spin" : ""} />
+        </Button>
       </div>
       <p className="mb-3 text-xs text-muted-foreground">{t("admin.orphans.help")}</p>
+
+      {isLoading && <Skeleton className="h-24 w-full" />}
+
+      {!isLoading && error && (
+        <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm flex items-start gap-2">
+          <AlertTriangle size={16} className="mt-0.5 shrink-0 text-destructive" />
+          <div className="flex-1">
+            <div className="font-medium text-destructive">
+              {t("admin.orphans.loadError", "Erro ao carregar expositores sem empresa")}
+            </div>
+            <div className="text-xs text-muted-foreground mt-1 break-all">
+              [admin_list_orphan_exhibitors] {(error as Error).message}
+            </div>
+            <Button size="sm" variant="outline" className="mt-2" onClick={() => refetch()}>
+              {t("common.retry", "Tentar novamente")}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {!isLoading && !error && rows.length === 0 && (
+        <p className="py-4 text-center text-xs text-muted-foreground">
+          {t("admin.orphans.empty", "Nenhum expositor sem empresa no momento.")}
+        </p>
+      )}
+
+      {!isLoading && !error && rows.length > 0 && (
       <div className="space-y-2">
         {rows.map((r) => (
           <div
@@ -113,6 +154,7 @@ export function OrphanExhibitorsPanel() {
           </div>
         ))}
       </div>
+      )}
 
       {linkTarget && (
         <LinkOrphanDialog
@@ -120,7 +162,7 @@ export function OrphanExhibitorsPanel() {
           profileId={linkTarget.profile_id}
           profileEmail={linkTarget.email}
           onClose={() => setLinkTarget(null)}
-          onLinked={() => refetch()}
+          onLinked={() => invalidateRelated()}
         />
       )}
 
