@@ -234,7 +234,7 @@
     },
     "preRegistration": {
       "title": "Pré-cadastros via CSV",
-      "subtitle": "Importe uma lista de convidados. Quando a pessoa se cadastrar com o mesmo e-mail, vinculamos automaticamente os dados.",
+      "subtitle": "Importação em massa de convidados (visitantes ou expositores). A conta de acesso só é criada quando a pessoa confirma o convite pelo mesmo e-mail. Para criar um usuário diretamente (já com login ativo), use a aba Usuários.",
       "event": "Evento",
       "selectEvent": "Selecione um evento",
       "selectFile": "Selecione um arquivo CSV",
