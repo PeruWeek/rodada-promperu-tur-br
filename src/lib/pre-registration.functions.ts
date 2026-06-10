@@ -3,7 +3,7 @@ import Papa from "papaparse";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { formatBRPhone } from "@/lib/validation/br-masks";
+import { formatBRPhone, isValidBRPhone, normalizeBRPhoneForMask } from "@/lib/validation/br-masks";
 
 // Canonical CSV headers (case-insensitive, language-independent). Admins
 // download a template from the Pré-cadastros tab.
@@ -351,6 +351,19 @@ export const importPreRegistrationsCsv = createServerFn({ method: "POST" })
 const ENUM_DELAY_MS = 250;
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
+/** Mask a BR phone for prefill: strip +55/E.164 DDI first, then apply the
+ * BR mask only when the normalized digits are a valid BR landline (10) or
+ * mobile (11). Otherwise return the original value untouched so we never
+ * show a wrong mask. */
+function maskBR(raw: string | null | undefined): string | undefined {
+  if (raw == null) return undefined;
+  const trimmed = String(raw).trim();
+  if (trimmed.length === 0) return undefined;
+  const national = normalizeBRPhoneForMask(trimmed);
+  if (national && isValidBRPhone(national)) return formatBRPhone(national);
+  return trimmed;
+}
+
 export type PreRegPrefill = {
   trade_name?: string;
   legal_name?: string;
@@ -454,13 +467,13 @@ export const lookupPreRegistration = createServerFn({ method: "POST" })
         instagram: strOrUndef(company?.instagram),
         linkedin: strOrUndef(company?.linkedin),
         address: strOrUndef(company?.address),
-        general_phone: company?.general_phone ? formatBRPhone(company.general_phone) : undefined,
+        general_phone: maskBR(company?.general_phone),
         specialty: strOrUndef(company?.specialty),
         import_profile: strOrUndef(company?.import_profile),
         full_name: strOrUndef(profile.full_name),
         job_title: strOrUndef(profile.job_title),
-        phone: profile.phone ? formatBRPhone(profile.phone) : undefined,
-        whatsapp: profile.whatsapp ? formatBRPhone(profile.whatsapp) : undefined,
+        phone: maskBR(profile.phone),
+        whatsapp: maskBR(profile.whatsapp),
         preferred_language:
           profile.preferred_language === "es" || profile.preferred_language === "pt-BR"
             ? profile.preferred_language
