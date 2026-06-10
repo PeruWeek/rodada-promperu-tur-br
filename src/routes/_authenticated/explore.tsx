@@ -27,45 +27,21 @@ function ExplorePage() {
   const { data, isLoading, error } = useQuery({
     queryKey: ["exhibitors-list"],
     queryFn: async (): Promise<ExhibitorListItem[]> => {
-      const { data: exh, error: exhErr } = await supabase
-        .from("exhibitor_profiles")
-        .select("profile_id, segments, services, destinations");
-      if (exhErr) throw exhErr;
-      if (!exh || exh.length === 0) return [];
-
-      const profileIds = exh.map((e) => e.profile_id);
-      const [{ data: profs }, { data: tables }] = await Promise.all([
-        supabase.rpc("public_profiles", { _ids: profileIds }),
-        supabase.from("event_tables").select("table_number, exhibitor_profile_id").in("exhibitor_profile_id", profileIds),
-      ]);
-
-      const companyIds = (profs ?? []).map((p) => p.company_id).filter((x): x is string => !!x);
-      const { data: companies } = companyIds.length
-        ? await supabase.rpc("public_companies", { _ids: companyIds })
-        : { data: [] as any[] };
-
-      const profMap = new Map((profs ?? []).map((p) => [p.id, p]));
-      const compMap = new Map((companies ?? []).map((c: any) => [c.id, c]));
-      const tableMap = new Map(
-        (tables ?? []).map((t: any) => [t.exhibitor_profile_id, t.table_number])
-      );
-
-      return exh.map((e) => {
-        const p = profMap.get(e.profile_id);
-        const c = p?.company_id ? compMap.get(p.company_id) : null;
-        return {
-          profile_id: e.profile_id,
-          full_name: p?.full_name ?? "",
-          trade_name: c?.trade_name ?? "—",
-          country_code: c?.country_code ?? null,
-          city: c?.city ?? null,
-          table_number: (tableMap.get(e.profile_id) as number | undefined) ?? null,
-          segments: e.segments ?? [],
-          services: e.services ?? [],
-          destinations: e.destinations ?? [],
-        };
-      });
+      const { data: rows, error: rpcErr } = await supabase.rpc("public_exhibitor_catalog");
+      if (rpcErr) throw rpcErr;
+      return (rows ?? []).map((r) => ({
+        profile_id: r.profile_id,
+        full_name: r.full_name ?? "",
+        trade_name: r.trade_name ?? "—",
+        country_code: r.country_code ?? null,
+        city: r.city ?? null,
+        table_number: r.table_number ?? null,
+        segments: r.segments ?? [],
+        services: r.services ?? [],
+        destinations: r.destinations ?? [],
+      }));
     },
+    retry: false,
   });
 
   const filtered = useMemo(() => {
@@ -143,9 +119,15 @@ function ExplorePage() {
         )}
 
         {error && (
-          <div className="rounded-xl border border-destructive/40 bg-destructive/5 p-6 text-sm text-destructive">
-            {(error as Error).message}
-          </div>
+          (error as Error).message.includes("no_active_event") ? (
+            <div className="rounded-xl border border-amber-400/40 bg-amber-500/5 p-6 text-sm text-amber-700 dark:text-amber-300">
+              {t("explore.noActiveEvent")}
+            </div>
+          ) : (
+            <div className="rounded-xl border border-destructive/40 bg-destructive/5 p-6 text-sm text-destructive">
+              {(error as Error).message}
+            </div>
+          )
         )}
 
         {!isLoading && !error && filtered.length === 0 && (
