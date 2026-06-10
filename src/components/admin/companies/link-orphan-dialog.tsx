@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 
 type Candidate = {
   id: string;
@@ -53,7 +53,7 @@ export function LinkOrphanDialog({
       const r = await searchFn({ data: { query: q.trim(), limit: 10 } });
       setResults(r.rows as Candidate[]);
     } catch (e) {
-      toast({ variant: "destructive", title: (e as Error).message });
+      toast.error((e as Error).message);
     } finally {
       setSearching(false);
     }
@@ -70,11 +70,11 @@ export function LinkOrphanDialog({
           forceReason: force ? forceReason.trim() : undefined,
         },
       });
-      toast({ title: t("admin.orphans.linked") });
+      toast.success(t("admin.orphans.linked"));
       onLinked();
       onClose();
     } catch (e) {
-      toast({ variant: "destructive", title: (e as Error).message });
+      toast.error((e as Error).message);
     } finally {
       setSubmitting(false);
     }
