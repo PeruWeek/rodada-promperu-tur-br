@@ -1,63 +1,71 @@
+## Diagnóstico
 
-## Causa raiz
+Rodei contagens no banco:
 
-Os sintomas (admin abrindo nav de visitante, `Perfil` indo pra `/login`, `PT/ES` e switches sem clique, dropdown abrindo "vazio", React #418, mistura PT/ES) têm **uma única origem**: a árvore `/_authenticated/*` está rodando em SSR sem sessão.
+- `company_event_pipeline`: **658 linhas**, mas **0 pares duplicados** `(event_id, company_id)` → o pipeline em si não está repetido.
+- `profiles`: **224 linhas, 224 emails únicos** → contatos NÃO estão sendo replicados (dedup por email funciona).
+- `companies`: **658 linhas, apenas 137 trade_names distintos, 0 com tax_id** → empresas ESTÃO sendo replicadas. Cada import criou novas empresas idênticas (ex.: "Top Service" aparece 12 vezes, várias outras 9 vezes).
 
-1. **`src/routes/_authenticated.tsx` não tem `ssr: false`.** A sessão Supabase mora em `localStorage` (lado cliente). No SSR:
-   - `beforeLoad` chama `supabase.auth.getUser()` sem token e tenta `redirect → /login` (causa o "redireciona pra /login" intermitente no `Perfil`).
-   - `useAuth`/`useProfile` retornam `{user:null, loading:true}` no servidor e algo diferente no cliente → **hydration mismatch = React error #418**.
-   - Quando #418 dispara, o React remonta a subárvore client-side e os **portais do Radix (Select/Dialog/AlertDialog)** ficam dessincronizados: o `body` herda `pointer-events:none` de um overlay fantasma → switches, botões PT/ES e itens do Select aparecem mas não recebem clique, dropdown "abre e não mostra opções" (o `SelectContent` está renderizado num portal coberto).
+### Causa raiz
 
-2. **`SiteHeader` cai no default "visitor"** enquanto `useProfile` ainda está carregando. `getPrimaryRole(undefined) === null` → o switch cai no `return [visitor nav]`. Resultado: logo após o login admin, o header pisca "Explorar / Mi Agenda" antes de virar "Admin / Perfil". Some quando o usuário abre o menu (re-render) — exatamente o sintoma relatado.
+Em `src/lib/pre-registration.functions.ts`, a deduplicação de empresa só acontece quando o CSV traz `tax_id`:
 
-3. **i18n misturado**: o mesmo race acima faz o `i18n.changeLanguage` rodar antes do profile carregar; alguns textos vêm do default (ES) e outros do estado já trocado (PT).
+```ts
+if (taxId) {
+  const { data: existing } = await supabaseAdmin
+    .from("companies").select(...).eq("tax_id", taxId).maybeSingle();
+  ...
+}
+if (!companyId) {
+  // sempre INSERT — cria nova empresa toda vez
+}
+```
 
-Os filtros (`Últimos 30 dias`, `Apenas minha carteira`) **estão corretos no código** (`pipeline-tabs.tsx` linhas 87–101 têm opções reais 7/30/90/365 e o `Switch` está bem cabeado). Eles só parecem quebrados porque o portal está atrás do overlay travado.
+A lista importada está sem `tax_id` (CNPJ), então toda execução cria uma `company` nova e, em consequência, uma nova linha em `company_event_pipeline` para o mesmo evento. Os profiles são deduplicados por email corretamente, mas o `company_id` deles aponta para a primeira empresa criada — as réplicas posteriores ficam órfãs no pipeline.
 
-## O que vai ser alterado
+## Correção
 
-### 1. `src/routes/_authenticated.tsx` — desligar SSR da subárvore protegida
-- Adicionar `ssr: false` no `createFileRoute("/_authenticated")`.
-- Manter `beforeLoad` (só roda no cliente agora; `getUser()` enxerga o `localStorage` corretamente, sem redirect espúrio).
-- Continuar com o `useEffect` de gating por role, mas só disparar depois de `profile` resolvido (já é o caso; só ficará confiável após eliminar o SSR).
+### 1. Deduplicar empresa também por nome quando não houver `tax_id`
 
-Isso elimina:
-- React #418 na subárvore (não há mais render no servidor para comparar).
-- O `pointer-events:none` herdado de portais Radix mal hidratados.
-- O flash do "Perfil → /login".
+Em `src/lib/pre-registration.functions.ts`, antes do `INSERT` de empresa:
 
-### 2. `src/components/site-header.tsx` — não cair no default "visitor" enquanto carrega
-- Pegar `isLoading` do `useProfile()`.
-- Enquanto `loading || (user && profileLoading)`, renderizar `navItems = []` (header mostra só logo + LanguageSwitcher + Sair). Sem flash de nav de visitante para admin/staff/exhibitor.
-- Para `primaryRole === null` **mas com profile já carregado**, manter o fallback atual (onboarding fluxo).
+- Se `tax_id` vier preenchido → manter lookup atual por `tax_id`.
+- Se `tax_id` vazio → lookup por `lower(btrim(trade_name))` + `country_code` (+ `state_code` se preenchido), pegando a empresa mais antiga. Se achar, reutilizar o `id`. Só inserir nova empresa se nada bater.
 
-### 3. `src/components/site-header.tsx` — `Perfil` consistente para todos os papéis com perfil
-- Já está correto para admin/exhibitor/visitor; staff continua sem link (regra de produto existente). Sem mudança funcional além do gate de loading.
+Isso garante que reimportar a mesma lista N vezes não duplique empresa nem crie linhas adicionais no pipeline.
 
-### 4. `src/components/language-switcher.tsx` — não engasgar quando o profile ainda não carregou
-- Hoje o `change()` chama `supabase.from('profiles').update(...)` mesmo se o profile do user ainda não existe; em alguns paths a Promise pendura e o botão fica "sem efeito". Tornar o `update` fire-and-forget (sem `await` bloqueando) e aplicar `i18n.changeLanguage` + `localStorage` imediatamente, para o clique sempre refletir na UI mesmo sob race.
+### 2. Limpeza dos dados já duplicados (one-shot migration)
 
-### 5. `src/routes/_authenticated/admin.tsx` — limpeza defensiva de Dialog/AlertDialog
-- Garantir que `Dialog` de "renumerar mesa" e `AlertDialog` de "excluir mesa" sempre fechem em `onOpenChange={(o) => !o && setX(null)}` (já estão), e que **nenhum** componente filho monte um portal condicionalmente sem `Dialog` wrapper. Auditoria rápida; provavelmente nada a mudar aqui — incluído só para fechar a causa de "portal travado" caso reapareça.
+Criar migração que:
 
-## Checklist de aceite (validação manual)
+- Para cada grupo `(trade_name normalizado, country_code, coalesce(state_code,''))` com mais de uma empresa: eleger a "canônica" (mais antiga / com mais profiles vinculados).
+- Repontar `profiles.company_id`, `company_event_pipeline.company_id`, `event_tables`, `exhibitor_profiles` (via profile), e qualquer outra FK relevante para a canônica.
+- Consolidar linhas de `company_event_pipeline` duplicadas no mesmo `(event_id, company_id)` mantendo a mais recente / mais completa.
+- Apagar as `companies` órfãs.
 
-1. Login com conta admin → ir direto pra `/admin`, dashboard "Administración" aparece de cara, **sem** flash de "Explorar / Mi Agenda" no header.
-2. Clicar em `Perfil` → abre `/profile` do admin, sem ir pra `/login`.
-3. Botões `PT` e `ES` no header trocam o idioma imediatamente.
-4. Aba **Dashboard → Visão Geral**: switch `Apenas minha carteira` alterna; Select `Últimos 30 dias` abre e troca para 7/30/90/365 dias, KPIs recarregam.
-5. Console limpo: **sem** `Minified React error #418`.
-6. Idioma do admin permanece consistente (PT-BR ou ES) em toda a área.
-7. Logout segue funcionando; refresh em `/admin` mantém sessão (não vai pra `/login`).
+Resultado esperado: `companies` cai de 658 → ~137 e `company_event_pipeline` para ~137 (1 por empresa no evento atual).
 
-## Detalhes técnicos
+### 3. Reforço de integridade (opcional, recomendado)
 
-- `ssr: false` é o padrão recomendado para subárvores autenticadas via Supabase (sessão em `localStorage`). O resto do app (rotas públicas, `/login`, `/signup`, home) continua SSR normal.
-- Não toco em arquivos auto-gerados (`integrations/supabase/*`, `routeTree.gen.ts`).
-- Não toco no fluxo de login/signup/logout/reset-password.
-- Sem mudança de schema, sem nova migration.
+Adicionar índice único parcial para travar regressão:
 
-## Fora de escopo
+```sql
+CREATE UNIQUE INDEX companies_unique_trade_when_no_tax
+  ON public.companies (lower(btrim(trade_name)), country_code, coalesce(state_code,''))
+  WHERE tax_id IS NULL;
+```
 
-- Reorganizar `_authenticated.tsx` para o layout `_authenticated/route.tsx` da integração (refator estrutural maior; não necessário para corrigir os sintomas).
-- Reescrever `pipeline-tabs.tsx` — os controles já estão corretos.
+Assim, mesmo que outro caminho de código tente inserir empresa duplicada sem CNPJ, o banco rejeita.
+
+## Fora do escopo
+
+- Mudar regra de dedup de profiles (já funciona: chave por email).
+- Tocar fluxo de signup do expositor/visitante autoatendimento.
+- Mexer em meetings, time_slots ou agenda.
+
+## Validação manual após implementação
+
+1. Rodar a migração de limpeza → conferir `SELECT count(*) FROM companies` ≈ 137 e `company_event_pipeline` ≈ 137.
+2. Reimportar a MESMA planilha no admin → contagens devem permanecer iguais (0 novas empresas, 0 novas linhas no pipeline). Profiles também sem novas linhas.
+3. Importar planilha com 1 contato novo (email novo) na mesma empresa → 0 novas empresas, +1 profile, 0 novas linhas no pipeline.
+4. Importar contato com `tax_id` preenchido pela primeira vez → empresa existente deve receber o `tax_id` (patch já existente) sem criar duplicata.

@@ -162,6 +162,39 @@ export const importPreRegistrationsCsv = createServerFn({ method: "POST" })
             }
           }
         }
+        // Fallback dedup by normalized trade_name + country + state when no tax_id match.
+        if (!companyId) {
+          const normName = r.trade_name.trim().toLowerCase();
+          const stateUp = r.state_code ? r.state_code.toUpperCase() : "";
+          const { data: candidates } = await supabaseAdmin
+            .from("companies")
+            .select("id, trade_name, country_code, state_code, tax_id, legal_name, city, created_at")
+            .ilike("trade_name", r.trade_name.trim())
+            .eq("country_code", r.country_code)
+            .order("created_at", { ascending: true });
+          const match = (candidates ?? []).find(
+            (c) =>
+              (c.trade_name ?? "").trim().toLowerCase() === normName &&
+              (c.country_code ?? "") === r.country_code &&
+              (c.state_code ?? "") === stateUp,
+          );
+          if (match) {
+            companyId = match.id;
+            const patch: {
+              tax_id?: string;
+              legal_name?: string;
+              state_code?: string;
+              city?: string;
+            } = {};
+            if (!match.tax_id && taxId) patch.tax_id = taxId;
+            if (!match.legal_name && r.legal_name) patch.legal_name = r.legal_name;
+            if (!match.state_code && stateUp) patch.state_code = stateUp;
+            if (!match.city && r.city) patch.city = r.city;
+            if (Object.keys(patch).length > 0) {
+              await supabaseAdmin.from("companies").update(patch).eq("id", companyId);
+            }
+          }
+        }
         if (!companyId) {
           const { data: ins, error: cErr } = await supabaseAdmin
             .from("companies")
