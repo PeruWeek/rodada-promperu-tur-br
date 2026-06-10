@@ -8,17 +8,26 @@ export function LanguageSwitcher({ className }: { className?: string }) {
 
   const change = async (lng: "pt-BR" | "es") => {
     if (lng === current) return;
-    await i18n.changeLanguage(lng);
+    // Apply UI change immediately so the click always reflects, even if the
+    // profile row isn't ready yet or the network call hangs.
+    void i18n.changeLanguage(lng);
     try {
       localStorage.setItem("rp2026.lang", lng);
     } catch {}
-    const { data } = await supabase.auth.getUser();
-    if (data.user) {
-      await supabase
-        .from("profiles")
-        .update({ preferred_language: lng })
-        .eq("auth_user_id", data.user.id);
-    }
+    // Fire-and-forget persistence; don't block the UI.
+    void (async () => {
+      try {
+        const { data } = await supabase.auth.getUser();
+        if (data.user) {
+          await supabase
+            .from("profiles")
+            .update({ preferred_language: lng })
+            .eq("auth_user_id", data.user.id);
+        }
+      } catch {
+        // ignore; local language already applied
+      }
+    })();
   };
 
   return (

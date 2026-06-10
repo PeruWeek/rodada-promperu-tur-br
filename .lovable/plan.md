@@ -1,73 +1,63 @@
-## Objetivo
 
-Entregar um **documento Word (.docx)** com checklists operacionais de teste para a equipe validar, no ambiente real, as três jornadas críticas da rodada:
+## Causa raiz
 
-1. **Cadastro de Expositor**
-2. **Cadastro de Visitante**
-3. **Agendamento de reuniões**
+Os sintomas (admin abrindo nav de visitante, `Perfil` indo pra `/login`, `PT/ES` e switches sem clique, dropdown abrindo "vazio", React #418, mistura PT/ES) têm **uma única origem**: a árvore `/_authenticated/*` está rodando em SSR sem sessão.
 
-Formato: **checklist com caixa de marcar (ok / não ok / observação)**, linguagem operacional de evento (não técnica), **PT-BR e ES lado a lado** em cada item para o mesmo testador poder rodar nos dois idiomas.
+1. **`src/routes/_authenticated.tsx` não tem `ssr: false`.** A sessão Supabase mora em `localStorage` (lado cliente). No SSR:
+   - `beforeLoad` chama `supabase.auth.getUser()` sem token e tenta `redirect → /login` (causa o "redireciona pra /login" intermitente no `Perfil`).
+   - `useAuth`/`useProfile` retornam `{user:null, loading:true}` no servidor e algo diferente no cliente → **hydration mismatch = React error #418**.
+   - Quando #418 dispara, o React remonta a subárvore client-side e os **portais do Radix (Select/Dialog/AlertDialog)** ficam dessincronizados: o `body` herda `pointer-events:none` de um overlay fantasma → switches, botões PT/ES e itens do Select aparecem mas não recebem clique, dropdown "abre e não mostra opções" (o `SelectContent` está renderizado num portal coberto).
 
-Skill usada para estruturar: `rodada-b2b-eventos` (referências de smoke test, validação de agendamento e modelos de entregáveis).
+2. **`SiteHeader` cai no default "visitor"** enquanto `useProfile` ainda está carregando. `getPrimaryRole(undefined) === null` → o switch cai no `return [visitor nav]`. Resultado: logo após o login admin, o header pisca "Explorar / Mi Agenda" antes de virar "Admin / Perfil". Some quando o usuário abre o menu (re-render) — exatamente o sintoma relatado.
 
----
+3. **i18n misturado**: o mesmo race acima faz o `i18n.changeLanguage` rodar antes do profile carregar; alguns textos vêm do default (ES) e outros do estado já trocado (PT).
 
-## Estrutura do documento
+Os filtros (`Últimos 30 dias`, `Apenas minha carteira`) **estão corretos no código** (`pipeline-tabs.tsx` linhas 87–101 têm opções reais 7/30/90/365 e o `Switch` está bem cabeado). Eles só parecem quebrados porque o portal está atrás do overlay travado.
 
-Capa + 1 seção por jornada. Cada seção segue o mesmo gabarito:
+## O que vai ser alterado
 
-```text
-[JORNADA X — NOME]
-Pré-requisitos do teste (conta, idioma, dispositivo, dados de exemplo)
-Fluxo feliz — passos numerados, cada um com:
-   ( ) PT: descrição curta do passo + critério de sucesso
-   ( ) ES: mesma descrição em espanhol
-   Observação: ____________________________________
-Cenários de erro — mesma estrutura, um bloco por cenário
-Critério de aprovação da jornada (todos os itens ok)
-```
+### 1. `src/routes/_authenticated.tsx` — desligar SSR da subárvore protegida
+- Adicionar `ssr: false` no `createFileRoute("/_authenticated")`.
+- Manter `beforeLoad` (só roda no cliente agora; `getUser()` enxerga o `localStorage` corretamente, sem redirect espúrio).
+- Continuar com o `useEffect` de gating por role, mas só disparar depois de `profile` resolvido (já é o caso; só ficará confiável após eliminar o SSR).
 
-Cada passo cabe em ~1 linha. Sem prosa, sem screenshots, sem jargão técnico.
+Isso elimina:
+- React #418 na subárvore (não há mais render no servidor para comparar).
+- O `pointer-events:none` herdado de portais Radix mal hidratados.
+- O flash do "Perfil → /login".
 
----
+### 2. `src/components/site-header.tsx` — não cair no default "visitor" enquanto carrega
+- Pegar `isLoading` do `useProfile()`.
+- Enquanto `loading || (user && profileLoading)`, renderizar `navItems = []` (header mostra só logo + LanguageSwitcher + Sair). Sem flash de nav de visitante para admin/staff/exhibitor.
+- Para `primaryRole === null` **mas com profile já carregado**, manter o fallback atual (onboarding fluxo).
 
-## Conteúdo por jornada
+### 3. `src/components/site-header.tsx` — `Perfil` consistente para todos os papéis com perfil
+- Já está correto para admin/exhibitor/visitor; staff continua sem link (regra de produto existente). Sem mudança funcional além do gate de loading.
 
-### 1. Cadastro de Expositor
-- **Pré-requisitos**: navegador limpo, e-mail novo, idioma do navegador, link de signup do evento.
-- **Fluxo feliz**: abrir signup → escolher "Expositor" → preencher dados da empresa → confirmar e-mail → completar onboarding (logo, especialidade, perfil de importação) → ver status "Aguardando aprovação / Aprovado" → acessar painel.
-- **Cenários de erro**: e-mail já cadastrado, CNPJ/Tax ID inválido, campo obrigatório vazio, upload de logo > limite, recusar termos, fechar navegador no meio do onboarding (retomar de onde parou), trocar idioma no meio do fluxo.
+### 4. `src/components/language-switcher.tsx` — não engasgar quando o profile ainda não carregou
+- Hoje o `change()` chama `supabase.from('profiles').update(...)` mesmo se o profile do user ainda não existe; em alguns paths a Promise pendura e o botão fica "sem efeito". Tornar o `update` fire-and-forget (sem `await` bloqueando) e aplicar `i18n.changeLanguage` + `localStorage` imediatamente, para o clique sempre refletir na UI mesmo sob race.
 
-### 2. Cadastro de Visitante
-- **Pré-requisitos**: navegador limpo, e-mail novo OU e-mail pré-cadastrado pelo staff (testar os dois caminhos).
-- **Fluxo feliz (auto-cadastro)**: signup → escolher "Visitante/Comprador" → dados pessoais + empresa → confirmar e-mail → onboarding (interesses, idiomas) → aparece em **Explorar**.
-- **Fluxo feliz (pré-cadastro via lista importada)**: receber e-mail com link → clicar → dados já vêm preenchidos → criar senha → confirmar → aparece como **Inscrito Confirmado** (não mais como "Pré-cadastro").
-- **Cenários de erro**: link expirado, e-mail já confirmado, dados pré-preenchidos editados, recusar idioma, perfil incompleto bloqueia acesso à agenda.
+### 5. `src/routes/_authenticated/admin.tsx` — limpeza defensiva de Dialog/AlertDialog
+- Garantir que `Dialog` de "renumerar mesa" e `AlertDialog` de "excluir mesa" sempre fechem em `onOpenChange={(o) => !o && setX(null)}` (já estão), e que **nenhum** componente filho monte um portal condicionalmente sem `Dialog` wrapper. Auditoria rápida; provavelmente nada a mudar aqui — incluído só para fechar a causa de "portal travado" caso reapareça.
 
-### 3. Agendamento
-- **Pré-requisitos**: 1 conta visitante confirmada + 1 conta expositor aprovado + evento ativo com slots configurados.
-- **Fluxo feliz**: visitante abre **Explorar** → filtra por especialidade/país → abre ficha do expositor → clica "Agendar" → escolhe slot livre → confirma → reunião aparece em **Minha Agenda** dos dois lados → ambos recebem e-mail de confirmação.
-- **Cenários de erro**: slot ocupado entre carregamento e clique, conflito com outra reunião do visitante, expositor sem slots disponíveis, cancelar (libera o slot), reagendar (libera antigo + ocupa novo), atingir limite de reuniões, no-show registrado pelo staff, tentar agendar fora da janela do evento, agenda em PT vs ES (datas/horários localizados).
+## Checklist de aceite (validação manual)
 
----
+1. Login com conta admin → ir direto pra `/admin`, dashboard "Administración" aparece de cara, **sem** flash de "Explorar / Mi Agenda" no header.
+2. Clicar em `Perfil` → abre `/profile` do admin, sem ir pra `/login`.
+3. Botões `PT` e `ES` no header trocam o idioma imediatamente.
+4. Aba **Dashboard → Visão Geral**: switch `Apenas minha carteira` alterna; Select `Últimos 30 dias` abre e troca para 7/30/90/365 dias, KPIs recarregam.
+5. Console limpo: **sem** `Minified React error #418`.
+6. Idioma do admin permanece consistente (PT-BR ou ES) em toda a área.
+7. Logout segue funcionando; refresh em `/admin` mantém sessão (não vai pra `/login`).
 
-## Detalhes técnicos da geração
+## Detalhes técnicos
 
-- Gerar via `docx` (npm), seguindo a skill `docx`:
-  - US Letter, margens 1", Arial 11pt, headings 1/2 customizados.
-  - Tabela de 4 colunas por passo: `[ ]` · **PT-BR** · **ES** · **Observação**.
-  - Cell width fixa em DXA, `ShadingType.CLEAR` no cabeçalho de cada jornada.
-  - Page break entre as 3 jornadas + capa.
-- Salvar em `/mnt/documents/checklist-teste-rodada.docx` e emitir `<presentation-artifact>`.
-- Validar (`validate_document.py`) e converter para imagens (`run_libreoffice.py` + `pdftoppm`) para QA visual de **todas** as páginas antes de entregar.
+- `ssr: false` é o padrão recomendado para subárvores autenticadas via Supabase (sessão em `localStorage`). O resto do app (rotas públicas, `/login`, `/signup`, home) continua SSR normal.
+- Não toco em arquivos auto-gerados (`integrations/supabase/*`, `routeTree.gen.ts`).
+- Não toco no fluxo de login/signup/logout/reset-password.
+- Sem mudança de schema, sem nova migration.
 
----
+## Fora de escopo
 
-## Fora do escopo
-
-- Não é manual do usuário final (é doc de QA).
-- Não inclui screenshots (mantém leve e imprimível).
-- Não documenta painéis de admin/staff (foco em expositor + visitante + agendamento, conforme pedido).
-- Não altera código do app.
-
-Se aprovar, gero o .docx e devolvo o link de download.
+- Reorganizar `_authenticated.tsx` para o layout `_authenticated/route.tsx` da integração (refator estrutural maior; não necessário para corrigir os sintomas).
+- Reescrever `pipeline-tabs.tsx` — os controles já estão corretos.

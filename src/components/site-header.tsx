@@ -14,7 +14,7 @@ import promperuLogo from "@/assets/promperu-logo.png";
 export function SiteHeader() {
   const { t } = useTranslation();
   const { user, loading } = useAuth();
-  const { data: profile } = useProfile();
+  const { data: profile, isLoading: profileLoading } = useProfile();
   const navigate = useNavigate();
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -28,6 +28,9 @@ export function SiteHeader() {
   const primaryRole = getPrimaryRole(profile?.roles);
   const navItems = (() => {
     if (!user) return [] as Array<{ to: string; label: string }>;
+    // Wait for profile to resolve before deciding role-based nav, otherwise
+    // admins/exhibitors briefly see the visitor default nav (Explorar / Mi Agenda).
+    if (profileLoading || !profile) return [] as Array<{ to: string; label: string }>;
     if (primaryRole === "admin") {
       return [
         { to: "/admin", label: t("nav.admin") },
