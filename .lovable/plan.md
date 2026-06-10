@@ -1,79 +1,69 @@
-## Confirmação do estado atual (build publicado)
+## Diagnóstico (confirmado no código)
 
-Rodei `rg "getUser("` em `src/`. Resultado — **6 chamadas**, três delas em guards `beforeLoad`:
+"Expositor" não é entidade própria — é o papel `app_role='exhibitor'` aplicado a um usuário. CRUD já existe, espalhado em 4 abas:
 
-| Arquivo | Local | Tipo | Causa o erro? |
-|---|---|---|---|
-| `src/routes/_authenticated.tsx:14` | `beforeLoad` | Guard de rota | **Sim** (toda navegação logada) |
-| `src/routes/login.tsx:23` | `beforeLoad` | Guard de rota | **Sim** (toda visita a /login) |
-| `src/routes/signup.tsx:40` | `beforeLoad` | Guard de rota | **Sim** (toda visita a /signup) |
-| `src/components/language-switcher.tsx:20` | Fire-and-forget no click | Persistência de idioma | Não no fluxo normal |
-| `src/components/booking-dialog.tsx:61` | Dentro de `useQuery` | Dado da query | Não (já gated) |
-| `src/routes/lovable/email/transactional/send.ts:116` | Server route | Validação de token server-side | Não (server) |
+| Operação | Local atual | Server fn / trigger |
+|---|---|---|
+| Criar manualmente | **Usuários** → "Novo usuário" → papel=Exhibitor | `adminCreateConfirmedUser` + trigger `ensure_exhibitor_profile_on_role` |
+| Importar em massa | **Pré-cadastros** → CSV | `importPreRegistrationsCsv` |
+| Aprovar pedido externo | **Solicitações** | `reviewExhibitorRequest` |
+| Editar empresa + ficha exhibitor | **Empresas** → "Editar" | `updateCompanyFull` |
+| Editar usuário (nome, papel, idioma, ativo, empresa) | **Usuários** → lápis | `adminUpdateUserProfile` + `adminSetPrimaryRole` |
+| Inativar (soft) | **Usuários** → editar → switch `is_active` | `adminUpdateUserProfile` |
+| Excluir físico (admin) | **Usuários** → lixeira | `adminDeleteUser` (cascade) |
 
-A stack `XO.getUser()` em `beforeLoad` que você viu casa exatamente com essas 3 rotas. O `_authenticated.beforeLoad` dispara em **toda** navegação interna (Dashboard → Explore → Agenda), e `getUser()` faz HTTP para `/auth/v1/user` — quando o router invalida rotas (após `SIGNED_IN`, mudança de aba) a request anterior é abortada, virando `TypeError: Failed to fetch` no browser e `context canceled / 500` nos auth-logs do Supabase (verificado nos logs anexados).
+**Causa da ambiguidade:** abas nomeadas por entidade/workflow, nenhuma chamada "Expositores". Operador procura "Novo expositor" e não acha — o caminho é "Usuários → Novo → papel Exhibitor".
 
-## Correção
+## Regra de negócio (documentar)
 
-Trocar **as 3 chamadas em `beforeLoad`** por `getSession()`, que lê o JWT do `localStorage` sem rede. A área logada é `ssr: false`, então não há perda de segurança — a validação real do token continua nos serverFns via `requireSupabaseAuth`.
+1. Criação manual: Usuários → Novo (papel Exhibitor). Cria auth user confirmado + profile + `exhibitor_profiles` (trigger).
+2. Criação por importação: Pré-cadastros CSV. Auth user real só na confirmação do convite.
+3. Edição: dados pessoais/papel → Usuários (lápis); ficha comercial (segmentos, pitch, materiais) → Empresas (Editar).
+4. Exclusão física: só admin, Usuários (lixeira), cascade.
+5. Inativação (soft): switch `is_active` no editar usuário.
 
-### 1. `src/routes/_authenticated.tsx`
-```ts
-beforeLoad: async () => {
-  const { data } = await supabase.auth.getSession();
-  if (!data.session) throw redirect({ to: "/login" });
-},
-```
+## Mudanças (escopo mínimo, sem regras novas)
 
-### 2. `src/routes/login.tsx`
-```ts
-beforeLoad: async () => {
-  if (typeof window === "undefined") return;
-  const { data } = await supabase.auth.getSession();
-  if (data.session) throw redirect({ to: "/dashboard" });
-},
-```
+**1. Discoverable em Usuários**
+- Filtro/chip de papel "Todos / Admin / Staff / Exhibitor / Visitor" no topo da lista.
+- Hint no topo: "Criar/editar/inativar/excluir expositores. Para ficha comercial (segmentos, pitch, materiais), use **Empresas**."
+- No CreateUserDialog, legenda sob o seletor de papel: "Selecione 'Exhibitor' para criar um expositor."
 
-### 3. `src/routes/signup.tsx`
-```ts
-beforeLoad: async () => {
-  if (typeof window === "undefined") return;
-  const { data } = await supabase.auth.getSession();
-  if (data.user) throw redirect({ to: "/dashboard" });
-  // (corrigir referência para data.session)
-},
-```
+**2. Hints nas outras abas**
+- **Empresas**: "Editar dados cadastrais e ficha comercial. Para criar/excluir, vá em **Usuários**."
+- **Pré-cadastros**: "Importação em massa. Conta real é criada quando o convite é confirmado. Para cadastro direto, use **Usuários**."
 
-**Não tocar** `language-switcher.tsx`, `booking-dialog.tsx` nem o server route de email — eles não causam o erro relatado e mudá-los seria fora de escopo.
+**3. Toggle Inativar/Ativar na linha** (Usuários)
+Botão rápido ao lado da lixeira, chama `adminUpdateUserProfile({ is_active })`. Evita abrir o diálogo só para inativar.
 
-## Validação pós-fix
+**4. AlertDialog de exclusão reforçado**
+Texto explícito: "Exclusão definitiva e em cascata. Para preservar histórico, use **Inativar**."
 
-1. Confirmação estática: rodar `rg "getUser\(" src/routes/` — não deve retornar nada em `beforeLoad`.
-2. Aba anônima, login visitante, navegar `/dashboard ↔ /explore ↔ /agenda ↔ /profile`, logout: **zero** `Failed to fetch` no console.
-3. Login admin: mesma navegação, sem erro residual.
+**5. Documentação `docs/admin-expositores.md`** (PT-BR)
+Fluxos oficiais, mapa de operações, diferença inativar vs excluir, critérios QA.
 
-## Dropdown de período do admin
+## Arquivos
 
-Verificado em `src/components/admin/pipeline/pipeline-tabs.tsx` linhas 87–95: o `<Select>` do shadcn usa Radix por baixo, que **só monta as `<SelectItem>` com `role="option"` quando o popover está aberto**. Por isso a automação que lê `period_options=[]` falha — ela está olhando o DOM com o select fechado. Não é bug do componente, é limitação do seletor de teste.
-
-As 4 opções existem no código: `7`, `30`, `90`, `365`. O `queryKey` inclui `period`, então a troca refetch automaticamente. Documentar no `.lovable/plan.md` que:
-- as 4 opções são renderizadas dinamicamente pelo Radix Popover;
-- automação deve abrir o select antes de coletar `[role="option"]`;
-- validação manual: trocar entre 7/30/90/365 → KPIs do pipeline atualizam.
-
-## Documentação (`.lovable/plan.md`)
-
-- Adicionar seção "Rodada N — Failed to fetch causa raiz": listar as 3 rotas, explicar getUser→getSession, com evidência dos auth-logs (context canceled).
-- Adicionar nota sobre o select Radix e instrução para automação.
-- Atualizar checklist: visitante ✅, admin ✅, console limpo ✅.
+- `src/routes/_authenticated/admin.tsx` — filtro de papel + hints + toggle ativo/inativo + texto reforçado no AlertDialog.
+- `src/components/admin/companies/companies-tab.tsx` — hint topo.
+- `src/components/admin/pre-registrations-tab.tsx` — hint topo.
+- `src/lib/i18n/pt-BR.json` + `src/lib/i18n/es.json` — strings novas.
+- `docs/admin-expositores.md` — novo.
+- `.lovable/plan.md` — registrar rodada.
 
 ## Fora de escopo
-- Não alterar `onAuthStateChange` (já filtrado).
-- Não mexer em RLS, migrations, agenda, booking, trigger de expositor.
-- Não tocar UI/estilo.
-- Não alterar `language-switcher` / `booking-dialog`.
+
+- Sem aba "Expositores" separada (papel é transversal).
+- Sem nova entidade/tabela/migration/RLS/trigger.
+- Sem mexer em visitante, agenda, booking, login.
+- Sem novo endpoint — `adminCreateConfirmedUser` cobre.
 
 ## Critério de aceite
-- `rg "getUser\(" src/routes/_authenticated.tsx src/routes/login.tsx src/routes/signup.tsx` → 0 ocorrências.
-- Console limpo após login/navegação/logout em visitante e admin.
-- Build sem regressão.
+
+- Em Usuários, chip "Exhibitor" filtra a lista corretamente.
+- "Novo usuário" tem hint sobre papel Exhibitor.
+- Cada linha de usuário tem editar / ativar-inativar / excluir com tooltips claros.
+- AlertDialog avisa que exclusão é definitiva e sugere inativar.
+- Empresas, Pré-cadastros e Usuários mostram hint de escopo.
+- `docs/admin-expositores.md` cobre cada operação com caminho UI e QA.
+- Build limpo, sem regressão.
