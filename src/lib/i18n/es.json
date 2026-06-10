@@ -234,7 +234,7 @@
     },
     "preRegistration": {
       "title": "Pre-registros por CSV",
-      "subtitle": "Importa una lista de invitados. Cuando la persona se registre con el mismo correo, vincularemos los datos automáticamente.",
+      "subtitle": "Importación masiva de invitados (visitantes o expositores). La cuenta de acceso se crea recién cuando la persona confirma la invitación con el mismo correo. Para crear un usuario directamente (con login activo), usa la pestaña Usuarios.",
       "event": "Evento",
       "selectEvent": "Selecciona un evento",
       "selectFile": "Selecciona un archivo CSV",
