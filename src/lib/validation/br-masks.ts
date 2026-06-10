@@ -87,6 +87,16 @@ function stripBRCountryCode(digits: string): string {
   return d;
 }
 
+/** Normalize a BR phone input to the national digit string (DDD + number)
+ * before applying `formatBRPhone`. Strips +55 / E.164 DDI when the remainder
+ * looks like a valid BR landline (10) or mobile (11). Returns raw digits
+ * when normalization is not safe. */
+export function normalizeBRPhoneForMask(input: string): string {
+  const raw = onlyDigits(input ?? "");
+  if (raw.length === 0) return "";
+  return stripBRCountryCode(raw);
+}
+
 export function validateBRPhoneDetailed(input: string): BRPhoneValidationResult {
   const raw = onlyDigits(input ?? "");
   if (raw.length === 0) return { ok: true };
