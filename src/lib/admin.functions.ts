@@ -664,7 +664,7 @@ export const linkOrphanToCompany = createServerFn({ method: "POST" })
       p_profile_id: data.profileId,
       p_company_id: data.companyId,
       p_force: data.force,
-      p_force_reason: data.forceReason ?? null,
+      p_force_reason: data.forceReason ?? (null as unknown as string),
     });
     if (error) throw new Error(error.message);
     return { ok: true };
@@ -691,9 +691,9 @@ export const createCompanyForOrphan = createServerFn({ method: "POST" })
         p_profile_id: data.profileId,
         p_trade_name: data.trade_name,
         p_country_code: data.country_code,
-        p_city: data.city ?? null,
-        p_legal_name: data.legal_name ?? null,
-        p_state_code: data.state_code ?? null,
+        p_city: (data.city ?? null) as unknown as string,
+        p_legal_name: (data.legal_name ?? null) as unknown as string,
+        p_state_code: (data.state_code ?? null) as unknown as string,
       },
     );
     if (error) throw new Error(error.message);
