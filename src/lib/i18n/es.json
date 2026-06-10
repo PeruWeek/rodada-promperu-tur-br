@@ -306,10 +306,17 @@
     },
     "users": {
       "searchPlaceholder": "Buscar usuario...",
+      "help": "Crea, edita, inactiva o elimina usuarios (admin, staff, expositor, visitante). Para la ficha comercial completa de un expositor (segmentos, pitch, materiales), usa la pestaña Empresas.",
+      "filterRole": "Rol",
+      "roleAll": "Todos",
       "empty": "No se encontraron usuarios.",
       "saved": "Roles actualizados.",
       "created": "Usuario creado.",
       "deleted": "Usuario eliminado.",
+      "activated": "Usuario activado.",
+      "deactivated": "Usuario inactivado.",
+      "activate": "Activar",
+      "deactivate": "Inactivar",
       "inactive": "Inactivo",
       "active": "Activo",
       "primaryRole": "Rol",
@@ -329,14 +336,15 @@
         "password": "Contraseña",
         "passwordHint": "Mín. 8 caracteres",
         "fullName": "Nombre completo",
-        "language": "Idioma"
+        "language": "Idioma",
+        "roleHint": "Selecciona \"Expositor\" para crear un expositor (la ficha comercial se edita luego en Empresas)."
       },
       "edit": {
         "title": "Editar usuario"
       },
       "delete": {
         "title": "Eliminar usuario",
-        "confirm": "¿Eliminar {{name}}? Esta acción no se puede deshacer.",
+        "confirm": "¿Eliminar {{name}} de forma definitiva? La cuenta y todos los datos vinculados se eliminarán en cascada. Para preservar el historial, prefiere inactivar al usuario.",
         "action": "Eliminar"
       }
     },
