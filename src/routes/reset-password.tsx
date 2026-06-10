@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
@@ -23,30 +23,85 @@ function ResetPasswordPage() {
   const [loading, setLoading] = useState(false);
   const [ready, setReady] = useState(false);
   const [invalid, setInvalid] = useState(false);
+  const readyRef = useRef(false);
+  const markReady = () => {
+    readyRef.current = true;
+    setReady(true);
+  };
 
   useEffect(() => {
-    // Supabase parses the recovery hash automatically and emits PASSWORD_RECOVERY.
+    let cancelled = false;
+
+    // 1) Listen for Supabase emitting PASSWORD_RECOVERY / SIGNED_IN once it
+    //    finishes processing the URL (hash or PKCE code).
     const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === "PASSWORD_RECOVERY" || (event === "SIGNED_IN" && session)) {
-        setReady(true);
+      if (event === "PASSWORD_RECOVERY" || (event === "SIGNED_IN" && session) || (event === "INITIAL_SESSION" && session)) {
+        if (!cancelled) markReady();
       }
     });
-    // Fallback: if there is already a session (link was processed before listener mounted), allow.
-    supabase.auth.getSession().then(({ data }) => {
-      if (data.session) setReady(true);
-    });
-    // If after a short delay there's no session and no hash, mark invalid.
-    const timer = window.setTimeout(() => {
-      const hash = window.location.hash || "";
-      if (!ready && !hash.includes("access_token") && !hash.includes("type=recovery")) {
-        supabase.auth.getSession().then(({ data }) => {
-          if (!data.session) setInvalid(true);
-        });
+
+    // 2) Explicitly handle the modern flow where the email link redirects to
+    //    /reset-password?token_hash=...&type=recovery (verifyOtp) or ?code=...
+    //    (PKCE). detectSessionInUrl handles hash tokens automatically.
+    const url = new URL(window.location.href);
+    const tokenHash = url.searchParams.get("token_hash");
+    const typeParam = url.searchParams.get("type");
+    const code = url.searchParams.get("code");
+    (async () => {
+      try {
+        if (tokenHash && (typeParam === "recovery" || typeParam === null)) {
+          const { error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type: "recovery" });
+          if (!cancelled) {
+            if (error) setInvalid(true);
+            else markReady();
+          }
+          // Clean query so refresh doesn't retry a consumed token
+          url.searchParams.delete("token_hash");
+          url.searchParams.delete("type");
+          window.history.replaceState(null, "", url.pathname + (url.search ? url.search : ""));
+          return;
+        }
+        if (code) {
+          const { error } = await supabase.auth.exchangeCodeForSession(code);
+          if (!cancelled) {
+            if (error) setInvalid(true);
+            else markReady();
+          }
+          url.searchParams.delete("code");
+          window.history.replaceState(null, "", url.pathname + (url.search ? url.search : ""));
+          return;
+        }
+      } catch {
+        if (!cancelled) setInvalid(true);
       }
-    }, 1500);
+    })();
+
+    // 3) Poll getSession() for up to ~5s — covers the hash-flow case where
+    //    Supabase auto-creates the session asynchronously and the listener
+    //    may have missed the event (subscribed too late).
+    let attempts = 0;
+    const interval = window.setInterval(async () => {
+      if (cancelled || readyRef.current) {
+        window.clearInterval(interval);
+        return;
+      }
+      attempts += 1;
+      const { data } = await supabase.auth.getSession();
+      if (data.session) {
+        markReady();
+        window.clearInterval(interval);
+        return;
+      }
+      if (attempts >= 25) {
+        window.clearInterval(interval);
+        if (!readyRef.current && !cancelled) setInvalid(true);
+      }
+    }, 200);
+
     return () => {
+      cancelled = true;
       sub.subscription.unsubscribe();
-      window.clearTimeout(timer);
+      window.clearInterval(interval);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
