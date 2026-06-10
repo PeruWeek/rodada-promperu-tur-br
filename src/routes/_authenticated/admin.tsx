@@ -1211,7 +1211,7 @@ function StaffAgendaTab({ isAdmin }: { isAdmin: boolean }) {
             <div key={m.id} className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border p-3">
               <div className="min-w-0">
                 <p className="text-sm font-semibold">
-                  {m.start_at ? new Date(m.start_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}
+                  {m.start_at ? new Date(m.start_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: "America/Sao_Paulo" }) : "—"}
                   {" · "}
                   {t("admin.staff.tableLabel", { n: m.table_number ?? "?" })}
                 </p>
