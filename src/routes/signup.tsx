@@ -37,8 +37,8 @@ export const Route = createFileRoute("/signup")({
   head: () => ({ meta: [{ title: "Cadastro — Rodada de Negócios Promperu 2026" }] }),
   beforeLoad: async () => {
     if (typeof window === "undefined") return;
-    const { data } = await supabase.auth.getUser();
-    if (data.user) throw redirect({ to: "/dashboard" });
+    const { data } = await supabase.auth.getSession();
+    if (data.session) throw redirect({ to: "/dashboard" });
   },
   component: SignupPage,
 });
