@@ -40,35 +40,76 @@ function ResetPasswordPage() {
       }
     });
 
-    // 2) Explicitly handle the modern flow where the email link redirects to
-    //    /reset-password?token_hash=...&type=recovery (verifyOtp) or ?code=...
-    //    (PKCE). detectSessionInUrl handles hash tokens automatically.
+    // 2) Handle every flow Supabase can use to deliver a recovery token:
+    //    A. Implicit hash tokens from /auth/v1/verify?type=recovery
+    //       → #access_token=...&refresh_token=...&type=recovery
+    //       The client default is PKCE, which does NOT consume hash tokens,
+    //       so we MUST call setSession() explicitly here. Without this, the
+    //       hash is left dangling and the page shows "link inválido".
+    //    B. Hash error from a pre-consumed link (mail scanner, link already
+    //       used) → #error=access_denied&error_code=otp_expired&...
+    //    C. Query token_hash from new template → verifyOtp({ token_hash })
+    //    D. PKCE code from ?code=... → exchangeCodeForSession
     const url = new URL(window.location.href);
+    const hash = window.location.hash.startsWith("#")
+      ? window.location.hash.slice(1)
+      : window.location.hash;
+    const hashParams = new URLSearchParams(hash);
+    const accessToken = hashParams.get("access_token");
+    const refreshToken = hashParams.get("refresh_token");
+    const hashType = hashParams.get("type");
+    const hashError = hashParams.get("error_code") ?? hashParams.get("error");
     const tokenHash = url.searchParams.get("token_hash");
     const typeParam = url.searchParams.get("type");
     const code = url.searchParams.get("code");
+
+    const clearHash = () => {
+      window.history.replaceState(null, "", url.pathname + url.search);
+    };
+    const clearQuery = (...keys: string[]) => {
+      for (const k of keys) url.searchParams.delete(k);
+      window.history.replaceState(null, "", url.pathname + (url.search ? url.search : ""));
+    };
+
     (async () => {
       try {
-        if (tokenHash && (typeParam === "recovery" || typeParam === null)) {
-          const { error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type: "recovery" });
-          if (!cancelled) {
-            if (error) setInvalid(true);
-            else markReady();
-          }
-          // Clean query so refresh doesn't retry a consumed token
-          url.searchParams.delete("token_hash");
-          url.searchParams.delete("type");
-          window.history.replaceState(null, "", url.pathname + (url.search ? url.search : ""));
+        // B — link already consumed / expired, surface the recovery-specific UI.
+        if (hashError) {
+          clearHash();
+          if (!cancelled) setInvalid(true);
           return;
         }
-        if (code) {
-          const { error } = await supabase.auth.exchangeCodeForSession(code);
+        // A — implicit hash recovery (the verify-endpoint redirect pattern).
+        if (accessToken && refreshToken && (hashType === "recovery" || hashType === null)) {
+          const { error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          });
+          clearHash();
           if (!cancelled) {
             if (error) setInvalid(true);
             else markReady();
           }
-          url.searchParams.delete("code");
-          window.history.replaceState(null, "", url.pathname + (url.search ? url.search : ""));
+          return;
+        }
+        // C — modern token_hash query param.
+        if (tokenHash && (typeParam === "recovery" || typeParam === null)) {
+          const { error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type: "recovery" });
+          clearQuery("token_hash", "type");
+          if (!cancelled) {
+            if (error) setInvalid(true);
+            else markReady();
+          }
+          return;
+        }
+        // D — PKCE code exchange.
+        if (code) {
+          const { error } = await supabase.auth.exchangeCodeForSession(code);
+          clearQuery("code");
+          if (!cancelled) {
+            if (error) setInvalid(true);
+            else markReady();
+          }
           return;
         }
       } catch {
@@ -76,9 +117,8 @@ function ResetPasswordPage() {
       }
     })();
 
-    // 3) Poll getSession() for up to ~5s — covers the hash-flow case where
-    //    Supabase auto-creates the session asynchronously and the listener
-    //    may have missed the event (subscribed too late).
+    // 3) Fallback: poll getSession() in case the user already has a recovery
+    //    session from a previous visit in the same tab.
     let attempts = 0;
     const interval = window.setInterval(async () => {
       if (cancelled || readyRef.current) {
@@ -137,9 +177,14 @@ function ResetPasswordPage() {
         <p className="mt-2 text-sm text-muted-foreground">{t("auth.resetPasswordHelp")}</p>
 
         {invalid ? (
-          <Alert className="mt-8">
-            <AlertDescription>{t("auth.invalidOrExpiredLink")}</AlertDescription>
-          </Alert>
+          <div className="mt-8 space-y-4">
+            <Alert>
+              <AlertDescription>{t("auth.invalidOrExpiredLink")}</AlertDescription>
+            </Alert>
+            <Button asChild className="w-full" size="lg">
+              <Link to="/forgot-password">{t("auth.sendResetLink")}</Link>
+            </Button>
+          </div>
         ) : (
           <form onSubmit={onSubmit} className="mt-8 space-y-4">
             <div>
