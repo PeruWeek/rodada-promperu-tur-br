@@ -129,15 +129,28 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  const router = useRouter();
 
   useEffect(() => {
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(() => {
-      queryClient.invalidateQueries();
+    } = supabase.auth.onAuthStateChange((event) => {
+      // Only react to identity transitions. Ignore INITIAL_SESSION and
+      // TOKEN_REFRESHED (fires ~hourly + on tab focus) to avoid thrashing
+      // the router and the query cache.
+      if (event !== "SIGNED_IN" && event !== "SIGNED_OUT" && event !== "USER_UPDATED") {
+        return;
+      }
+      // Always re-run loaders so route gates re-evaluate.
+      router.invalidate();
+      // Never refetch protected queries against a cleared session — that
+      // produces a 401 storm and "TypeError: Failed to fetch" in console.
+      if (event !== "SIGNED_OUT") {
+        queryClient.invalidateQueries();
+      }
     });
     return () => subscription.unsubscribe();
-  }, [queryClient]);
+  }, [queryClient, router]);
 
   useEffect(() => {
     const err = consumeAuthHashError();

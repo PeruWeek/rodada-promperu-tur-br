@@ -1,4 +1,4 @@
-import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect, useNavigate, useRouter } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -29,10 +29,12 @@ export const Route = createFileRoute("/login")({
 function LoginPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const router = useRouter();
   const { reason } = Route.useSearch();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [redirecting, setRedirecting] = useState(false);
   const [resending, setResending] = useState(false);
   const [cooldown, setCooldown] = useState(0);
   const linkExpired = reason === "otp_expired";
@@ -47,12 +49,17 @@ function LoginPage() {
     e.preventDefault();
     setLoading(true);
     const { error } = await supabase.auth.signInWithPassword({ email, password });
-    setLoading(false);
     if (error) {
+      setLoading(false);
       toast.error(t("auth.errorInvalid"));
       return;
     }
-    navigate({ to: "/dashboard" });
+    // Hide the form immediately and wait for the router to re-evaluate
+    // before navigating. This prevents the brief flash where the "Entrar"
+    // form remains visible while the header already shows "Sair".
+    setRedirecting(true);
+    await router.invalidate();
+    navigate({ to: "/dashboard", replace: true });
   };
 
   const onResend = async () => {
@@ -88,6 +95,13 @@ function LoginPage() {
     <div className="min-h-screen bg-background">
       <SiteHeader />
       <div className="mx-auto max-w-md px-4 py-12">
+        {redirecting ? (
+          <div className="flex flex-col items-center gap-3 py-16 text-center">
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            <p className="text-sm text-muted-foreground">{t("auth.loginSuccessRedirecting", "Entrando…")}</p>
+          </div>
+        ) : (
+        <>
         <h1 className="text-3xl font-bold">{t("auth.loginTitle")}</h1>
         <p className="mt-2 text-sm text-muted-foreground">{t("auth.loginSubtitle")}</p>
         {linkExpired && (
@@ -124,6 +138,8 @@ function LoginPage() {
             </Link>
           </p>
         </form>
+        </>
+        )}
       </div>
     </div>
   );
