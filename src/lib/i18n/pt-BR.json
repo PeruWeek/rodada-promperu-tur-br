@@ -234,7 +234,7 @@
     },
     "preRegistration": {
       "title": "Pré-cadastros via CSV",
-      "subtitle": "Importe uma lista de convidados. Quando a pessoa se cadastrar com o mesmo e-mail, vinculamos automaticamente os dados.",
+      "subtitle": "Importação em massa de convidados (visitantes ou expositores). A conta de acesso só é criada quando a pessoa confirma o convite pelo mesmo e-mail. Para criar um usuário diretamente (já com login ativo), use a aba Usuários.",
       "event": "Evento",
       "selectEvent": "Selecione um evento",
       "selectFile": "Selecione um arquivo CSV",
@@ -273,7 +273,7 @@
       "rebuildAfterCreate": "Após criar mesas, regenere os slots para que apareçam horários disponíveis."
     },
     "companies": {
-      "help": "Edite os dados de empresas (visitantes e expositores).",
+      "help": "Edite dados cadastrais e a ficha comercial (segmentos, pitch, materiais) de empresas visitantes e expositoras. Para criar, inativar ou excluir um expositor, vá em Usuários.",
       "searchPlaceholder": "Buscar por nome fantasia, razão social ou CNPJ...",
       "filterRole": "Tipo",
       "roleAll": "Todos",
@@ -327,10 +327,17 @@
     },
     "users": {
       "searchPlaceholder": "Buscar usuário...",
+      "help": "Crie, edite, inative ou exclua usuários (admin, staff, expositor, visitante). Para a ficha comercial completa de um expositor (segmentos, pitch, materiais), use a aba Empresas.",
+      "filterRole": "Papel",
+      "roleAll": "Todos",
       "empty": "Nenhum usuário encontrado.",
       "saved": "Papéis atualizados.",
       "created": "Usuário criado.",
       "deleted": "Usuário excluído.",
+      "activated": "Usuário ativado.",
+      "deactivated": "Usuário inativado.",
+      "activate": "Ativar",
+      "deactivate": "Inativar",
       "inactive": "Inativo",
       "active": "Ativo",
       "primaryRole": "Papel",
@@ -350,14 +357,15 @@
         "password": "Senha",
         "passwordHint": "Mín. 8 caracteres",
         "fullName": "Nome completo",
-        "language": "Idioma"
+        "language": "Idioma",
+        "roleHint": "Selecione \"Expositor\" para criar um expositor (a ficha comercial é editada depois em Empresas)."
       },
       "edit": {
         "title": "Editar usuário"
       },
       "delete": {
         "title": "Excluir usuário",
-        "confirm": "Excluir {{name}}? Esta ação não pode ser desfeita.",
+        "confirm": "Excluir {{name}} de forma definitiva? A conta de acesso e todos os dados vinculados serão removidos em cascata. Para preservar o histórico, prefira inativar o usuário.",
         "action": "Excluir"
       }
     },

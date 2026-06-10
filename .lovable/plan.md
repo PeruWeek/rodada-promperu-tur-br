@@ -1,79 +1,60 @@
-## Confirmação do estado atual (build publicado)
+## Rodada — CRUD admin de expositores
 
-Rodei `rg "getUser("` em `src/`. Resultado — **6 chamadas**, três delas em guards `beforeLoad`:
+Causa raiz da ambiguidade: "expositor" é um papel transversal, não
+uma entidade. Operações estão distribuídas em Usuários (CRUD do
+usuário/papel/ativo), Empresas (ficha comercial), Pré-cadastros (CSV)
+e Solicitações (workflow). Nenhuma aba se chamava "Expositores", o
+que dificultava a descoberta.
 
-| Arquivo | Local | Tipo | Causa o erro? |
-|---|---|---|---|
-| `src/routes/_authenticated.tsx:14` | `beforeLoad` | Guard de rota | **Sim** (toda navegação logada) |
-| `src/routes/login.tsx:23` | `beforeLoad` | Guard de rota | **Sim** (toda visita a /login) |
-| `src/routes/signup.tsx:40` | `beforeLoad` | Guard de rota | **Sim** (toda visita a /signup) |
-| `src/components/language-switcher.tsx:20` | Fire-and-forget no click | Persistência de idioma | Não no fluxo normal |
-| `src/components/booking-dialog.tsx:61` | Dentro de `useQuery` | Dado da query | Não (já gated) |
-| `src/routes/lovable/email/transactional/send.ts:116` | Server route | Validação de token server-side | Não (server) |
+### Mudanças aplicadas
 
-A stack `XO.getUser()` em `beforeLoad` que você viu casa exatamente com essas 3 rotas. O `_authenticated.beforeLoad` dispara em **toda** navegação interna (Dashboard → Explore → Agenda), e `getUser()` faz HTTP para `/auth/v1/user` — quando o router invalida rotas (após `SIGNED_IN`, mudança de aba) a request anterior é abortada, virando `TypeError: Failed to fetch` no browser e `context canceled / 500` nos auth-logs do Supabase (verificado nos logs anexados).
+1. **Aba Usuários** — filtro por papel (Todos / Admin / Staff /
+   Expositor / Visitante), botão **Power** para Ativar/Inativar
+   diretamente na linha, tooltips/aria-labels nos 3 botões da linha
+   (editar, ativar/inativar, excluir), texto-guia no topo explicando
+   o escopo da aba.
+2. **Diálogo "Novo usuário"** — legenda sob o seletor de papel
+   indicando que "Expositor" cria um expositor.
+3. **AlertDialog de exclusão** — texto reforçado: cascata definitiva,
+   sugere inativar para preservar histórico.
+4. **Aba Empresas** — `admin.companies.help` reescrito para deixar
+   claro o escopo (ficha comercial) e direcionar criação/exclusão para
+   Usuários.
+5. **Aba Pré-cadastros** — subtítulo reescrito explicando que a conta
+   de acesso real só é criada na confirmação do convite, e que para
+   cadastro direto deve-se usar Usuários.
+6. **Documentação** — `docs/admin-expositores.md` cobrindo regra,
+   mapa de operações, fluxos passo a passo, diferença
+   inativar × excluir, e checklist de QA.
 
-## Correção
+### Arquivos alterados
 
-Trocar **as 3 chamadas em `beforeLoad`** por `getSession()`, que lê o JWT do `localStorage` sem rede. A área logada é `ssr: false`, então não há perda de segurança — a validação real do token continua nos serverFns via `requireSupabaseAuth`.
+- `src/routes/_authenticated/admin.tsx`
+- `src/lib/i18n/pt-BR.json`
+- `src/lib/i18n/es.json`
+- `docs/admin-expositores.md` (novo)
+- `.lovable/plan.md`
 
-### 1. `src/routes/_authenticated.tsx`
-```ts
-beforeLoad: async () => {
-  const { data } = await supabase.auth.getSession();
-  if (!data.session) throw redirect({ to: "/login" });
-},
-```
+### Fora de escopo
 
-### 2. `src/routes/login.tsx`
-```ts
-beforeLoad: async () => {
-  if (typeof window === "undefined") return;
-  const { data } = await supabase.auth.getSession();
-  if (data.session) throw redirect({ to: "/dashboard" });
-},
-```
+- Sem aba "Expositores" separada.
+- Sem nova entidade, migration, RLS, trigger ou endpoint.
+- Sem alteração em CompaniesTab/PreRegistrationsTab além das strings
+  i18n já consumidas por `t("admin.companies.help")` e
+  `t("admin.preRegistration.subtitle")`.
 
-### 3. `src/routes/signup.tsx`
-```ts
-beforeLoad: async () => {
-  if (typeof window === "undefined") return;
-  const { data } = await supabase.auth.getSession();
-  if (data.user) throw redirect({ to: "/dashboard" });
-  // (corrigir referência para data.session)
-},
-```
+### Validação manual
 
-**Não tocar** `language-switcher.tsx`, `booking-dialog.tsx` nem o server route de email — eles não causam o erro relatado e mudá-los seria fora de escopo.
-
-## Validação pós-fix
-
-1. Confirmação estática: rodar `rg "getUser\(" src/routes/` — não deve retornar nada em `beforeLoad`.
-2. Aba anônima, login visitante, navegar `/dashboard ↔ /explore ↔ /agenda ↔ /profile`, logout: **zero** `Failed to fetch` no console.
-3. Login admin: mesma navegação, sem erro residual.
-
-## Dropdown de período do admin
-
-Verificado em `src/components/admin/pipeline/pipeline-tabs.tsx` linhas 87–95: o `<Select>` do shadcn usa Radix por baixo, que **só monta as `<SelectItem>` com `role="option"` quando o popover está aberto**. Por isso a automação que lê `period_options=[]` falha — ela está olhando o DOM com o select fechado. Não é bug do componente, é limitação do seletor de teste.
-
-As 4 opções existem no código: `7`, `30`, `90`, `365`. O `queryKey` inclui `period`, então a troca refetch automaticamente. Documentar no `.lovable/plan.md` que:
-- as 4 opções são renderizadas dinamicamente pelo Radix Popover;
-- automação deve abrir o select antes de coletar `[role="option"]`;
-- validação manual: trocar entre 7/30/90/365 → KPIs do pipeline atualizam.
-
-## Documentação (`.lovable/plan.md`)
-
-- Adicionar seção "Rodada N — Failed to fetch causa raiz": listar as 3 rotas, explicar getUser→getSession, com evidência dos auth-logs (context canceled).
-- Adicionar nota sobre o select Radix e instrução para automação.
-- Atualizar checklist: visitante ✅, admin ✅, console limpo ✅.
-
-## Fora de escopo
-- Não alterar `onAuthStateChange` (já filtrado).
-- Não mexer em RLS, migrations, agenda, booking, trigger de expositor.
-- Não tocar UI/estilo.
-- Não alterar `language-switcher` / `booking-dialog`.
-
-## Critério de aceite
-- `rg "getUser\(" src/routes/_authenticated.tsx src/routes/login.tsx src/routes/signup.tsx` → 0 ocorrências.
-- Console limpo após login/navegação/logout em visitante e admin.
-- Build sem regressão.
+1. Logar como admin, ir em **Admin → Usuários**: ver o hint no topo,
+   o filtro de papel e o botão Power em cada linha.
+2. Trocar o filtro para **Expositor**: lista mostra apenas
+   expositores.
+3. Clicar **Novo usuário**: ver a legenda sob o seletor de papel.
+4. Clicar **Power** em um usuário não-próprio: badge "Inativo" alterna
+   imediatamente.
+5. Clicar lixeira (admin): diálogo mostra texto reforçado sobre
+   cascata.
+6. **Admin → Empresas**: hint no topo direciona criação para Usuários.
+7. **Admin → Pré-cadastros**: subtítulo explica o fluxo de
+   confirmação.
+8. Trocar idioma para ES: todos os textos novos aparecem traduzidos.
