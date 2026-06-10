@@ -556,3 +556,146 @@ export const deleteEventTable = createServerFn({ method: "POST" })
     });
     return { ok: true };
   });
+
+// ============================================================
+// Orphan / Unpublished exhibitors (admin operational panels)
+// ============================================================
+// All these serverFns intentionally run with the admin's REAL session
+// (context.supabase from requireSupabaseAuth) so the underlying SECURITY
+// DEFINER RPCs can validate is_admin_or_staff(auth.uid()) and log the
+// real actor_profile_id in audit_logs. supabaseAdmin is NOT used here.
+
+export const listOrphanExhibitors = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { data, error } = await context.supabase.rpc("admin_list_orphan_exhibitors");
+    if (error) throw new Error(error.message);
+    return { rows: data ?? [] };
+  });
+
+export const listUnpublishedExhibitors = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { data, error } = await context.supabase.rpc("admin_list_unpublished_exhibitors");
+    if (error) throw new Error(error.message);
+    return { rows: data ?? [] };
+  });
+
+export const searchCompaniesForLink = createServerFn({ method: "POST" })
+  .inputValidator((input) =>
+    z
+      .object({
+        query: z.string().trim().min(1).max(120),
+        limit: z.number().int().min(1).max(20).default(10),
+      })
+      .parse(input),
+  )
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    await assertAdminOrStaffRead(context.userId);
+    const s = data.query;
+    const { data: companies, error } = await context.supabase
+      .from("companies")
+      .select("id, trade_name, country_code, state_code, city")
+      .or(`trade_name.ilike.%${s}%,legal_name.ilike.%${s}%`)
+      .order("trade_name", { ascending: true })
+      .limit(data.limit);
+    if (error) throw new Error(error.message);
+    if (!companies || companies.length === 0) return { rows: [] };
+
+    // Compute role_hint for each candidate: 'exhibitor' | 'visitor' | 'mixed' | 'empty'
+    const ids = companies.map((c) => c.id);
+    const { data: profs } = await context.supabase
+      .from("profiles")
+      .select("id, auth_user_id, company_id")
+      .in("company_id", ids);
+    const profIds = (profs ?? []).map((p) => p.id);
+    const authIds = (profs ?? []).map((p) => p.auth_user_id).filter((x): x is string => !!x);
+    const [{ data: exhProfs }, { data: roles }] = await Promise.all([
+      profIds.length
+        ? context.supabase.from("exhibitor_profiles").select("profile_id").in("profile_id", profIds)
+        : Promise.resolve({ data: [] as { profile_id: string }[] }),
+      authIds.length
+        ? context.supabase.from("user_roles").select("user_id, role").in("user_id", authIds)
+        : Promise.resolve({ data: [] as { user_id: string; role: string }[] }),
+    ]);
+    const exhProfileIds = new Set((exhProfs ?? []).map((e) => e.profile_id));
+    const rolesByAuth = new Map<string, Set<string>>();
+    for (const r of roles ?? []) {
+      const set = rolesByAuth.get(r.user_id) ?? new Set();
+      set.add(r.role);
+      rolesByAuth.set(r.user_id, set);
+    }
+
+    const rows = companies.map((c) => {
+      const owners = (profs ?? []).filter((p) => p.company_id === c.id);
+      const hasExh = owners.some(
+        (p) =>
+          exhProfileIds.has(p.id) ||
+          (p.auth_user_id && rolesByAuth.get(p.auth_user_id)?.has("exhibitor")),
+      );
+      const hasVis = owners.some(
+        (p) => p.auth_user_id && rolesByAuth.get(p.auth_user_id)?.has("visitor"),
+      );
+      let role_hint: "exhibitor" | "visitor" | "mixed" | "empty";
+      if (hasExh && hasVis) role_hint = "mixed";
+      else if (hasExh) role_hint = "exhibitor";
+      else if (hasVis) role_hint = "visitor";
+      else role_hint = owners.length > 0 ? "visitor" : "empty";
+      return { ...c, role_hint };
+    });
+    return { rows };
+  });
+
+export const linkOrphanToCompany = createServerFn({ method: "POST" })
+  .inputValidator((input) =>
+    z
+      .object({
+        profileId: z.string().uuid(),
+        companyId: z.string().uuid(),
+        force: z.boolean().default(false),
+        forceReason: z.string().trim().max(500).optional(),
+      })
+      .parse(input),
+  )
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    const { error } = await context.supabase.rpc("admin_link_orphan_to_company", {
+      p_profile_id: data.profileId,
+      p_company_id: data.companyId,
+      p_force: data.force,
+      p_force_reason: data.forceReason ?? null,
+    });
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+export const createCompanyForOrphan = createServerFn({ method: "POST" })
+  .inputValidator((input) =>
+    z
+      .object({
+        profileId: z.string().uuid(),
+        trade_name: z.string().trim().min(2).max(160),
+        country_code: z.string().trim().min(2).max(3),
+        city: z.string().trim().max(120).optional(),
+        legal_name: z.string().trim().max(160).optional(),
+        state_code: z.string().trim().max(8).optional(),
+      })
+      .parse(input),
+  )
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    const { data: companyId, error } = await context.supabase.rpc(
+      "admin_create_company_for_orphan",
+      {
+        p_profile_id: data.profileId,
+        p_trade_name: data.trade_name,
+        p_country_code: data.country_code,
+        p_city: data.city ?? null,
+        p_legal_name: data.legal_name ?? null,
+        p_state_code: data.state_code ?? null,
+      },
+    );
+    if (error) throw new Error(error.message);
+    return { companyId: companyId as string };
+  });
