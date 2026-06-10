@@ -468,12 +468,12 @@ export const lookupPreRegistration = createServerFn({ method: "POST" })
       };
 
       // Strip undefined keys for a clean DTO.
-      const data: PreRegPrefill = {};
+      const out: PreRegPrefill = {};
       for (const [k, v] of Object.entries(prefill)) {
-        if (v !== undefined) (data as Record<string, unknown>)[k] = v;
+        if (v !== undefined) (out as Record<string, unknown>)[k] = v;
       }
 
-      return finish({ found: true, data });
+      return finish({ found: true, data: out });
     } catch {
       return finish({ found: false });
     }
