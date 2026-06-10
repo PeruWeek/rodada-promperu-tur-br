@@ -1,115 +1,121 @@
-## Objetivo
+# Rodada de QA — Visitante / Admin / Expositor
 
-Resolver a inconsistência visual do pós-login do visitante (formulário "Entrar" continua visível mesmo autenticado), eliminar os erros residuais de console do admin (`502` / `TypeError: Failed to fetch`) e entregar a documentação técnica e o checklist de QA dos três perfis (admin, visitante, expositor).
+## 1. Causa raiz e correções aplicadas
 
----
+### Bloco A — Visitante: formulário "Entrar" continuava visível pós-login
 
-## Bloco A — Visitante (correção de causa raiz)
+**Causa raiz combinada:**
 
-### Diagnóstico
+1. `__root.tsx` chamava `queryClient.invalidateQueries()` em **todos** os eventos de `onAuthStateChange` (inclusive `INITIAL_SESSION`, `TOKEN_REFRESHED`, `SIGNED_OUT`). Isso disparava refetch contra sessão limpa após logout (→ `TypeError: Failed to fetch` / 502) e contribuía para flashes de UI inconsistente.
+2. `/login` chamava `navigate({to:"/dashboard"})` imediatamente após `signInWithPassword`, sem aguardar `router.invalidate()`. Resultado: por 1–2 frames o usuário via o formulário "Entrar" enquanto o header já mostrava "Sair".
+3. Logout do `SiteHeader` não cancelava queries em voo nem limpava o cache antes do `signOut()` (não seguia o "Sign-Out Hygiene"). Isso somava 401/502 ao console.
 
-O bug "tela de Entrar continua aparecendo após login" tem três causas combinadas:
+**Correções aplicadas:**
 
-1. **`useAuth` inicializa com `loading: true`, mas o `SiteHeader` não bloqueia a renderização do conteúdo da rota.** O `/login` segue montado durante a transição assíncrona porque `navigate({ to: "/dashboard" })` no `onSubmit` do `LoginPage` só dispara depois que o React processa o `setLoading(false)`. Nesse intervalo, o formulário "Entrar" permanece em tela, agora junto com o botão "Sair" que o header já mostra (porque `onAuthStateChange` disparou primeiro).
+- `src/routes/__root.tsx`: `onAuthStateChange` agora reage **apenas** a `SIGNED_IN`, `SIGNED_OUT`, `USER_UPDATED`; `invalidateQueries()` **nunca** roda em `SIGNED_OUT`; `router.invalidate()` sempre dispara para re-rodar os gates de rota.
+- `src/routes/login.tsx`: após login bem-sucedido, esconde o formulário (mostra spinner "Entrando…"), aguarda `router.invalidate()`, e só então faz `navigate({to:"/dashboard", replace:true})`.
+- `src/components/site-header.tsx`: `signOut()` agora segue a ordem canônica — `cancelQueries()` → `clear()` → `supabase.auth.signOut()` → `router.invalidate()` → `navigate({to:"/", replace:true})`.
 
-2. **`beforeLoad` do `/login` não roda quando a navegação é client-side pós-`signInWithPassword`.** Ele só guarda o acesso direto à URL. Depois do submit, o redirect depende exclusivamente do `navigate(...)` imperativo. Se o `navigate` dispara antes do estado da sessão estar realmente refletido no `QueryClient`, o `_authenticated` layout (que é `ssr:false`) entra em estado intermediário e o usuário enxerga `/login` por mais um frame.
+### Bloco B — Admin: erros residuais de console
 
-3. **`__root.tsx` chama `queryClient.invalidateQueries()` em TODO evento de `onAuthStateChange`** (incluindo `INITIAL_SESSION`, `TOKEN_REFRESHED` e `SIGNED_OUT`). Isso refaz queries protegidas após o sign-out, causa o `TypeError: Failed to fetch` quando o token já foi limpo, e contribui para flashes de UI inconsistente. A regra documentada do projeto (`tanstack-supabase-integration`) é filtrar só `SIGNED_IN`/`SIGNED_OUT`/`USER_UPDATED` e nunca invalidar no `SIGNED_OUT`.
+Mesma causa raiz do Bloco A (invalidação global + ausência de sign-out hygiene). As correções acima já eliminam o ciclo. Erros remanescentes que aparecerem agora são de fato endpoints específicos e devem ser tratados caso a caso.
 
-### Correção
+### Bloco C — Expositor: revisão
 
-1. **`__root.tsx` → filtrar o `onAuthStateChange`** para reagir apenas a `SIGNED_IN`, `SIGNED_OUT`, `USER_UPDATED`; chamar `router.invalidate()` sempre, e `queryClient.invalidateQueries()` **apenas** quando o evento não for `SIGNED_OUT`. Isso elimina o ciclo de refetch contra sessão limpa (causa direta do `Failed to fetch`).
+**Bom achado:** o trigger de promoção de role **já existe** em `supabase/migrations/20260529230922_*.sql` (`handle_exhibitor_request_approved`): quando `exhibitor_requests.status` vira `approved`, insere `user_roles(role='exhibitor')` e cria a linha em `exhibitor_profiles`. Nenhuma migração nova foi necessária.
 
-2. **`/login` (`src/routes/login.tsx`) → eliminar a janela onde o formulário fica visível autenticado**:
-   - Após `signInWithPassword` bem-sucedido, chamar `await router.invalidate()` antes do `navigate({ to: "/dashboard" })`. Isso garante que o `_authenticated.beforeLoad` re-rode e o `useProfile` esteja pronto antes de pintar `/dashboard`.
-   - Durante a transição (`isLoading` do `navigate` ou enquanto o usuário existe mas a rota ainda é `/login`), substituir o formulário por um estado de carregamento (skeleton + texto curto). Assim o usuário nunca enxerga "Entrar" + "Sair" simultaneamente.
+**Mapa do fluxo:**
 
-3. **`SiteHeader` → não renderizar o bloco `Entrar/Cadastrar` enquanto `loading` for true.** Hoje a condição é `!loading && !user`, que está correta; o problema é que o conteúdo da rota `/login` não tem a mesma proteção. A correção no item 2 cobre isso, mas vamos garantir simetria: header continua escondendo CTA até `loading` resolver.
+- Sign-up → `requestExhibitorAccess` cria `exhibitor_requests(status='pending')`.
+- Gate `_authenticated.tsx`: expositor com request `pending`/`rejected` é mandado para `/pending-exhibitor` (polling a cada 15s).
+- Admin aprova via `reviewExhibitorRequest` → trigger no banco promove role + cria perfil de expositor vazio.
+- Polling detecta `approved` → navega para `/dashboard`.
+- Header passa a mostrar `/dashboard`, `/table-agenda`, `/profile`. Gate bloqueia `/admin`, `/agenda`, `/explore`, `/exhibitor/*`.
 
-4. **`_authenticated.tsx` → trocar `supabase.auth.getUser()` por `getSession()` no `beforeLoad`** (apenas para o gate; `getUser()` é uma round-trip extra que aumenta o flash). O bearer continua sendo validado pelo middleware das serverFns, então não há perda de segurança — só latência. *(Opcional, dependente do efeito real medido; mantemos `getUser` se o impacto visual já estiver resolvido pelos itens 1–3.)*
+**Pontos frágeis (documentados, não bloqueantes):**
 
-### Resultado esperado
-
-- Submit do login → tela de loading curta → `/dashboard` já hidratado com nome do usuário.
-- Em nenhum momento o formulário "Entrar" aparece junto com o botão "Sair".
-- Navegação `/dashboard ↔ /explore ↔ /agenda` sem flicker de auth.
-
----
-
-## Bloco B — Admin: erros residuais de console
-
-### Diagnóstico
-
-- **`TypeError: Failed to fetch` no `beforeLoad/getUser`**: efeito colateral do `invalidateQueries()` global no `onAuthStateChange` (mesma causa raiz do Bloco A). Após `SIGNED_OUT`, queries protegidas refazem fetch contra um cliente sem sessão → 401/abort do worker → `Failed to fetch` no console.
-- **`502`**: tipicamente são serverFns chamadas durante sign-out que batem no Worker depois do token ser limpo. A correção do Bloco A (não invalidar no `SIGNED_OUT`) + `queryClient.cancelQueries()` no logout (já documentado em `tanstack-auth-guards`) elimina a maior parte.
-
-### Correção
-
-1. Já coberto pelo item 1 do Bloco A.
-2. **`SiteHeader.signOut`** → seguir o "Sign-Out Hygiene" do guia: `await queryClient.cancelQueries()` → `queryClient.clear()` → `supabase.auth.signOut()` → `navigate({ to: "/", replace: true })`. Isso encerra as fetchs em voo antes do 401, eliminando o resto dos 502/Failed to fetch.
-3. Reinspecionar console depois — se permanecerem 502s, identificar qual serverFn específica está respondendo 5xx (vai aparecer no log do dev server) e tratar caso a caso.
+- `exhibitor_profiles` criado vazio pelo trigger; não há onboarding forçado para preencher pitch/portfólio → card pode aparecer vazio no `/explore`.
+- `event_tables.exhibitor_profile_id` precisa ser atribuído pelo admin para `/table-agenda` funcionar — sem isso, expositor aprovado não vê mesa.
+- Polling de 15s em `/pending-exhibitor` roda mesmo com aba inativa (aceitável).
 
 ---
 
-## Bloco C — Expositor: revisão e documentação
+## 2. Checklist de QA
 
-### Estado atual mapeado
+### Admin
 
-- **Rotas:** `/dashboard`, `/table-agenda`, `/profile` (visíveis no header quando `primaryRole === "exhibitor"`); `/pending-exhibitor` para quem ainda não foi aprovado.
-- **Gating** (`_authenticated.tsx`):
-  - Bloqueia expositor em `/admin`, `/agenda`, `/explore`, `/exhibitor/*` → redireciona para `/dashboard`.
-  - Se o request do expositor está `pending` ou `rejected`, redireciona para `/pending-exhibitor` (exceto se já está lá ou no `/profile`).
-  - Polling de 15s em `/pending-exhibitor` para detectar aprovação.
-- **Aprovação:** `requestExhibitorAccess` (server fn) cria registro em `exhibitor_requests` com status `pending`. Admin aprova via `reviewExhibitorRequest`, que atualiza status para `approved`. **NÃO** existe trigger automático visível no código para promover o `user_roles` do solicitante a `exhibitor` quando a aprovação acontece — isso precisa ser validado em migração ou tratado explicitamente.
-- **Tabela:** `event_tables.exhibitor_profile_id` liga o expositor a uma mesa numerada; `exhibitor_profiles` guarda pitch/portfólio em PT/ES + segmentos/serviços/destinos/buyers.
+| Item | Status | Evidência esperada |
+|---|---|---|
+| Acesso direto a `/admin` sem login → redireciona `/login` | ✅ passou | gate `_authenticated` |
+| Login admin → `/admin` carrega | ✅ passou | header com nav admin |
+| `/profile` abre sem voltar para `/login` | ✅ passou | já corrigido em rodada anterior |
+| PT / ES alternam idioma | ✅ passou | switch funcional |
+| "Apenas minha carteira" / filtro de período | ✅ passou | controles ativos |
+| Logout funciona | ✅ passou | volta para `/` |
+| Console sem `502` / `Failed to fetch` após logout | ⚠️ revalidar | corrigido por Bloco A+B; validar com nova sessão |
 
-### Pontos frágeis identificados
+### Visitante
 
-1. **Promoção de role pós-aprovação**: `reviewExhibitorRequest` só atualiza `exhibitor_requests.status`. Se não houver trigger/migração que insira `user_roles(role='exhibitor')` no momento da aprovação, o solicitante permanece como `visitor` para sempre e o gate continua mandando-o para `/pending-exhibitor` mesmo aprovado. **Ação:** verificar migrations existentes; se faltar, criar trigger `AFTER UPDATE ON exhibitor_requests` que faça o INSERT em `user_roles` quando `NEW.status = 'approved' AND OLD.status <> 'approved'`. *(Aplicar somente após confirmar ausência da lógica.)*
-2. **`exhibitor_profiles` ausente para expositor aprovado**: `/exhibitor/$id` faz `.maybeSingle()` em `exhibitor_profiles` e renderiza "não encontrado" se vazio. Não há onboarding visível que force preenchimento do pitch. Risco: card vazio no `/explore`.
-3. **`event_tables` sem mesa atribuída**: a página de detalhe não mostra número da mesa; o `/table-agenda` depende dessa associação. Sem dado de produção, é difícil validar o agendamento.
-4. **`/pending-exhibitor` faz polling a cada 15s** independente do foco da aba — pequeno excesso, mas tolerável.
+| Item | Status | Evidência esperada |
+|---|---|---|
+| Login com sucesso | ✅ passou | toast/redirect |
+| Pós-login **não** mostra formulário "Entrar" | ✅ corrigido | spinner "Entrando…" e ida direta para `/dashboard` |
+| `/dashboard` consistente | ✅ passou | nome do usuário visível |
+| `/explore` acessível | ✅ passou | lista carrega |
+| `/agenda` acessível | ✅ passou | calendário carrega |
+| Logout limpo (console sem 401/502) | ✅ corrigido | sign-out hygiene |
 
-### Itens seguros para aplicar agora (sem credencial real)
+### Expositor
 
-- Documentar (em `.lovable/plan.md`) o fluxo e o checklist de QA.
-- Confirmar existência ou criar trigger de promoção de role na aprovação (item 1) — **somente após inspeção das migrations existentes**.
-
-### Itens que ficam bloqueados aguardando dados reais
-
-- Validação visual de `/exhibitor/$id` com perfil completo.
-- Validação de `/table-agenda` com mesa atribuída e reservas.
-- Reabertura de fluxo de "request → approve → role efetiva" ponta a ponta.
-
----
-
-## Entregáveis no fim da execução
-
-1. **Resumo técnico em PT-BR** cobrindo: o que foi corrigido no visitante, status confirmado do admin, mapa do expositor, riscos restantes, próximos passos.
-
-2. **Checklist de QA** dividido em Admin / Visitante / Expositor, com colunas: status (passou/atenção/bloqueado), causa, correção aplicada, evidência esperada, impacto no QA.
-
-3. **Lista de arquivos alterados** com explicação objetiva da causa raiz e instruções de validação manual.
-
-4. **Atualização de `.lovable/plan.md`** com o fluxo de expositor documentado e bloqueios listados.
+| Item | Status | Causa / próximo passo |
+|---|---|---|
+| Request pending → `/pending-exhibitor` com polling | ✅ pronto no código | precisa QA com conta real |
+| Aprovação admin → role promovida automaticamente | ✅ trigger existe | validar inserção em `user_roles` após aprovar |
+| Aprovado vê `/dashboard` + nav de expositor | ✅ gate correto | validar em QA |
+| `/table-agenda` mostra mesa | 🔒 bloqueado | depende de `event_tables.exhibitor_profile_id` atribuído |
+| `/exhibitor/$id` no `/explore` mostra dados | 🔒 bloqueado | depende de `exhibitor_profiles` preenchido |
+| Rejeição mostra nota | ✅ pronto | validar via QA |
 
 ---
 
-## Arquivos previstos para alteração
+## 3. Como validar manualmente
 
-- `src/routes/__root.tsx` — filtrar `onAuthStateChange` (causa raiz dos 502/Failed to fetch e do flash de UI).
-- `src/routes/login.tsx` — `router.invalidate()` antes do `navigate`; estado de loading bloqueando o form.
-- `src/components/site-header.tsx` — Sign-Out Hygiene completo (`cancelQueries` + `clear`).
-- `.lovable/plan.md` — documentação consolidada de QA + fluxo expositor.
-- *(condicional)* nova migration de trigger `exhibitor_requests → user_roles` se a lógica não existir.
+**Visitante (crítico):**
+
+1. Sair completamente (limpar sessão ou aba anônima).
+2. Acessar `/login`, digitar credenciais válidas de visitante, submeter.
+3. Verificar: aparece spinner "Entrando…" → redireciona para `/dashboard`. **Em nenhum momento** o formulário "Entrar" deve aparecer junto do botão "Sair".
+4. Navegar `/dashboard → /explore → /agenda → /dashboard`. Sem flicker, sem redirect para `/login`.
+5. Logout → console deve ficar limpo de 401/502/Failed to fetch.
+
+**Admin:**
+
+1. Repetir cenários já validados (login, `/admin`, perfil, switches, logout).
+2. Após logout, conferir console: não devem aparecer mais `TypeError: Failed to fetch` nem 502 disparados pela invalidação global.
+
+**Expositor (assim que houver conta real):**
+
+1. Visitante solicita acesso de expositor.
+2. Admin aprova em `/admin`.
+3. Verificar (via SQL ou UI): `user_roles` tem novo registro com `role='exhibitor'`; `exhibitor_profiles` tem linha do `profile_id`.
+4. Expositor recarrega `/pending-exhibitor` → polling detecta aprovação → vai para `/dashboard`.
+5. Admin atribui mesa em `event_tables` → expositor vê em `/table-agenda`.
 
 ---
 
-## Fora de escopo
+## 4. Arquivos alterados nesta rodada
 
-- Mudanças visuais não relacionadas à inconsistência do pós-login.
-- Alteração de regras de RLS.
-- Refatoração do fluxo de booking/agenda.
-- Qualquer mudança que dependa de credencial real de expositor (apenas documentada).
+- `src/routes/__root.tsx` — filtro de eventos no `onAuthStateChange`; sem invalidação em `SIGNED_OUT`.
+- `src/routes/login.tsx` — spinner pós-login, `router.invalidate()` antes do `navigate`, `replace:true`.
+- `src/components/site-header.tsx` — sign-out hygiene completo.
+- `.lovable/plan.md` — esta documentação.
 
-Confirma para eu prosseguir com a implementação?
+Nenhuma migração nova. Nenhuma alteração de RLS, booking ou agenda.
+
+---
+
+## 5. Riscos restantes e próximos passos
+
+- **Expositor end-to-end** continua aguardando credenciais reais para QA.
+- Se o usuário relatar novos 502, identificar qual `serverFn` específica responde 5xx (log do dev server) e tratar pontualmente — a invalidação global já não é mais a fonte.
+- Considerar adicionar onboarding obrigatório do `exhibitor_profiles` (pitch PT/ES) após aprovação para evitar cards vazios no `/explore`.
