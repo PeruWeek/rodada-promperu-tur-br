@@ -890,6 +890,9 @@ function CreateUserDialog({
                   ))}
                 </SelectContent>
               </Select>
+              <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
+                {t("admin.users.create.roleHint")}
+              </p>
             </div>
           </div>
         </div>
