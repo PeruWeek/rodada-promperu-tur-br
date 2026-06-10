@@ -153,6 +153,7 @@
     "targetBuyers": "Compradores objetivo",
     "clearFilters": "Limpiar filtros",
     "empty": "Ningún expositor encontrado con esos filtros.",
+    "noActiveEvent": "Evento no configurado. Avisa al administrador.",
     "notFound": "Expositor no encontrado.",
     "results": "{{count}} expositor(es)",
     "viewDetails": "Ver detalles",
