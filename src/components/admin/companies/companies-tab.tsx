@@ -18,6 +18,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { EditCompanyDrawer } from "./edit-company-drawer";
+import { OrphanExhibitorsPanel } from "./orphan-exhibitors-panel";
+import { UnpublishedExhibitorsPanel } from "./unpublished-exhibitors-panel";
 
 type RoleFilter = "all" | "visitor" | "exhibitor";
 type ConfirmedFilter = "all" | "yes" | "no";
@@ -37,7 +39,10 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
   });
 
   return (
-    <Card className="p-5">
+    <div className="space-y-4">
+      {!readOnly && <OrphanExhibitorsPanel />}
+      {!readOnly && <UnpublishedExhibitorsPanel />}
+      <Card className="p-5">
       <p className="mb-4 text-xs text-muted-foreground">{t("admin.companies.help")}</p>
       <div className="mb-4 flex flex-col gap-2 sm:flex-row">
         <div className="relative flex-1">
@@ -157,6 +162,7 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
           }}
         />
       )}
-    </Card>
+      </Card>
+    </div>
   );
 }

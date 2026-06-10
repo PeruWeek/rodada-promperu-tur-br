@@ -1603,6 +1603,50 @@ export type Database = {
       }
     }
     Functions: {
+      admin_create_company_for_orphan: {
+        Args: {
+          p_city?: string
+          p_country_code: string
+          p_legal_name?: string
+          p_profile_id: string
+          p_state_code?: string
+          p_trade_name: string
+        }
+        Returns: string
+      }
+      admin_link_orphan_to_company: {
+        Args: {
+          p_company_id: string
+          p_force?: boolean
+          p_force_reason?: string
+          p_profile_id: string
+        }
+        Returns: undefined
+      }
+      admin_list_orphan_exhibitors: {
+        Args: never
+        Returns: {
+          created_at: string
+          email: string
+          full_name: string
+          has_exhibitor_request: boolean
+          is_active: boolean
+          profile_id: string
+          request_status: string
+          table_number: number
+        }[]
+      }
+      admin_list_unpublished_exhibitors: {
+        Args: never
+        Returns: {
+          created_at: string
+          email: string
+          full_name: string
+          profile_id: string
+          reason: string
+          trade_name: string
+        }[]
+      }
       complete_buyer_signup: { Args: { p_payload: Json }; Returns: string }
       current_profile_id: { Args: never; Returns: string }
       delete_email: {
@@ -1692,6 +1736,20 @@ export type Database = {
           state_code: string
           trade_name: string
           website: string
+        }[]
+      }
+      public_exhibitor_catalog: {
+        Args: { _event_id?: string }
+        Returns: {
+          city: string
+          country_code: string
+          destinations: string[]
+          full_name: string
+          profile_id: string
+          segments: string[]
+          services: string[]
+          table_number: number
+          trade_name: string
         }[]
       }
       public_profiles: {
