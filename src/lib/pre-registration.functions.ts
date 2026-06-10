@@ -3,6 +3,7 @@ import Papa from "papaparse";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { formatBRPhone } from "@/lib/validation/br-masks";
 
 // Canonical CSV headers (case-insensitive, language-independent). Admins
 // download a template from the Pré-cadastros tab.
