@@ -23,37 +23,36 @@ function ExhibitorDetailPage() {
   const { data, isLoading, error } = useQuery({
     queryKey: ["exhibitor-detail", id],
     queryFn: async () => {
-      const { data: exh, error: exhErr } = await supabase
-        .from("exhibitor_profiles")
-        .select("*")
-        .eq("profile_id", id)
-        .maybeSingle();
-      if (exhErr) throw exhErr;
-      if (!exh) return null;
-      const { data: profRows } = await supabase.rpc("public_profiles", { _ids: [id] });
-      const prof = ((profRows ?? []) as Array<{
-        id: string;
-        full_name: string;
-        company_id: string | null;
-      }>)[0] ?? null;
-      const { data: compRows } = prof?.company_id
-        ? await supabase.rpc("public_companies", { _ids: [prof.company_id] })
-        : { data: [] };
-      const comp = ((compRows ?? []) as Array<{
-        id: string;
-        trade_name: string;
-        country_code: string | null;
-        city: string | null;
-        website: string | null;
-        linkedin: string | null;
-        instagram: string | null;
-      }>)[0] ?? null;
-      const { data: table } = await supabase
-        .from("event_tables")
-        .select("table_number")
-        .eq("exhibitor_profile_id", id)
-        .maybeSingle();
-      return { exh, prof, comp, table };
+      const { data: rows, error: rpcErr } = await supabase.rpc("public_exhibitor_detail", { _profile_id: id });
+      if (rpcErr) throw rpcErr;
+      const row = (rows ?? [])[0];
+      if (!row) return null;
+      return {
+        exh: {
+          pitch_pt: row.pitch_pt,
+          pitch_es: row.pitch_es,
+          portfolio_pt: row.portfolio_pt,
+          portfolio_es: row.portfolio_es,
+          segments: row.segments,
+          services: row.services,
+          destinations: row.destinations,
+          target_buyers: row.target_buyers,
+          materials_links: row.materials_links,
+        },
+        prof: { id: row.profile_id, full_name: row.full_name, company_id: row.company_id },
+        comp: row.company_id
+          ? {
+              id: row.company_id,
+              trade_name: row.trade_name,
+              country_code: row.country_code,
+              city: row.city,
+              website: row.website,
+              linkedin: row.linkedin,
+              instagram: row.instagram,
+            }
+          : null,
+        table: row.table_number != null ? { table_number: row.table_number } : null,
+      };
     },
   });
 
