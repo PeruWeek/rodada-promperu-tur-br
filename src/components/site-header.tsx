@@ -1,4 +1,5 @@
 import { Link, useNavigate, useRouter } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { useState } from "react";
 import { Menu, X } from "lucide-react";
@@ -17,12 +18,18 @@ export function SiteHeader() {
   const { data: profile, isLoading: profileLoading } = useProfile();
   const navigate = useNavigate();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
 
   const signOut = async () => {
+    // Sign-Out Hygiene: cancel in-flight queries → clear cache → sign out →
+    // replace history. Skipping any of these produces 401 / "Failed to fetch"
+    // bursts and lets the Back button restore a stale protected shell.
+    await queryClient.cancelQueries();
+    queryClient.clear();
     await supabase.auth.signOut();
     router.invalidate();
-    navigate({ to: "/" });
+    navigate({ to: "/", replace: true });
   };
 
   const primaryRole = getPrimaryRole(profile?.roles);
