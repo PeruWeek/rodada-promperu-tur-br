@@ -155,6 +155,9 @@ function RootComponent() {
   useEffect(() => {
     const err = consumeAuthHashError();
     if (!err) return;
+    // Recovery-flow errors must be handled on /reset-password itself, not
+    // bounced to /login (which mixes recovery with signup confirmation).
+    if (window.location.pathname === "/reset-password") return;
     const expired = err.errorCode === "otp_expired" || err.error === "access_denied";
     if (expired) {
       toast.error("Seu link de confirmação expirou ou já foi usado. Reenvie abaixo.");
