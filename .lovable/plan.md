@@ -1,69 +1,60 @@
-## Diagnóstico (confirmado no código)
+## Rodada — CRUD admin de expositores
 
-"Expositor" não é entidade própria — é o papel `app_role='exhibitor'` aplicado a um usuário. CRUD já existe, espalhado em 4 abas:
+Causa raiz da ambiguidade: "expositor" é um papel transversal, não
+uma entidade. Operações estão distribuídas em Usuários (CRUD do
+usuário/papel/ativo), Empresas (ficha comercial), Pré-cadastros (CSV)
+e Solicitações (workflow). Nenhuma aba se chamava "Expositores", o
+que dificultava a descoberta.
 
-| Operação | Local atual | Server fn / trigger |
-|---|---|---|
-| Criar manualmente | **Usuários** → "Novo usuário" → papel=Exhibitor | `adminCreateConfirmedUser` + trigger `ensure_exhibitor_profile_on_role` |
-| Importar em massa | **Pré-cadastros** → CSV | `importPreRegistrationsCsv` |
-| Aprovar pedido externo | **Solicitações** | `reviewExhibitorRequest` |
-| Editar empresa + ficha exhibitor | **Empresas** → "Editar" | `updateCompanyFull` |
-| Editar usuário (nome, papel, idioma, ativo, empresa) | **Usuários** → lápis | `adminUpdateUserProfile` + `adminSetPrimaryRole` |
-| Inativar (soft) | **Usuários** → editar → switch `is_active` | `adminUpdateUserProfile` |
-| Excluir físico (admin) | **Usuários** → lixeira | `adminDeleteUser` (cascade) |
+### Mudanças aplicadas
 
-**Causa da ambiguidade:** abas nomeadas por entidade/workflow, nenhuma chamada "Expositores". Operador procura "Novo expositor" e não acha — o caminho é "Usuários → Novo → papel Exhibitor".
+1. **Aba Usuários** — filtro por papel (Todos / Admin / Staff /
+   Expositor / Visitante), botão **Power** para Ativar/Inativar
+   diretamente na linha, tooltips/aria-labels nos 3 botões da linha
+   (editar, ativar/inativar, excluir), texto-guia no topo explicando
+   o escopo da aba.
+2. **Diálogo "Novo usuário"** — legenda sob o seletor de papel
+   indicando que "Expositor" cria um expositor.
+3. **AlertDialog de exclusão** — texto reforçado: cascata definitiva,
+   sugere inativar para preservar histórico.
+4. **Aba Empresas** — `admin.companies.help` reescrito para deixar
+   claro o escopo (ficha comercial) e direcionar criação/exclusão para
+   Usuários.
+5. **Aba Pré-cadastros** — subtítulo reescrito explicando que a conta
+   de acesso real só é criada na confirmação do convite, e que para
+   cadastro direto deve-se usar Usuários.
+6. **Documentação** — `docs/admin-expositores.md` cobrindo regra,
+   mapa de operações, fluxos passo a passo, diferença
+   inativar × excluir, e checklist de QA.
 
-## Regra de negócio (documentar)
+### Arquivos alterados
 
-1. Criação manual: Usuários → Novo (papel Exhibitor). Cria auth user confirmado + profile + `exhibitor_profiles` (trigger).
-2. Criação por importação: Pré-cadastros CSV. Auth user real só na confirmação do convite.
-3. Edição: dados pessoais/papel → Usuários (lápis); ficha comercial (segmentos, pitch, materiais) → Empresas (Editar).
-4. Exclusão física: só admin, Usuários (lixeira), cascade.
-5. Inativação (soft): switch `is_active` no editar usuário.
+- `src/routes/_authenticated/admin.tsx`
+- `src/lib/i18n/pt-BR.json`
+- `src/lib/i18n/es.json`
+- `docs/admin-expositores.md` (novo)
+- `.lovable/plan.md`
 
-## Mudanças (escopo mínimo, sem regras novas)
+### Fora de escopo
 
-**1. Discoverable em Usuários**
-- Filtro/chip de papel "Todos / Admin / Staff / Exhibitor / Visitor" no topo da lista.
-- Hint no topo: "Criar/editar/inativar/excluir expositores. Para ficha comercial (segmentos, pitch, materiais), use **Empresas**."
-- No CreateUserDialog, legenda sob o seletor de papel: "Selecione 'Exhibitor' para criar um expositor."
+- Sem aba "Expositores" separada.
+- Sem nova entidade, migration, RLS, trigger ou endpoint.
+- Sem alteração em CompaniesTab/PreRegistrationsTab além das strings
+  i18n já consumidas por `t("admin.companies.help")` e
+  `t("admin.preRegistration.subtitle")`.
 
-**2. Hints nas outras abas**
-- **Empresas**: "Editar dados cadastrais e ficha comercial. Para criar/excluir, vá em **Usuários**."
-- **Pré-cadastros**: "Importação em massa. Conta real é criada quando o convite é confirmado. Para cadastro direto, use **Usuários**."
+### Validação manual
 
-**3. Toggle Inativar/Ativar na linha** (Usuários)
-Botão rápido ao lado da lixeira, chama `adminUpdateUserProfile({ is_active })`. Evita abrir o diálogo só para inativar.
-
-**4. AlertDialog de exclusão reforçado**
-Texto explícito: "Exclusão definitiva e em cascata. Para preservar histórico, use **Inativar**."
-
-**5. Documentação `docs/admin-expositores.md`** (PT-BR)
-Fluxos oficiais, mapa de operações, diferença inativar vs excluir, critérios QA.
-
-## Arquivos
-
-- `src/routes/_authenticated/admin.tsx` — filtro de papel + hints + toggle ativo/inativo + texto reforçado no AlertDialog.
-- `src/components/admin/companies/companies-tab.tsx` — hint topo.
-- `src/components/admin/pre-registrations-tab.tsx` — hint topo.
-- `src/lib/i18n/pt-BR.json` + `src/lib/i18n/es.json` — strings novas.
-- `docs/admin-expositores.md` — novo.
-- `.lovable/plan.md` — registrar rodada.
-
-## Fora de escopo
-
-- Sem aba "Expositores" separada (papel é transversal).
-- Sem nova entidade/tabela/migration/RLS/trigger.
-- Sem mexer em visitante, agenda, booking, login.
-- Sem novo endpoint — `adminCreateConfirmedUser` cobre.
-
-## Critério de aceite
-
-- Em Usuários, chip "Exhibitor" filtra a lista corretamente.
-- "Novo usuário" tem hint sobre papel Exhibitor.
-- Cada linha de usuário tem editar / ativar-inativar / excluir com tooltips claros.
-- AlertDialog avisa que exclusão é definitiva e sugere inativar.
-- Empresas, Pré-cadastros e Usuários mostram hint de escopo.
-- `docs/admin-expositores.md` cobre cada operação com caminho UI e QA.
-- Build limpo, sem regressão.
+1. Logar como admin, ir em **Admin → Usuários**: ver o hint no topo,
+   o filtro de papel e o botão Power em cada linha.
+2. Trocar o filtro para **Expositor**: lista mostra apenas
+   expositores.
+3. Clicar **Novo usuário**: ver a legenda sob o seletor de papel.
+4. Clicar **Power** em um usuário não-próprio: badge "Inativo" alterna
+   imediatamente.
+5. Clicar lixeira (admin): diálogo mostra texto reforçado sobre
+   cascata.
+6. **Admin → Empresas**: hint no topo direciona criação para Usuários.
+7. **Admin → Pré-cadastros**: subtítulo explica o fluxo de
+   confirmação.
+8. Trocar idioma para ES: todos os textos novos aparecem traduzidos.
