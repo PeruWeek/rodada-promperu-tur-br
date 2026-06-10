@@ -232,7 +232,11 @@ export const getParticipantAgenda = createServerFn({ method: "POST" })
         const endStr = slot?.end_at ?? "";
         const fmt = (iso: string) =>
           iso
-            ? new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
+            ? new Date(iso).toLocaleTimeString("pt-BR", {
+                hour: "2-digit",
+                minute: "2-digit",
+                timeZone: "America/Sao_Paulo",
+              })
             : "";
         return {
           _start: startStr,
