@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { Check, Copy, Mail, Pencil, Plus, RefreshCw, Search, Trash2, UserCheck } from "lucide-react";
+import { Check, Copy, Mail, Pencil, Plus, Power, RefreshCw, Search, Trash2, UserCheck } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useProfile, hasRole, getPrimaryRole, type AppRole } from "@/hooks/use-profile";
@@ -576,6 +576,7 @@ function UsersTab({ currentAuthUserId, canDelete }: { currentAuthUserId: string 
   const { t } = useTranslation();
   const qc = useQueryClient();
   const [q, setQ] = useState("");
+  const [roleFilter, setRoleFilter] = useState<"all" | AppRole>("all");
   const listFn = useServerFn(adminListUsers);
   const createFn = useServerFn(adminCreateConfirmedUser);
   const updateFn = useServerFn(adminUpdateUserProfile);
@@ -660,9 +661,17 @@ function UsersTab({ currentAuthUserId, canDelete }: { currentAuthUserId: string 
   });
 
   const list = useMemo(() => (data?.users ?? []) as AdminUser[], [data]);
+  const filteredList = useMemo(
+    () =>
+      roleFilter === "all"
+        ? list
+        : list.filter((u) => getPrimaryRole(u.roles) === roleFilter),
+    [list, roleFilter],
+  );
 
   return (
     <Card className="p-5">
+      <p className="mb-3 text-xs text-muted-foreground">{t("admin.users.help")}</p>
       <div className="flex flex-col gap-3 sm:flex-row">
         <div className="relative flex-1">
           <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
@@ -673,6 +682,17 @@ function UsersTab({ currentAuthUserId, canDelete }: { currentAuthUserId: string 
             className="pl-9"
           />
         </div>
+        <Select value={roleFilter} onValueChange={(v) => setRoleFilter(v as "all" | AppRole)}>
+          <SelectTrigger className="w-full sm:w-44" aria-label={t("admin.users.filterRole")}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">{t("admin.users.roleAll")}</SelectItem>
+            {ROLE_OPTIONS.map((r) => (
+              <SelectItem key={r} value={r}>{t(`roles.${r}`)}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <Button onClick={() => setCreateOpen(true)}>
           <Plus size={14} /> {t("admin.users.create.button")}
         </Button>
@@ -681,10 +701,10 @@ function UsersTab({ currentAuthUserId, canDelete }: { currentAuthUserId: string 
       <div className="mt-3 space-y-2">
         {isLoading ? (
           <Skeleton className="h-40 w-full" />
-        ) : list.length === 0 ? (
+        ) : filteredList.length === 0 ? (
           <p className="py-4 text-sm text-muted-foreground">{t("admin.users.empty")}</p>
         ) : (
-          list.map((u) => {
+          filteredList.map((u) => {
             const primary = getPrimaryRole(u.roles);
             const isSelf = !!currentAuthUserId && u.auth_user_id === currentAuthUserId;
             return (
@@ -717,8 +737,27 @@ function UsersTab({ currentAuthUserId, canDelete }: { currentAuthUserId: string 
                         ))}
                       </SelectContent>
                     </Select>
-                    <Button size="sm" variant="outline" onClick={() => setEditing(u)}>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setEditing(u)}
+                      title={t("common.save")}
+                      aria-label={t("admin.users.edit.title")}
+                    >
                       <Pencil size={14} />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() =>
+                        u.auth_user_id &&
+                        updateMut.mutate({ userId: u.auth_user_id, is_active: !u.is_active })
+                      }
+                      disabled={updateMut.isPending || isSelf || !u.auth_user_id}
+                      title={u.is_active ? t("admin.users.deactivate") : t("admin.users.activate")}
+                      aria-label={u.is_active ? t("admin.users.deactivate") : t("admin.users.activate")}
+                    >
+                      <Power size={14} className={u.is_active ? "text-emerald-600" : "text-muted-foreground"} />
                     </Button>
                     {canDelete && (
                       <Button
@@ -726,7 +765,8 @@ function UsersTab({ currentAuthUserId, canDelete }: { currentAuthUserId: string 
                         variant="destructive"
                         onClick={() => setDeleting(u)}
                         disabled={isSelf}
-                        title={isSelf ? t("admin.users.cannotDeleteSelf") : undefined}
+                        title={isSelf ? t("admin.users.cannotDeleteSelf") : t("admin.users.delete.action")}
+                        aria-label={t("admin.users.delete.action")}
                       >
                         <Trash2 size={14} />
                       </Button>
