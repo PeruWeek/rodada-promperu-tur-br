@@ -1752,6 +1752,30 @@ export type Database = {
           trade_name: string
         }[]
       }
+      public_exhibitor_detail: {
+        Args: { _profile_id: string }
+        Returns: {
+          city: string
+          company_id: string
+          country_code: string
+          destinations: string[]
+          full_name: string
+          instagram: string
+          linkedin: string
+          materials_links: string[]
+          pitch_es: string
+          pitch_pt: string
+          portfolio_es: string
+          portfolio_pt: string
+          profile_id: string
+          segments: string[]
+          services: string[]
+          table_number: number
+          target_buyers: string[]
+          trade_name: string
+          website: string
+        }[]
+      }
       public_profiles: {
         Args: { _ids: string[] }
         Returns: {
