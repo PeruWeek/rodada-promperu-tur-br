@@ -107,12 +107,16 @@ function AdminPage() {
         <Tabs defaultValue="dashboard" className="mt-6">
           <TabsList className="flex flex-wrap h-auto">
             <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
+            <TabsTrigger value="tables">{t("admin.tabs.tables")}</TabsTrigger>
             <TabsTrigger value="staffAgenda">{t("admin.tabs.staffAgenda")}</TabsTrigger>
+            <TabsTrigger value="checkin">{t("admin.tabs.checkin")}</TabsTrigger>
             <TabsTrigger value="companies">{t("admin.tabs.companies")}</TabsTrigger>
             <TabsTrigger value="registrants">{t("admin.tabs.registrants")}</TabsTrigger>
           </TabsList>
           <TabsContent value="dashboard" className="mt-4"><PipelineDashboard isAdmin={false} /></TabsContent>
+          <TabsContent value="tables" className="mt-4"><TablesTab readOnly /></TabsContent>
           <TabsContent value="staffAgenda" className="mt-4"><StaffAgendaTab isAdmin={false} /></TabsContent>
+          <TabsContent value="checkin" className="mt-4"><CheckinTab /></TabsContent>
           <TabsContent value="companies" className="mt-4"><CompaniesTab readOnly /></TabsContent>
           <TabsContent value="registrants" className="mt-4"><RegistrantsTab /></TabsContent>
         </Tabs>
@@ -257,7 +261,7 @@ function RequestsTab() {
   );
 }
 
-function TablesTab() {
+function TablesTab({ readOnly = false }: { readOnly?: boolean } = {}) {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const assignFn = useServerFn(assignExhibitorToTable);
@@ -350,7 +354,7 @@ function TablesTab() {
           <p className="text-xs text-muted-foreground">{t("admin.tables.rebuildAfterCreate")}</p>
         </div>
         {data?.event && (
-          <div className="flex gap-2">
+          !readOnly && <div className="flex gap-2">
             <Button
               size="sm"
               variant="outline"
@@ -379,6 +383,7 @@ function TablesTab() {
               onValueChange={(v) =>
                 assignMut.mutate({ tableId: tbl.id, exhibitorProfileId: v === "__none" ? null : v })
               }
+              disabled={readOnly}
             >
               <SelectTrigger className="w-full">
                 <SelectValue placeholder={t("admin.tables.unassigned")} />
@@ -390,7 +395,7 @@ function TablesTab() {
                 ))}
               </SelectContent>
             </Select>
-            <Button
+            {!readOnly && <Button
               size="icon"
               variant="ghost"
               onClick={() => {
@@ -400,15 +405,15 @@ function TablesTab() {
               title={t("admin.tables.renumber")}
             >
               <Pencil size={14} />
-            </Button>
-            <Button
+            </Button>}
+            {!readOnly && <Button
               size="icon"
               variant="ghost"
               onClick={() => setDeleteId({ id: tbl.id, n: tbl.table_number })}
               title={t("admin.tables.delete")}
             >
               <Trash2 size={14} />
-            </Button>
+            </Button>}
           </div>
         ))}
       </div>
