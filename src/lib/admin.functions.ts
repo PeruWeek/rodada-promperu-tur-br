@@ -163,7 +163,25 @@ export const listAdminCompanies = createServerFn({ method: "POST" })
       .order("trade_name", { ascending: true });
     if (data.search?.trim()) {
       const s = data.search.trim();
-      q = q.or(`trade_name.ilike.%${s}%,legal_name.ilike.%${s}%,tax_id.ilike.%${s}%`);
+      // Also match by contact name/email by resolving company_ids from profiles first.
+      const { data: matchedProfiles } = await supabaseAdmin
+        .from("profiles")
+        .select("company_id")
+        .or(`full_name.ilike.%${s}%,email.ilike.%${s}%`)
+        .not("company_id", "is", null)
+        .limit(500);
+      const matchedCompanyIds = Array.from(
+        new Set((matchedProfiles ?? []).map((p) => p.company_id).filter(Boolean) as string[]),
+      );
+      const orParts = [
+        `trade_name.ilike.%${s}%`,
+        `legal_name.ilike.%${s}%`,
+        `tax_id.ilike.%${s}%`,
+      ];
+      if (matchedCompanyIds.length > 0) {
+        orParts.push(`id.in.(${matchedCompanyIds.join(",")})`);
+      }
+      q = q.or(orParts.join(","));
     }
     const from = (data.page - 1) * data.pageSize;
     const to = from + data.pageSize - 1;
