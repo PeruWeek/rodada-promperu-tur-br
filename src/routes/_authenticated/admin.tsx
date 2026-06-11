@@ -37,6 +37,7 @@ import { EmailTemplatesTab } from "@/components/admin/email-templates-tab";
 import { CompaniesTab } from "@/components/admin/companies/companies-tab";
 import { RegistrantsTab } from "@/components/admin/registrants-tab";
 import { PreRegistrationsTab } from "@/components/admin/pre-registrations-tab";
+import { QaSimulationTab } from "@/components/admin/qa-simulation-tab";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -138,6 +139,7 @@ function AdminPage() {
             <TabsTrigger value="emails">{t("admin.tabs.emails")}</TabsTrigger>
             <TabsTrigger value="emailTemplates">{t("admin.tabs.emailTemplates")}</TabsTrigger>
             <TabsTrigger value="audit">Auditoria</TabsTrigger>
+            <TabsTrigger value="qaSim">QA Sim</TabsTrigger>
           </TabsList>
           <TabsContent value="dashboard" className="mt-4"><PipelineDashboard isAdmin /></TabsContent>
           <TabsContent value="tables" className="mt-4"><TablesTab /></TabsContent>
@@ -152,6 +154,7 @@ function AdminPage() {
           <TabsContent value="emails" className="mt-4"><EmailsTab /></TabsContent>
           <TabsContent value="emailTemplates" className="mt-4"><EmailTemplatesTab /></TabsContent>
           <TabsContent value="audit" className="mt-4"><AuditTab /></TabsContent>
+          <TabsContent value="qaSim" className="mt-4"><QaSimulationTab /></TabsContent>
         </Tabs>
       )}
     </div>
