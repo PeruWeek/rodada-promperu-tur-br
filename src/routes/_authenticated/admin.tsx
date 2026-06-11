@@ -264,8 +264,7 @@ function RequestsTab() {
 }
 
 function TablesTab({ readOnly = false }: { readOnly?: boolean } = {}) {
-  const { t } = useTranslation();
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const qc = useQueryClient();
   const assignFn = useServerFn(assignExhibitorToTable);
   const rebuildFn = useServerFn(rebuildSlots);
