@@ -82,7 +82,7 @@ export const seedQaRound = createServerFn({ method: "POST" })
     for (const t of targets) {
       const email = `${runId}-mesa${t.table_number}@${EMAIL_DOMAIN}`;
       const fullName = `QA Expositor Mesa ${t.table_number}`;
-      const companyName = `QA Empresa Mesa ${t.table_number}`;
+      const companyName = `QA ${runId} Mesa ${t.table_number}`;
 
       // 1) Create auth user (handle_new_user trigger creates profile row).
       const { data: created, error: cuErr } = await supabaseAdmin.auth.admin.createUser({
@@ -109,6 +109,7 @@ export const seedQaRound = createServerFn({ method: "POST" })
         .from("companies")
         .insert({
           trade_name: companyName,
+          legal_name: companyName,
           country_code: "BR",
           city: "São Paulo",
           qa_run_id: runId,
