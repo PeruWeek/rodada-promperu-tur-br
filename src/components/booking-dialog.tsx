@@ -183,15 +183,19 @@ export function BookingDialog({
                         key={s.id}
                         type="button"
                         disabled={disabled}
-                        onClick={() => setSelectedSlot(s.id)}
+                        aria-disabled={disabled || undefined}
+                        onClick={() => {
+                          if (disabled) return;
+                          setSelectedSlot(s.id);
+                        }}
                         className={`rounded-md border px-2 py-2 text-sm transition ${
                           selectedSlot === s.id
                             ? "border-primary bg-primary text-primary-foreground"
                             : disabled
-                              ? "cursor-not-allowed border-border bg-muted text-muted-foreground line-through"
+                              ? "cursor-not-allowed border-border bg-muted text-muted-foreground line-through opacity-60"
                               : "border-border hover:border-primary hover:bg-accent"
                         }`}
-                        title={isMine ? t("booking.alreadyBookedSelf") : isTaken ? t("booking.taken") : undefined}
+                        title={isMine ? t("booking.selfConflict") : isTaken ? t("booking.taken") : undefined}
                       >
                         {label}
                       </button>
