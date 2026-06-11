@@ -561,7 +561,7 @@ function TablesTab({ readOnly = false }: { readOnly?: boolean } = {}) {
 }
 
 function CheckinTab() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const qc = useQueryClient();
   const [q, setQ] = useState("");
   const checkInFn = useServerFn(generalCheckIn);
@@ -572,22 +572,41 @@ function CheckinTab() {
     queryFn: async () => {
       const { data: event } = await supabase
         .from("events").select("id, name").order("created_at").limit(1).maybeSingle();
-      if (!event) return { event: null, profiles: [], checkedIds: new Set<string>() };
+      if (!event) return { event: null, profiles: [], checks: new Map<string, { at: string; byName: string | null }>() };
       const [{ profiles: profs }, { data: checks }] = await Promise.all([
         searchFn({ data: { q, activeOnly: true } }),
-        supabase.from("general_checkins").select("profile_id").eq("event_id", event.id),
+        supabase
+          .from("general_checkins")
+          .select("profile_id, checkin_at, checked_in_by_profile_id")
+          .eq("event_id", event.id),
       ]);
       const compIds = (profs ?? []).map((p) => p.company_id).filter(Boolean) as string[];
-      const { data: comps } = compIds.length
-        ? await supabase.from("companies").select("id, trade_name").in("id", compIds)
-        : { data: [] as Array<{ id: string; trade_name: string }> };
+      const byIds = Array.from(
+        new Set((checks ?? []).map((c) => c.checked_in_by_profile_id).filter(Boolean) as string[]),
+      );
+      const [{ data: comps }, { data: byProfs }] = await Promise.all([
+        compIds.length
+          ? supabase.from("companies").select("id, trade_name").in("id", compIds)
+          : Promise.resolve({ data: [] as Array<{ id: string; trade_name: string }> }),
+        byIds.length
+          ? supabase.from("profiles").select("id, full_name").in("id", byIds)
+          : Promise.resolve({ data: [] as Array<{ id: string; full_name: string }> }),
+      ]);
+      const checkMap = new Map<string, { at: string; byName: string | null }>();
+      for (const c of checks ?? []) {
+        checkMap.set(c.profile_id, {
+          at: c.checkin_at,
+          byName:
+            (byProfs ?? []).find((p) => p.id === c.checked_in_by_profile_id)?.full_name ?? null,
+        });
+      }
       return {
         event,
         profiles: (profs ?? []).map((p) => ({
           ...p,
           company: comps?.find((c) => c.id === p.company_id)?.trade_name ?? null,
         })),
-        checkedIds: new Set((checks ?? []).map((c) => c.profile_id)),
+        checks: checkMap,
       };
     },
   });
@@ -602,8 +621,22 @@ function CheckinTab() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const fmtDateTime = (iso: string) =>
+    new Date(iso).toLocaleString(i18n.language === "es" ? "es" : "pt-BR", {
+      timeZone: "America/Sao_Paulo",
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
   return (
     <Card className="p-5">
+      <div className="mb-4 space-y-1">
+        <p className="text-sm font-medium">{t("admin.checkin.help")}</p>
+        <p className="text-xs text-muted-foreground">{t("admin.checkin.helpSecondary")}</p>
+      </div>
       <div className="relative">
         <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
         <Input
@@ -620,15 +653,23 @@ function CheckinTab() {
           <p className="py-4 text-sm text-muted-foreground">{t("admin.checkin.noResults")}</p>
         ) : (
           data!.profiles.map((p) => {
-            const checked = data!.checkedIds.has(p.id);
+            const info = data!.checks.get(p.id);
             return (
               <div key={p.id} className="flex items-center justify-between gap-3 rounded-md border border-border p-3">
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium">{p.full_name}</p>
                   <p className="truncate text-xs text-muted-foreground">{[p.company, p.email].filter(Boolean).join(" · ")}</p>
+                  {info && (
+                    <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
+                      {t("admin.checkin.checkedAt", { date: fmtDateTime(info.at) })}
+                      {info.byName ? ` · ${t("admin.checkin.checkedBy", { name: info.byName })}` : ""}
+                    </p>
+                  )}
                 </div>
-                {checked ? (
-                  <Badge className="shrink-0" variant="secondary"><Check size={12} className="mr-1" />{t("admin.checkin.checked")}</Badge>
+                {info ? (
+                  <Badge className="shrink-0 bg-emerald-600 text-white hover:bg-emerald-600">
+                    <Check size={12} className="mr-1" />{t("admin.checkin.checked")}
+                  </Badge>
                 ) : (
                   <Button
                     size="sm"
