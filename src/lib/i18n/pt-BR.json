@@ -118,6 +118,8 @@
     "staffManagedByAdmin": "Seu perfil é gerenciado pelo organizador do evento.",
     "personal": "Dados pessoais",
     "preferredLanguage": "Idioma preferido",
+    "companyLabel": "Empresa:",
+    "nameLabel": "Nome:",
     "company": "Empresa",
     "website": "Site",
     "phone": "Telefone",

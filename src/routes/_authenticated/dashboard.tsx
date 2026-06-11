@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { ArrowRight } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { useProfile, hasRole } from "@/hooks/use-profile";
+import { useProfile, hasRole, getPrimaryRole } from "@/hooks/use-profile";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   component: DashboardPage,
@@ -13,14 +13,26 @@ function DashboardPage() {
   const { t } = useTranslation();
   const { data: profile } = useProfile();
   const isExhibitor = hasRole(profile?.roles, "exhibitor");
+  const primaryRole = getPrimaryRole(profile?.roles);
+
+  const showCompanyAndName = primaryRole === "visitor" || primaryRole === "exhibitor";
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-10">
-      <h1 className="text-3xl font-bold">{t("dashboard.welcome", { name: profile?.full_name ?? "" })}</h1>
-      <div className="mt-2 flex flex-wrap gap-2">
-        {profile?.roles.map((r) => (
-          <span key={r} className="rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold uppercase text-primary">{t(`roles.${r}`)}</span>
-        ))}
+      <div className="space-y-1">
+        <p className="text-sm font-medium uppercase tracking-wide text-primary">
+          {primaryRole ? t(`roles.${primaryRole}`) : ""}
+        </p>
+        {showCompanyAndName && (
+          <>
+            <p className="text-sm text-muted-foreground">
+              {t("profile.companyLabel", { defaultValue: "Empresa:" })} {profile?.company_name ?? "—"}
+            </p>
+            <p className="text-sm text-muted-foreground">
+              {t("profile.nameLabel", { defaultValue: "Nome:" })} {profile?.full_name ?? "—"}
+            </p>
+          </>
+        )}
       </div>
       <div className="mt-8 grid gap-4 sm:grid-cols-2">
         <div className="rounded-xl border border-border bg-card p-6">
