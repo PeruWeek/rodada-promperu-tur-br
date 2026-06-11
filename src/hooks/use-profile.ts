@@ -11,6 +11,7 @@ export type ProfileWithRoles = {
   email: string | null;
   preferred_language: "pt-BR" | "es";
   company_id: string | null;
+  company_name: string | null;
   roles: AppRole[];
 };
 
@@ -32,6 +33,17 @@ export function useProfile() {
       ]);
       if (profErr) throw profErr;
       if (!profile) return null;
+
+      let company_name: string | null = null;
+      if (profile.company_id) {
+        const { data: company } = await supabase
+          .from("companies")
+          .select("trade_name")
+          .eq("id", profile.company_id)
+          .maybeSingle();
+        company_name = company?.trade_name ?? null;
+      }
+
       return {
         id: profile.id,
         auth_user_id: profile.auth_user_id!,
@@ -39,6 +51,7 @@ export function useProfile() {
         email: user.email ?? null,
         preferred_language: profile.preferred_language,
         company_id: profile.company_id,
+        company_name,
         roles: (rolesData ?? []).map((r) => r.role as AppRole),
       };
     },
