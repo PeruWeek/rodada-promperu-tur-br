@@ -105,6 +105,7 @@ export function QaSimulationTab() {
                   <th className="py-1 pr-2">Empresa</th>
                   <th className="py-1 pr-2">Email</th>
                   <th className="py-1 pr-2">Senha</th>
+                  <th className="py-1 pr-2">Slots</th>
                 </tr>
               </thead>
               <tbody>
@@ -114,6 +115,9 @@ export function QaSimulationTab() {
                     <td className="py-1 pr-2">{e.company_name}</td>
                     <td className="py-1 pr-2 font-mono">{e.exhibitor_email}</td>
                     <td className="py-1 pr-2 font-mono">{e.exhibitor_password}</td>
+                    <td className={`py-1 pr-2 font-mono ${e.active_slot_count === 0 ? "text-destructive" : ""}`}>
+                      {e.active_slot_count}
+                    </td>
                   </tr>
                 ))}
               </tbody>
