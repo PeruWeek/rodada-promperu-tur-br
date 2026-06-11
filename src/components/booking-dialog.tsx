@@ -44,7 +44,14 @@ export function BookingDialog({
         .select("id, event_id, table_number")
         .eq("exhibitor_profile_id", exhibitorProfileId)
         .maybeSingle();
-      if (!table) return { table: null, slots: [], taken: new Set<string>(), myBooked: new Set<string>() };
+      if (!table)
+        return {
+          table: null,
+          slots: [] as Array<{ id: string; start_at: string; end_at: string }>,
+          taken: new Set<string>(),
+          myBookedSlotIds: new Set<string>(),
+          myBookedStarts: new Set<string>(),
+        };
 
       const [{ data: slots }, { data: taken }, { data: me }] = await Promise.all([
         supabase
@@ -61,20 +68,31 @@ export function BookingDialog({
         supabase.auth.getUser(),
       ]);
 
-      let myBooked = new Set<string>();
+      let myBookedSlotIds = new Set<string>();
+      let myBookedStarts = new Set<string>();
       if (me?.user) {
+        // RLS restricts to the visitor's own meetings.
         const { data: myMeetings } = await supabase
           .from("meetings")
           .select("slot_id")
           .eq("status", "scheduled");
-        myBooked = new Set((myMeetings ?? []).map((m) => m.slot_id));
+        const ids = (myMeetings ?? []).map((m) => m.slot_id);
+        myBookedSlotIds = new Set(ids);
+        if (ids.length) {
+          const { data: mySlots } = await supabase
+            .from("time_slots")
+            .select("id, start_at")
+            .in("id", ids);
+          myBookedStarts = new Set((mySlots ?? []).map((s) => s.start_at));
+        }
       }
 
       return {
         table,
         slots: slots ?? [],
         taken: new Set((taken ?? []).map((m) => m.slot_id)),
-        myBooked,
+        myBookedSlotIds,
+        myBookedStarts,
       };
     },
   });
@@ -154,7 +172,8 @@ export function BookingDialog({
                 <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
                   {g.items.map((s) => {
                     const isTaken = data.taken.has(s.id);
-                    const isMine = data.myBooked.has(s.id);
+                    const isMine =
+                      data.myBookedSlotIds.has(s.id) || data.myBookedStarts.has(s.start_at);
                     const disabled = isTaken || isMine;
                     const label = formatSlot(s.start_at, i18n.language);
                     return (
