@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { Check, Copy, Mail, Pencil, Plus, Power, RefreshCw, Search, Trash2, UserCheck } from "lucide-react";
+import { Check, Copy, FileArchive, Files, Mail, Pencil, Plus, Power, RefreshCw, Search, Trash2, UserCheck } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useProfile, hasRole, getPrimaryRole, type AppRole } from "@/hooks/use-profile";
@@ -29,6 +29,8 @@ import {
 } from "@/lib/staff.functions";
 import { generalCheckIn } from "@/lib/checkin.functions";
 import { listExhibitorRequests, reviewExhibitorRequest } from "@/lib/exhibitor-requests.functions";
+import { listBulkAgendas } from "@/lib/staff-exports.functions";
+import { buildConsolidatedAgendaPdf, downloadAgendaZip } from "@/lib/exports/bulk-agenda";
 import { PipelineDashboard } from "@/components/admin/pipeline/pipeline-tabs";
 import { AuditTab } from "@/components/admin/audit-tab";
 import { EmailTemplatesTab } from "@/components/admin/email-templates-tab";
@@ -263,15 +265,18 @@ function RequestsTab() {
 
 function TablesTab({ readOnly = false }: { readOnly?: boolean } = {}) {
   const { t } = useTranslation();
+  const { i18n } = useTranslation();
   const qc = useQueryClient();
   const assignFn = useServerFn(assignExhibitorToTable);
   const rebuildFn = useServerFn(rebuildSlots);
   const createFn = useServerFn(createEventTable);
   const updateTblFn = useServerFn(updateEventTable);
   const deleteFn = useServerFn(deleteEventTable);
+  const bulkFn = useServerFn(listBulkAgendas);
   const [renumberId, setRenumberId] = useState<string | null>(null);
   const [renumberValue, setRenumberValue] = useState<string>("");
   const [deleteId, setDeleteId] = useState<{ id: string; n: number } | null>(null);
+  const [bulkLoading, setBulkLoading] = useState<null | "pdf" | "zip">(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ["admin-tables"],
@@ -345,6 +350,63 @@ function TablesTab({ readOnly = false }: { readOnly?: boolean } = {}) {
 
   if (isLoading) return <Skeleton className="h-64 w-full" />;
 
+  const exhibitorProfileIds = (data?.tables ?? [])
+    .map((t) => t.exhibitor_profile_id)
+    .filter(Boolean) as string[];
+
+  const dateLabel = () =>
+    t("agenda.pdfGenerated", {
+      date: new Date().toLocaleString(i18n.language === "es" ? "es" : "pt-BR"),
+    });
+
+  const exportTablesPdf = async () => {
+    if (exhibitorProfileIds.length === 0) return;
+    setBulkLoading("pdf");
+    try {
+      const res = await bulkFn({ data: { profileIds: exhibitorProfileIds } });
+      const nonEmpty = res.entries.filter((e) => e.rows.length > 0);
+      if (nonEmpty.length === 0) {
+        toast.info(t("admin.tables.bulkEmpty"));
+        return;
+      }
+      const doc = buildConsolidatedAgendaPdf({
+        title: t("tableAgenda.pdfTitle", { number: "" }).trim(),
+        subtitle: t("common.appName"),
+        generatedLabel: dateLabel(),
+        emptyLabel: t("admin.registrants.noAgenda"),
+        entries: nonEmpty,
+      });
+      doc.save(`agendas-mesas-${new Date().toISOString().slice(0, 10)}.pdf`);
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setBulkLoading(null);
+    }
+  };
+
+  const exportTablesZip = async () => {
+    if (exhibitorProfileIds.length === 0) return;
+    setBulkLoading("zip");
+    try {
+      const res = await bulkFn({ data: { profileIds: exhibitorProfileIds } });
+      await downloadAgendaZip({
+        title: t("tableAgenda.pdfTitle", { number: "" }).trim(),
+        subtitle: t("common.appName"),
+        generatedLabel: dateLabel(),
+        entries: res.entries,
+        filename: `agendas-mesas-${new Date().toISOString().slice(0, 10)}.zip`,
+      });
+    } catch (e) {
+      if ((e as Error).message === "EMPTY") {
+        toast.info(t("admin.tables.bulkEmpty"));
+      } else {
+        toast.error((e as Error).message);
+      }
+    } finally {
+      setBulkLoading(null);
+    }
+  };
+
   return (
     <Card className="p-5">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
@@ -353,26 +415,46 @@ function TablesTab({ readOnly = false }: { readOnly?: boolean } = {}) {
           <p className="text-xs text-muted-foreground">{t("admin.tables.help")}</p>
           <p className="text-xs text-muted-foreground">{t("admin.tables.rebuildAfterCreate")}</p>
         </div>
-        {data?.event && (
-          !readOnly && <div className="flex gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => createMut.mutate(data.event!.id)}
-              disabled={createMut.isPending}
-            >
-              <Plus size={14} /> {t("admin.tables.create")}
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => rebuildMut.mutate(data.event!.id)}
-              disabled={rebuildMut.isPending}
-            >
-              <RefreshCw size={14} /> {t("admin.tables.rebuildSlots")}
-            </Button>
-          </div>
-        )}
+        <div className="flex flex-wrap gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={exportTablesPdf}
+            disabled={exhibitorProfileIds.length === 0 || bulkLoading !== null}
+          >
+            <Files size={14} />{" "}
+            {bulkLoading === "pdf" ? t("common.loading") : t("admin.tables.bulkPdf")}
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={exportTablesZip}
+            disabled={exhibitorProfileIds.length === 0 || bulkLoading !== null}
+          >
+            <FileArchive size={14} />{" "}
+            {bulkLoading === "zip" ? t("common.loading") : t("admin.tables.bulkZip")}
+          </Button>
+          {data?.event && !readOnly && (
+            <>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => createMut.mutate(data.event!.id)}
+                disabled={createMut.isPending}
+              >
+                <Plus size={14} /> {t("admin.tables.create")}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => rebuildMut.mutate(data.event!.id)}
+                disabled={rebuildMut.isPending}
+              >
+                <RefreshCw size={14} /> {t("admin.tables.rebuildSlots")}
+              </Button>
+            </>
+          )}
+        </div>
       </div>
       <div className="space-y-2">
         {(data?.tables ?? []).map((tbl) => (
