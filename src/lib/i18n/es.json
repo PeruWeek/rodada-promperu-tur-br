@@ -262,7 +262,10 @@
       "unassigned": "— Sin expositor —",
       "saved": "Mesa actualizada.",
       "rebuildSlots": "Regenerar slots",
-      "slotsRebuilt": "Slots regenerados."
+      "slotsRebuilt": "Slots regenerados.",
+      "bulkPdf": "PDF consolidado (mesas)",
+      "bulkZip": "ZIP por mesa",
+      "bulkEmpty": "Ninguna mesa con reuniones agendadas."
     },
     "companies": {
       "help": "Edita datos de registro y la ficha comercial (segmentos, pitch, materiales) de empresas visitantes y expositoras. Para crear, inactivar o eliminar un expositor, ve a Usuarios.",
