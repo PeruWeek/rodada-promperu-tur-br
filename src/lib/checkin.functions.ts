@@ -35,6 +35,11 @@ export const generalCheckIn = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     if (!(await isAdminOrStaff(context.userId)))
       throw new Error("Forbidden: admin/staff only");
+    const { data: callerProfile } = await supabaseAdmin
+      .from("profiles")
+      .select("id")
+      .eq("auth_user_id", context.userId)
+      .maybeSingle();
     const { data: existing } = await supabaseAdmin
       .from("general_checkins")
       .select("id")
@@ -44,7 +49,12 @@ export const generalCheckIn = createServerFn({ method: "POST" })
     if (existing) return { id: existing.id, alreadyCheckedIn: true };
     const { data: row, error } = await supabaseAdmin
       .from("general_checkins")
-      .insert({ event_id: data.eventId, profile_id: data.profileId, method: data.method })
+      .insert({
+        event_id: data.eventId,
+        profile_id: data.profileId,
+        method: data.method,
+        checked_in_by_profile_id: callerProfile?.id ?? null,
+      })
       .select("id")
       .single();
     if (error) throw new Error(error.message);

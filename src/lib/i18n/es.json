@@ -223,7 +223,7 @@
     "forbidden": "Acceso restringido a administradores.",
     "tabs": {
       "tables": "Mesas",
-      "checkin": "Check-in",
+      "checkin": "Acreditación",
       "users": "Usuarios",
       "requests": "Solicitudes",
       "emails": "Emails",
@@ -353,12 +353,17 @@
       }
     },
     "checkin": {
-      "searchPlaceholder": "Buscar participante...",
+      "title": "Acreditación",
+      "help": "Usa esta pantalla para registrar la llegada del participante al evento.",
+      "helpSecondary": "Operación destinada al Staff y a la coordinación para el control de presencia en la acreditación.",
+      "searchPlaceholder": "Buscar participante por nombre o email...",
       "noResults": "No se encontraron participantes.",
-      "checked": "Check-in hecho",
-      "check": "Hacer check-in",
-      "done": "¡Check-in registrado!",
-      "already": "Ya tenía check-in."
+      "checked": "Presente",
+      "check": "Marcar llegada",
+      "done": "¡Llegada confirmada!",
+      "already": "El participante ya estaba acreditado.",
+      "checkedAt": "Acreditado el {{date}}",
+      "checkedBy": "por {{name}}"
     },
     "users": {
       "searchPlaceholder": "Buscar usuario...",
