@@ -158,6 +158,7 @@ export type Database = {
           legal_name: string | null
           linkedin: string | null
           phone: string | null
+          qa_run_id: string | null
           registration_id: string | null
           specialty: string | null
           state_code: string | null
@@ -178,6 +179,7 @@ export type Database = {
           legal_name?: string | null
           linkedin?: string | null
           phone?: string | null
+          qa_run_id?: string | null
           registration_id?: string | null
           specialty?: string | null
           state_code?: string | null
@@ -198,6 +200,7 @@ export type Database = {
           legal_name?: string | null
           linkedin?: string | null
           phone?: string | null
+          qa_run_id?: string | null
           registration_id?: string | null
           specialty?: string | null
           state_code?: string | null
@@ -1126,6 +1129,7 @@ export type Database = {
           pending_signup: boolean
           phone: string | null
           preferred_language: Database["public"]["Enums"]["app_language"]
+          qa_run_id: string | null
           whatsapp: string | null
         }
         Insert: {
@@ -1140,6 +1144,7 @@ export type Database = {
           pending_signup?: boolean
           phone?: string | null
           preferred_language?: Database["public"]["Enums"]["app_language"]
+          qa_run_id?: string | null
           whatsapp?: string | null
         }
         Update: {
@@ -1154,6 +1159,7 @@ export type Database = {
           pending_signup?: boolean
           phone?: string | null
           preferred_language?: Database["public"]["Enums"]["app_language"]
+          qa_run_id?: string | null
           whatsapp?: string | null
         }
         Relationships: [
