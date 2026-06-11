@@ -373,12 +373,17 @@
       }
     },
     "checkin": {
-      "searchPlaceholder": "Buscar participante...",
+      "title": "Credenciamento",
+      "help": "Use esta tela para registrar a chegada do participante no evento.",
+      "helpSecondary": "Operação destinada ao Staff e à coordenação para controle de presença no credenciamento.",
+      "searchPlaceholder": "Buscar participante por nome ou e-mail...",
       "noResults": "Nenhum participante encontrado.",
-      "checked": "Check-in feito",
-      "check": "Fazer check-in",
-      "done": "Check-in registrado!",
-      "already": "Já estava com check-in."
+      "checked": "Presente",
+      "check": "Marcar chegada",
+      "done": "Chegada confirmada!",
+      "already": "Participante já estava credenciado.",
+      "checkedAt": "Credenciado em {{date}}",
+      "checkedBy": "por {{name}}"
     },
     "users": {
       "searchPlaceholder": "Buscar usuário...",
