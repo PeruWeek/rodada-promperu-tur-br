@@ -178,6 +178,7 @@
     "alreadyBookedSelf": "Ya tienes una reunión en ese horario",
     "success": "¡Reunión agendada!",
     "conflict": "Conflicto: ese horario ya está ocupado.",
+    "selfConflict": "Conflicto: ya tienes una reunión agendada en ese horario.",
     "error": "No fue posible agendar. Intenta de nuevo."
   },
   "agenda": {
