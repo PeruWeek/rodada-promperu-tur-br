@@ -117,7 +117,9 @@ export function BookingDialog({
     },
     onError: (err: Error) => {
       const msg = err.message || "";
-      if (msg.includes("Conflito") || msg.includes("23505")) {
+      if (msg.includes("você já tem reunião") || msg.toLowerCase().includes("já tem reunião")) {
+        toast.error(t("booking.selfConflict"));
+      } else if (msg.includes("Conflito") || msg.includes("23505")) {
         toast.error(t("booking.conflict"));
       } else {
         toast.error(t("booking.error"));
