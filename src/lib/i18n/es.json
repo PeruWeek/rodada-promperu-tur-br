@@ -324,6 +324,11 @@
       "empty": "No se encontraron inscritos.",
       "downloadAgenda": "Agenda (PDF)",
       "noAgenda": "Este participante no tiene reuniones agendadas.",
+      "bulk": {
+        "pdf": "PDF consolidado",
+        "zip": "ZIP individual",
+        "empty": "Ningún participante de la lista tiene reuniones agendadas."
+      },
       "total": "{{count}} inscrito(s)",
       "meetingsCount_one": "{{count}} reunión",
       "meetingsCount_other": "{{count}} reuniones",
