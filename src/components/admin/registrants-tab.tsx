@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { Download, FileSpreadsheet, FileText, Search } from "lucide-react";
+import { Download, FileArchive, FileSpreadsheet, FileText, Files, Search } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,11 +20,13 @@ import {
 import {
   getParticipantAgenda,
   listEventRegistrants,
+  listBulkAgendas,
   type RegistrantRow,
 } from "@/lib/staff-exports.functions";
 import { downloadBlob, toCsv } from "@/lib/exports/csv";
 import { downloadXlsx } from "@/lib/exports/xlsx";
 import { buildAgendaPdf } from "@/lib/pdf";
+import { buildConsolidatedAgendaPdf, downloadAgendaZip } from "@/lib/exports/bulk-agenda";
 
 type RoleFilter = "all" | "exhibitor" | "visitor";
 
@@ -81,9 +83,11 @@ export function RegistrantsTab() {
   const { t, i18n } = useTranslation();
   const listFn = useServerFn(listEventRegistrants);
   const agendaFn = useServerFn(getParticipantAgenda);
+  const bulkFn = useServerFn(listBulkAgendas);
   const [role, setRole] = useState<RoleFilter>("all");
   const [search, setSearch] = useState("");
   const [agendaLoadingId, setAgendaLoadingId] = useState<string | null>(null);
+  const [bulkLoading, setBulkLoading] = useState<null | "pdf" | "zip">(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ["registrants", role, search],
@@ -139,6 +143,59 @@ export function RegistrantsTab() {
     }
   };
 
+  const dateLabel = () =>
+    t("agenda.pdfGenerated", {
+      date: new Date().toLocaleString(i18n.language === "es" ? "es" : "pt-BR"),
+    });
+
+  const downloadConsolidatedPdf = async () => {
+    if (rows.length === 0) return;
+    setBulkLoading("pdf");
+    try {
+      const res = await bulkFn({ data: { profileIds: rows.map((r) => r.profile_id) } });
+      const nonEmpty = res.entries.filter((e) => e.rows.length > 0);
+      if (nonEmpty.length === 0) {
+        toast.info(t("admin.registrants.bulk.empty"));
+        return;
+      }
+      const doc = buildConsolidatedAgendaPdf({
+        title: t("agenda.pdfTitle"),
+        subtitle: t("common.appName"),
+        generatedLabel: dateLabel(),
+        emptyLabel: t("admin.registrants.noAgenda"),
+        entries: nonEmpty,
+      });
+      doc.save(`agendas-${new Date().toISOString().slice(0, 10)}.pdf`);
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setBulkLoading(null);
+    }
+  };
+
+  const downloadZip = async () => {
+    if (rows.length === 0) return;
+    setBulkLoading("zip");
+    try {
+      const res = await bulkFn({ data: { profileIds: rows.map((r) => r.profile_id) } });
+      await downloadAgendaZip({
+        title: t("agenda.pdfTitle"),
+        subtitle: t("common.appName"),
+        generatedLabel: dateLabel(),
+        entries: res.entries,
+        filename: `agendas-${new Date().toISOString().slice(0, 10)}.zip`,
+      });
+    } catch (e) {
+      if ((e as Error).message === "EMPTY") {
+        toast.info(t("admin.registrants.bulk.empty"));
+      } else {
+        toast.error((e as Error).message);
+      }
+    } finally {
+      setBulkLoading(null);
+    }
+  };
+
   return (
     <Card className="p-5">
       <p className="mb-4 text-xs text-muted-foreground">{t("admin.registrants.help")}</p>
@@ -170,6 +227,24 @@ export function RegistrantsTab() {
         </Button>
         <Button variant="outline" size="sm" onClick={exportCsv} disabled={rows.length === 0}>
           <FileText size={14} /> CSV
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={downloadConsolidatedPdf}
+          disabled={rows.length === 0 || bulkLoading !== null}
+        >
+          <Files size={14} />{" "}
+          {bulkLoading === "pdf" ? t("common.loading") : t("admin.registrants.bulk.pdf")}
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={downloadZip}
+          disabled={rows.length === 0 || bulkLoading !== null}
+        >
+          <FileArchive size={14} />{" "}
+          {bulkLoading === "zip" ? t("common.loading") : t("admin.registrants.bulk.zip")}
         </Button>
       </div>
 
