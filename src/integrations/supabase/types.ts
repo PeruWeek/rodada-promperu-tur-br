@@ -810,6 +810,7 @@ export type Database = {
       }
       general_checkins: {
         Row: {
+          checked_in_by_profile_id: string | null
           checkin_at: string
           event_id: string
           id: string
@@ -817,6 +818,7 @@ export type Database = {
           profile_id: string
         }
         Insert: {
+          checked_in_by_profile_id?: string | null
           checkin_at?: string
           event_id: string
           id?: string
@@ -824,6 +826,7 @@ export type Database = {
           profile_id: string
         }
         Update: {
+          checked_in_by_profile_id?: string | null
           checkin_at?: string
           event_id?: string
           id?: string
@@ -831,6 +834,13 @@ export type Database = {
           profile_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "general_checkins_checked_in_by_profile_id_fkey"
+            columns: ["checked_in_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "general_checkins_event_id_fkey"
             columns: ["event_id"]

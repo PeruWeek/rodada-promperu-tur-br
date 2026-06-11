@@ -1,0 +1,2 @@
+ALTER TABLE public.general_checkins ADD COLUMN IF NOT EXISTS checked_in_by_profile_id uuid REFERENCES public.profiles(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS general_checkins_checked_in_by_idx ON public.general_checkins(checked_in_by_profile_id);
