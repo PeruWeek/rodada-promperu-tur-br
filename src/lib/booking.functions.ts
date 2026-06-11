@@ -58,6 +58,28 @@ export const bookMeeting = createServerFn({ method: "POST" })
     if (profErr) throw profErr;
     if (!profile) throw new Error("Profile not found");
 
+    // Cross-table conflict guard: visitor cannot have two scheduled meetings
+    // at the same start time, regardless of which table.
+    const { data: newSlot, error: nsErr } = await supabaseAdmin
+      .from("time_slots")
+      .select("start_at")
+      .eq("id", data.slotId)
+      .maybeSingle();
+    if (nsErr) throw new Error(nsErr.message);
+    if (!newSlot) throw new Error("Slot not found");
+
+    const { data: existingMeetings } = await supabaseAdmin
+      .from("meetings")
+      .select("id, slot_id, time_slots!inner(start_at)")
+      .eq("visitor_profile_id", profile.id)
+      .eq("status", "scheduled");
+    const hasConflict = (existingMeetings ?? []).some(
+      (m: any) => m.time_slots?.start_at === newSlot.start_at,
+    );
+    if (hasConflict) {
+      throw new Error("Conflito: você já tem reunião agendada neste horário.");
+    }
+
     const { data: meeting, error: mErr } = await supabase
       .from("meetings")
       .insert({
