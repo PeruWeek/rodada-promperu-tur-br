@@ -42,6 +42,7 @@ export type SeedManifestEntry = {
   exhibitor_password: string;
   company_id: string;
   company_name: string;
+  active_slot_count: number;
 };
 
 export const seedQaRound = createServerFn({ method: "POST" })
@@ -145,6 +146,46 @@ export const seedQaRound = createServerFn({ method: "POST" })
         .is("exhibitor_profile_id", null);
       if (assignErr) throw new Error(`table assign failed for mesa ${t.table_number}: ${assignErr.message}`);
 
+      // 7) Verify active slots exist for this table. If missing, regenerate
+      //    only this table's slots inline (no event-wide rebuild) so the
+      //    QA exhibitor can actually receive bookings.
+      const { count: slotCount } = await supabaseAdmin
+        .from("time_slots")
+        .select("id", { count: "exact", head: true })
+        .eq("table_id", t.id)
+        .eq("is_active", true);
+      let activeSlotCount = slotCount ?? 0;
+      if (activeSlotCount === 0) {
+        // Reuse the slot grid from another active table in the same event.
+        const { data: refTable } = await supabaseAdmin
+          .from("event_tables")
+          .select("id")
+          .eq("event_id", eventId)
+          .neq("id", t.id)
+          .limit(1)
+          .maybeSingle();
+        if (refTable?.id) {
+          const { data: refSlots } = await supabaseAdmin
+            .from("time_slots")
+            .select("start_at, end_at, is_buffer")
+            .eq("table_id", refTable.id)
+            .eq("is_active", true);
+          if (refSlots && refSlots.length > 0) {
+            await supabaseAdmin.from("time_slots").insert(
+              refSlots.map((s) => ({
+                event_id: eventId,
+                table_id: t.id,
+                start_at: s.start_at,
+                end_at: s.end_at,
+                is_buffer: s.is_buffer,
+                is_active: true,
+              })),
+            );
+            activeSlotCount = refSlots.length;
+          }
+        }
+      }
+
       entries.push({
         table_number: t.table_number,
         exhibitor_profile_id: prof.id,
@@ -153,6 +194,7 @@ export const seedQaRound = createServerFn({ method: "POST" })
         exhibitor_password: DEFAULT_PASSWORD,
         company_id: comp.id,
         company_name: comp.trade_name,
+        active_slot_count: activeSlotCount,
       });
     }
 
