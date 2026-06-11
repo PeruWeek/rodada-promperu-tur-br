@@ -271,7 +271,10 @@
       "deleted": "Mesa excluída.",
       "deleteConfirm": "Excluir a mesa #{{n}}? Esta ação não pode ser desfeita.",
       "numberLabel": "Número da mesa",
-      "rebuildAfterCreate": "Após criar mesas, regenere os slots para que apareçam horários disponíveis."
+      "rebuildAfterCreate": "Após criar mesas, regenere os slots para que apareçam horários disponíveis.",
+      "bulkPdf": "PDF consolidado (mesas)",
+      "bulkZip": "ZIP por mesa",
+      "bulkEmpty": "Nenhuma mesa com reuniões agendadas."
     },
     "companies": {
       "help": "Edite dados cadastrais e a ficha comercial (segmentos, pitch, materiais) de empresas visitantes e expositoras. Para criar, inativar ou excluir um expositor, vá em Usuários.",
