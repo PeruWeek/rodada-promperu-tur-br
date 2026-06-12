@@ -32,116 +32,55 @@ function ResetPasswordPage() {
   useEffect(() => {
     let cancelled = false;
 
-    // 1) Listen for Supabase emitting PASSWORD_RECOVERY / SIGNED_IN once it
-    //    finishes processing the URL (hash or PKCE code).
+    // Recovery handling strategy:
+    // The Supabase browser client auto-processes the URL on init
+    // (`detectSessionInUrl: true`): it consumes `?code=` (PKCE) or
+    // `#access_token=...&type=recovery` (implicit) and fires PASSWORD_RECOVERY
+    // / SIGNED_IN once the session is ready. We MUST NOT race it with our own
+    // exchange/setSession calls — doing so causes "code already used" failures
+    // (PKCE) or clobbers tokens that were already consumed (implicit), which
+    // is the regression that shows "Link inválido ou expirado".
+    //
+    // So we only:
+    //   1. Subscribe to onAuthStateChange and markReady on a valid event.
+    //   2. Check immediately if a session already exists (re-entry / refresh).
+    //   3. Surface the recovery-specific error UI ONLY when the hash carries
+    //      an explicit `error=`/`error_code=` (e.g. otp_expired) — never on
+    //      timeout, because slow auto-detect must not be treated as invalid.
     const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === "PASSWORD_RECOVERY" || (event === "SIGNED_IN" && session) || (event === "INITIAL_SESSION" && session)) {
-        if (!cancelled) markReady();
+      if (cancelled) return;
+      if (
+        event === "PASSWORD_RECOVERY" ||
+        ((event === "SIGNED_IN" || event === "INITIAL_SESSION" || event === "TOKEN_REFRESHED" || event === "USER_UPDATED") && session)
+      ) {
+        markReady();
       }
     });
 
-    // 2) Handle every flow Supabase can use to deliver a recovery token:
-    //    A. Implicit hash tokens from /auth/v1/verify?type=recovery
-    //       → #access_token=...&refresh_token=...&type=recovery
-    //       The client default is PKCE, which does NOT consume hash tokens,
-    //       so we MUST call setSession() explicitly here. Without this, the
-    //       hash is left dangling and the page shows "link inválido".
-    //    B. Hash error from a pre-consumed link (mail scanner, link already
-    //       used) → #error=access_denied&error_code=otp_expired&...
-    //    C. Query token_hash from new template → verifyOtp({ token_hash })
-    //    D. PKCE code from ?code=... → exchangeCodeForSession
-    const url = new URL(window.location.href);
-    const hash = window.location.hash.startsWith("#")
+    // Explicit-error short-circuit: only an actual auth error in the hash
+    // marks the link invalid up-front. We intentionally do NOT clear the
+    // hash/query — Supabase's auto-detect still needs to read them.
+    const rawHash = window.location.hash.startsWith("#")
       ? window.location.hash.slice(1)
       : window.location.hash;
-    const hashParams = new URLSearchParams(hash);
-    const accessToken = hashParams.get("access_token");
-    const refreshToken = hashParams.get("refresh_token");
-    const hashType = hashParams.get("type");
+    const hashParams = new URLSearchParams(rawHash);
     const hashError = hashParams.get("error_code") ?? hashParams.get("error");
-    const tokenHash = url.searchParams.get("token_hash");
-    const typeParam = url.searchParams.get("type");
-    const code = url.searchParams.get("code");
+    if (hashError) {
+      // Strip the error from the URL so a refresh doesn't keep re-triggering.
+      const { pathname, search } = window.location;
+      window.history.replaceState(null, "", pathname + search);
+      setInvalid(true);
+    }
 
-    const clearHash = () => {
-      window.history.replaceState(null, "", url.pathname + url.search);
-    };
-    const clearQuery = (...keys: string[]) => {
-      for (const k of keys) url.searchParams.delete(k);
-      window.history.replaceState(null, "", url.pathname + (url.search ? url.search : ""));
-    };
-
-    (async () => {
-      try {
-        // B — link already consumed / expired, surface the recovery-specific UI.
-        if (hashError) {
-          clearHash();
-          if (!cancelled) setInvalid(true);
-          return;
-        }
-        // A — implicit hash recovery (the verify-endpoint redirect pattern).
-        if (accessToken && refreshToken && (hashType === "recovery" || hashType === null)) {
-          const { error } = await supabase.auth.setSession({
-            access_token: accessToken,
-            refresh_token: refreshToken,
-          });
-          clearHash();
-          if (!cancelled) {
-            if (error) setInvalid(true);
-            else markReady();
-          }
-          return;
-        }
-        // C — modern token_hash query param.
-        if (tokenHash && (typeParam === "recovery" || typeParam === null)) {
-          const { error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type: "recovery" });
-          clearQuery("token_hash", "type");
-          if (!cancelled) {
-            if (error) setInvalid(true);
-            else markReady();
-          }
-          return;
-        }
-        // D — PKCE code exchange.
-        if (code) {
-          const { error } = await supabase.auth.exchangeCodeForSession(code);
-          clearQuery("code");
-          if (!cancelled) {
-            if (error) setInvalid(true);
-            else markReady();
-          }
-          return;
-        }
-      } catch {
-        if (!cancelled) setInvalid(true);
-      }
-    })();
-
-    // 3) Fallback: poll getSession() in case the user already has a recovery
-    //    session from a previous visit in the same tab.
-    let attempts = 0;
-    const interval = window.setInterval(async () => {
-      if (cancelled || readyRef.current) {
-        window.clearInterval(interval);
-        return;
-      }
-      attempts += 1;
-      const { data } = await supabase.auth.getSession();
-      if (data.session) {
-        markReady();
-        window.clearInterval(interval);
-        return;
-      }
-      if (attempts >= 25) {
-        window.clearInterval(interval);
-        if (!readyRef.current && !cancelled) setInvalid(true);
-      }
-    }, 200);
+    // Re-entry: if the user already has a session in this tab (e.g. they
+    // landed here from a previous successful processing), mark ready.
+    void supabase.auth.getSession().then(({ data }) => {
+      if (!cancelled && data.session) markReady();
+    });
 
     return () => {
       cancelled = true;
       sub.subscription.unsubscribe();
-      window.clearInterval(interval);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
