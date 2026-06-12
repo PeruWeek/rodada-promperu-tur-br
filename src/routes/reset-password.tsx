@@ -99,8 +99,14 @@ function ResetPasswordPage() {
     const { error } = await supabase.auth.updateUser({ password });
     setLoading(false);
     if (error) {
-      toast.error(t("auth.invalidOrExpiredLink"));
-      setInvalid(true);
+      // Do NOT mark the link as invalid here — the recovery session is valid
+      // (we got here past PASSWORD_RECOVERY / SIGNED_IN). A failure on
+      // updateUser is almost always a password-policy rejection (422):
+      // "New password should be different from the old password",
+      // HIBP/leaked-password, or min-length. Surface the real reason so the
+      // user can try a different password instead of asking for a new link.
+      const msg = error.message || t("auth.invalidOrExpiredLink");
+      toast.error(msg);
       return;
     }
     toast.success(t("auth.passwordUpdated"));
