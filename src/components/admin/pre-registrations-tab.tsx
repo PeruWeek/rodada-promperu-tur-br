@@ -24,7 +24,10 @@ import {
 import { downloadBlob } from "@/lib/exports/csv";
 
 const MAX_BYTES = 2 * 1024 * 1024; // 2MB
-const BATCH_SIZE = 100;
+const BATCH_SIZE = 50;
+const BATCH_RETRIES = 2; // total attempts per batch = 1 + BATCH_RETRIES
+
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 function buildTemplateCsv(): string {
   const headers = PRE_REG_CSV_HEADERS.join(";");
@@ -117,18 +120,34 @@ export function PreRegistrationsTab() {
           { delimiter: ";", newline: "\r\n" },
         );
         setProgress({ done: startIdx, total: rows.length });
-        try {
-          const r = await importFn({ data: { csv: chunkCsv, eventId } });
-          aggregate.total += r.total;
-          aggregate.created += r.created;
-          aggregate.updated += r.updated;
-          aggregate.skipped += r.skipped;
-          aggregate.errors += r.errors;
-          for (const row of r.results) {
-            aggregate.results.push({ ...row, line: startIdx + row.line });
+        // The server fn is idempotent (upsert by email / tax_id), so on a
+        // transport-layer failure ("Load failed", timeouts, 5xx) we can safely
+        // retry the same batch — rows already persisted come back as
+        // `updated` / `skipped_existing_filled` instead of duplicates.
+        let lastError: unknown = null;
+        let succeeded = false;
+        for (let attempt = 0; attempt <= BATCH_RETRIES; attempt++) {
+          try {
+            const r = await importFn({ data: { csv: chunkCsv, eventId } });
+            aggregate.total += r.total;
+            aggregate.created += r.created;
+            aggregate.updated += r.updated;
+            aggregate.skipped += r.skipped;
+            aggregate.errors += r.errors;
+            for (const row of r.results) {
+              aggregate.results.push({ ...row, line: startIdx + row.line });
+            }
+            succeeded = true;
+            break;
+          } catch (err) {
+            lastError = err;
+            if (attempt < BATCH_RETRIES) {
+              await sleep(800 * (attempt + 1));
+            }
           }
-        } catch (err) {
-          const message = err instanceof Error ? err.message : String(err);
+        }
+        if (!succeeded) {
+          const message = lastError instanceof Error ? lastError.message : String(lastError);
           for (let i = 0; i < chunk.length; i++) {
             aggregate.total += 1;
             aggregate.errors += 1;
