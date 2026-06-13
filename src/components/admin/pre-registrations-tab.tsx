@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Download, FileUp, Loader2 } from "lucide-react";
+import Papa from "papaparse";
 
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -23,6 +24,7 @@ import {
 import { downloadBlob } from "@/lib/exports/csv";
 
 const MAX_BYTES = 2 * 1024 * 1024; // 2MB
+const BATCH_SIZE = 100;
 
 function buildTemplateCsv(): string {
   const headers = PRE_REG_CSV_HEADERS.join(";");
@@ -62,6 +64,7 @@ export function PreRegistrationsTab() {
     total: number; created: number; updated: number; skipped: number; errors: number;
     results: ImportRowResult[];
   } | null>(null);
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
 
   const { data: events, isLoading: loadingEvents } = useQuery({
     queryKey: ["pre-reg-events"],
@@ -84,7 +87,62 @@ export function PreRegistrationsTab() {
     mutationFn: async () => {
       if (!eventId) throw new Error(t("admin.preRegistration.selectEvent"));
       if (!csv) throw new Error(t("admin.preRegistration.selectFile"));
-      return importFn({ data: { csv, eventId } });
+
+      // Parse once on the client, then send batches. A single full-file
+      // request hits the worker wall-time budget and surfaces as "Load failed".
+      const parsed = Papa.parse<Record<string, string>>(csv, {
+        header: true,
+        skipEmptyLines: "greedy",
+        transformHeader: (h) => h.trim().toLowerCase().replace(/\s+/g, "_"),
+      });
+      const rows = parsed.data ?? [];
+      const headers = parsed.meta.fields ?? [];
+      if (rows.length === 0) {
+        if (parsed.errors.length > 0) {
+          throw new Error(parsed.errors[0]?.message ?? "CSV parse error");
+        }
+        return { total: 0, created: 0, updated: 0, skipped: 0, errors: 0, results: [] as ImportRowResult[] };
+      }
+
+      const aggregate = {
+        total: 0, created: 0, updated: 0, skipped: 0, errors: 0,
+        results: [] as ImportRowResult[],
+      };
+      const totalBatches = Math.ceil(rows.length / BATCH_SIZE);
+      for (let b = 0; b < totalBatches; b++) {
+        const startIdx = b * BATCH_SIZE;
+        const chunk = rows.slice(startIdx, startIdx + BATCH_SIZE);
+        const chunkCsv = Papa.unparse(
+          { fields: headers, data: chunk },
+          { delimiter: ";", newline: "\r\n" },
+        );
+        setProgress({ done: startIdx, total: rows.length });
+        try {
+          const r = await importFn({ data: { csv: chunkCsv, eventId } });
+          aggregate.total += r.total;
+          aggregate.created += r.created;
+          aggregate.updated += r.updated;
+          aggregate.skipped += r.skipped;
+          aggregate.errors += r.errors;
+          for (const row of r.results) {
+            aggregate.results.push({ ...row, line: startIdx + row.line });
+          }
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          for (let i = 0; i < chunk.length; i++) {
+            aggregate.total += 1;
+            aggregate.errors += 1;
+            aggregate.results.push({
+              line: startIdx + i + 2,
+              email: typeof chunk[i]?.email === "string" ? chunk[i].email : null,
+              outcome: "error",
+              message,
+            });
+          }
+        }
+      }
+      setProgress({ done: rows.length, total: rows.length });
+      return aggregate;
     },
     onSuccess: (r) => {
       setResults(r);
@@ -95,6 +153,7 @@ export function PreRegistrationsTab() {
       );
     },
     onError: (e: Error) => toast.error(e.message),
+    onSettled: () => setProgress(null),
   });
 
   const onPickFile = async (file: File | null) => {
@@ -177,7 +236,9 @@ export function PreRegistrationsTab() {
           disabled={mut.isPending || !eventId || !csv}
         >
           {mut.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          {t("admin.preRegistration.import")}
+          {mut.isPending && progress
+            ? `${progress.done}/${progress.total}`
+            : t("admin.preRegistration.import")}
         </Button>
         {results && (
           <Button type="button" variant="ghost" onClick={downloadReport}>
