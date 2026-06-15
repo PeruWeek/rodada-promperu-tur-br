@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { Plus, Trash2 } from "lucide-react";
 
 import { getCompanyForEdit, updateCompanyFull } from "@/lib/admin.functions";
-import { COUNTRIES, TAXONOMY } from "@/lib/taxonomy";
+import { COUNTRIES } from "@/lib/taxonomy";
 import { MultiSelectChips } from "@/components/multi-select-chips";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -56,14 +56,12 @@ type ProfileForm = {
 };
 
 type VisitorForm = {
-  buyer_type: string;
+  buyer_types: string[];
   interests_segments: string[];
   interests_destinations: string[];
   interests_destinations_free: string;
   interests_services: string[];
-  demand_profile: string;
   portfolio_pt: string;
-  portfolio_es: string;
   notes: string;
   consent_marketing: boolean;
 };
@@ -139,14 +137,14 @@ export function EditCompanyDrawer({ companyId, onClose, onSaved }: Props) {
     if (data.role === "visitor") {
       const v = (data.visitorProfile ?? {}) as Record<string, unknown>;
       setVisitor({
-        buyer_type: str(v.buyer_type),
+        buyer_types: strArr(v.buyer_types).length > 0
+          ? strArr(v.buyer_types)
+          : (str(v.buyer_type) ? [str(v.buyer_type)] : []),
         interests_segments: strArr(v.interests_segments),
         interests_destinations: strArr(v.interests_destinations),
         interests_destinations_free: str(v.interests_destinations_free),
         interests_services: strArr(v.interests_services),
-        demand_profile: str(v.demand_profile),
         portfolio_pt: str(v.portfolio_pt),
-        portfolio_es: str(v.portfolio_es),
         notes: str(v.notes),
         consent_marketing: bool(v.consent_marketing),
       });
