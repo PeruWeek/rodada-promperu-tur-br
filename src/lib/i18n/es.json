@@ -284,7 +284,8 @@
       "help": "Edita datos de registro y la ficha comercial (segmentos, pitch, materiales) de empresas visitantes y expositoras. Para crear, inactivar o eliminar un expositor, ve a Usuarios.",
       "roleAll": "Todos",
       "roleVisitor": "Visitantes",
-      "roleExhibitor": "Expositores"
+      "roleExhibitor": "Expositores",
+      "tabVisitor": "Perfil de la empresa"
     },
     "orphans": {
       "title": "Expositores sin empresa vinculada",
