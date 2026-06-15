@@ -173,6 +173,16 @@ export function EditCompanyDrawer({ companyId, onClose, onSaved }: Props) {
   const saveMut = useMutation({
     mutationFn: async () => {
       if (!company) throw new Error("no data");
+      // Required-field parity with the buyer signup wizard (BR companies).
+      const isBR = (company.country_code || "BR") === "BR";
+      const missing: string[] = [];
+      if (!company.trade_name.trim()) missing.push(t("signup.tradeName"));
+      if (isBR && !company.legal_name.trim()) missing.push(t("signup.legalName"));
+      if (isBR && !company.registration_id.trim()) missing.push(t("signup.registrationId"));
+      if (!company.city.trim()) missing.push(t("signup.city"));
+      if (missing.length) {
+        throw new Error(`${t("signup.errors.required")} ${missing.join(", ")}`);
+      }
       return saveFn({
         data: {
           companyId,
@@ -230,8 +240,15 @@ export function EditCompanyDrawer({ companyId, onClose, onSaved }: Props) {
               <Field label={t("signup.tradeName")} required>
                 <Input value={company.trade_name} onChange={(e) => setCompany({ ...company, trade_name: e.target.value })} />
               </Field>
+              <Field label={t("signup.registrationId")} required={(company.country_code || "BR") === "BR"}>
+                <Input
+                  value={company.registration_id}
+                  onChange={(e) => setCompany({ ...company, registration_id: e.target.value })}
+                  placeholder={t("signup.registrationIdHelp")}
+                />
+              </Field>
               <div className="grid gap-4 sm:grid-cols-2">
-                <Field label={t("signup.legalName")}>
+                <Field label={t("signup.legalName")} required={(company.country_code || "BR") === "BR"}>
                   <Input value={company.legal_name} onChange={(e) => setCompany({ ...company, legal_name: e.target.value })} />
                 </Field>
                 <Field label={t("signup.taxId")}>
@@ -253,7 +270,7 @@ export function EditCompanyDrawer({ companyId, onClose, onSaved }: Props) {
                 <Field label={t("signup.state")}>
                   <Input value={company.state_code} onChange={(e) => setCompany({ ...company, state_code: e.target.value.toUpperCase() })} maxLength={3} />
                 </Field>
-                <Field label={t("signup.city")}>
+                <Field label={t("signup.city")} required>
                   <Input value={company.city} onChange={(e) => setCompany({ ...company, city: e.target.value })} />
                 </Field>
                 <Field label={t("signup.address")}>

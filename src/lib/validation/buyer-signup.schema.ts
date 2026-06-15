@@ -15,12 +15,22 @@ export const stepAccountSchema = z
   });
 
 export const stepCompanySchema = z.object({
-  tax_id: z
+  registration_id: z
     .string()
     .trim()
     .min(1, { message: "signup.errors.required" })
-    .refine((v) => isValidCNPJ(v), { message: "cnpjInvalid" }),
-  legal_name: z.string().trim().min(2).max(160),
+    .max(40),
+  tax_id: z
+    .string()
+    .trim()
+    .optional()
+    .or(z.literal(""))
+    .refine((v) => !v || isValidCNPJ(v), { message: "cnpjInvalid" }),
+  legal_name: z
+    .string()
+    .trim()
+    .min(2, { message: "signup.errors.required" })
+    .max(160),
   trade_name: z.string().trim().min(2).max(160),
   city: z.string().trim().min(2).max(120),
   state_code: z.enum(UF_LIST as unknown as [string, ...string[]]),
@@ -107,7 +117,9 @@ export type AdditionalContact = z.infer<typeof additionalContactSchema>;
 
 export const stepBuyerProfileSchema = z.object({
   buyer_type: z.string().min(1),
-  interests_segments: z.array(z.string()),
+  interests_segments: z
+    .array(z.string())
+    .min(1, { message: "signup.errors.required" }),
   interests_destinations: z.array(z.string()),
   interests_destinations_free: z.string().max(500).optional().or(z.literal("")),
   interests_services: z.array(z.string()),
@@ -128,6 +140,7 @@ export type BuyerSignupData = {
   password: string;
   confirmPassword: string;
   // step 2
+  registration_id: string;
   tax_id: string;
   legal_name: string;
   trade_name: string;
