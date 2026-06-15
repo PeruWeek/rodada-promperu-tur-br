@@ -246,6 +246,7 @@ function SignupPage() {
         trade_name: data.trade_name,
         legal_name: data.legal_name,
         tax_id: data.tax_id,
+        registration_id: data.registration_id,
         city: data.city,
         state_code: data.state_code,
         website: data.website,
