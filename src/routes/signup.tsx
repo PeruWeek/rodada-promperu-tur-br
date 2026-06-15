@@ -508,9 +508,16 @@ function Step2({ data, set, errors, t }: StepProps) {
         <Label>{t("signup.country")}</Label>
         <Input value="Brasil" disabled className="mt-1.5" />
       </div>
+      <div>
+        <Label htmlFor="registration_id">{t("signup.registrationId")} *</Label>
+        <Input id="registration_id" value={data.registration_id}
+          onChange={(e) => set("registration_id", e.target.value)} className="mt-1.5" />
+        <p className="mt-1 text-xs text-muted-foreground">{t("signup.registrationIdHelp")}</p>
+        <FieldError msg={errors.registration_id} t={t} />
+      </div>
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
-          <Label htmlFor="tax_id">{t("signup.taxId")} *</Label>
+          <Label htmlFor="tax_id">{t("signup.taxId")}</Label>
           <Input id="tax_id" inputMode="numeric" placeholder="00.000.000/0000-00" value={data.tax_id}
             onChange={(e) => set("tax_id", formatCNPJ(e.target.value))} className="mt-1.5" />
           <p className="mt-1 text-xs text-muted-foreground">{t("signup.taxIdHelp")}</p>
