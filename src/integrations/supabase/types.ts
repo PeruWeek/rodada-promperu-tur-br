@@ -1474,6 +1474,7 @@ export type Database = {
         Row: {
           additional_contacts: Json
           buyer_type: string | null
+          buyer_types: string[]
           consent_data_sharing: boolean
           consent_data_sharing_at: string | null
           consent_marketing: boolean
@@ -1490,6 +1491,7 @@ export type Database = {
         Insert: {
           additional_contacts?: Json
           buyer_type?: string | null
+          buyer_types?: string[]
           consent_data_sharing?: boolean
           consent_data_sharing_at?: string | null
           consent_marketing?: boolean
@@ -1506,6 +1508,7 @@ export type Database = {
         Update: {
           additional_contacts?: Json
           buyer_type?: string | null
+          buyer_types?: string[]
           consent_data_sharing?: boolean
           consent_data_sharing_at?: string | null
           consent_marketing?: boolean

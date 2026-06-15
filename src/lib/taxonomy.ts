@@ -12,6 +12,7 @@ export const TAXONOMY: Record<TaxonomyKey, { value: string; pt: string; es: stri
     { value: "wellness", pt: "Bem-estar", es: "Bienestar" },
     { value: "leisure", pt: "Lazer", es: "Ocio" },
     { value: "weddings", pt: "Casamentos", es: "Bodas" },
+    { value: "sports_events", pt: "Eventos esportivos", es: "Eventos deportivos" },
   ],
   services: [
     { value: "dmc", pt: "DMC", es: "DMC" },
@@ -28,14 +29,12 @@ export const TAXONOMY: Record<TaxonomyKey, { value: string; pt: string; es: stri
   destinations: [
     { value: "lima", pt: "Lima", es: "Lima" },
     { value: "cusco", pt: "Cusco", es: "Cusco" },
-    { value: "machu_picchu", pt: "Machu Picchu", es: "Machu Picchu" },
     { value: "arequipa", pt: "Arequipa", es: "Arequipa" },
     { value: "puno_titicaca", pt: "Puno / Titicaca", es: "Puno / Titicaca" },
     { value: "amazon", pt: "Amazônia", es: "Amazonía" },
     { value: "nazca_paracas", pt: "Nazca / Paracas", es: "Nazca / Paracas" },
     { value: "trujillo", pt: "Trujillo", es: "Trujillo" },
     { value: "north_beaches", pt: "Praias do Norte", es: "Playas del Norte" },
-    { value: "sacred_valley", pt: "Vale Sagrado", es: "Valle Sagrado" },
   ],
   buyer_types: [
     { value: "agency", pt: "Agência de viagens", es: "Agencia de viajes" },

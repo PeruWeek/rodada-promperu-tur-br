@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { Plus, Trash2 } from "lucide-react";
 
 import { getCompanyForEdit, updateCompanyFull } from "@/lib/admin.functions";
-import { COUNTRIES, TAXONOMY } from "@/lib/taxonomy";
+import { COUNTRIES } from "@/lib/taxonomy";
 import { MultiSelectChips } from "@/components/multi-select-chips";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -56,14 +56,12 @@ type ProfileForm = {
 };
 
 type VisitorForm = {
-  buyer_type: string;
+  buyer_types: string[];
   interests_segments: string[];
   interests_destinations: string[];
   interests_destinations_free: string;
   interests_services: string[];
-  demand_profile: string;
   portfolio_pt: string;
-  portfolio_es: string;
   notes: string;
   consent_marketing: boolean;
 };
@@ -139,14 +137,14 @@ export function EditCompanyDrawer({ companyId, onClose, onSaved }: Props) {
     if (data.role === "visitor") {
       const v = (data.visitorProfile ?? {}) as Record<string, unknown>;
       setVisitor({
-        buyer_type: str(v.buyer_type),
+        buyer_types: strArr(v.buyer_types).length > 0
+          ? strArr(v.buyer_types)
+          : (str(v.buyer_type) ? [str(v.buyer_type)] : []),
         interests_segments: strArr(v.interests_segments),
         interests_destinations: strArr(v.interests_destinations),
         interests_destinations_free: str(v.interests_destinations_free),
         interests_services: strArr(v.interests_services),
-        demand_profile: str(v.demand_profile),
         portfolio_pt: str(v.portfolio_pt),
-        portfolio_es: str(v.portfolio_es),
         notes: str(v.notes),
         consent_marketing: bool(v.consent_marketing),
       });
@@ -326,18 +324,11 @@ export function EditCompanyDrawer({ companyId, onClose, onSaved }: Props) {
             {visitor && (
               <TabsContent value="visitor" className="mt-4 space-y-4">
                 <Field label={t("profile.buyerType")}>
-                  <select
-                    value={visitor.buyer_type}
-                    onChange={(e) => setVisitor({ ...visitor, buyer_type: e.target.value })}
-                    className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
-                  >
-                    <option value="">—</option>
-                    {TAXONOMY.buyer_types.map((b) => (
-                      <option key={b.value} value={b.value}>
-                        {lang === "es" ? b.es : b.pt}
-                      </option>
-                    ))}
-                  </select>
+                  <MultiSelectChips
+                    taxonomyKey="buyer_types"
+                    value={visitor.buyer_types}
+                    onChange={(v) => setVisitor({ ...visitor, buyer_types: v })}
+                  />
                 </Field>
                 <Field label={t("profile.interestsSegments")}>
                   <MultiSelectChips
@@ -366,29 +357,13 @@ export function EditCompanyDrawer({ companyId, onClose, onSaved }: Props) {
                     onChange={(e) => setVisitor({ ...visitor, interests_destinations_free: e.target.value })}
                   />
                 </Field>
-                <Field label={t("signup.demandProfile")}>
+                <Field label={t("profile.portfolioPt")}>
                   <Textarea
-                    value={visitor.demand_profile}
-                    onChange={(e) => setVisitor({ ...visitor, demand_profile: e.target.value })}
-                    rows={3}
+                    rows={4}
+                    value={visitor.portfolio_pt}
+                    onChange={(e) => setVisitor({ ...visitor, portfolio_pt: e.target.value })}
                   />
                 </Field>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <Field label={t("profile.portfolioPt")}>
-                    <Textarea
-                      rows={4}
-                      value={visitor.portfolio_pt}
-                      onChange={(e) => setVisitor({ ...visitor, portfolio_pt: e.target.value })}
-                    />
-                  </Field>
-                  <Field label={t("profile.portfolioEs")}>
-                    <Textarea
-                      rows={4}
-                      value={visitor.portfolio_es}
-                      onChange={(e) => setVisitor({ ...visitor, portfolio_es: e.target.value })}
-                    />
-                  </Field>
-                </div>
                 <Field label={t("profile.notes")}>
                   <Textarea
                     value={visitor.notes}

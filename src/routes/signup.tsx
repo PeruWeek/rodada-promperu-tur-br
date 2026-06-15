@@ -62,7 +62,7 @@ const emptyData: BuyerSignupData = {
   job_title: "",
   whatsapp: "",
   preferred_language: "pt-BR",
-  buyer_type: "",
+  buyer_types: [],
   interests_segments: [],
   consent_data_sharing: false,
   phone: "",
@@ -70,9 +70,7 @@ const emptyData: BuyerSignupData = {
   interests_destinations: [],
   interests_destinations_free: "",
   interests_services: [],
-  demand_profile: "",
   portfolio_pt: "",
-  portfolio_es: "",
   notes: "",
   consent_marketing: false,
 };
@@ -207,14 +205,12 @@ function SignupPage() {
         whatsapp: toE164BR(data.whatsapp),
         preferred_language: data.preferred_language,
         additional_contacts: [],
-        buyer_type: data.buyer_type,
+        buyer_types: data.buyer_types,
         interests_segments: data.interests_segments,
         interests_destinations: [],
         interests_destinations_free: "",
         interests_services: [],
-        demand_profile: "",
         portfolio_pt: "",
-        portfolio_es: "",
         notes: "",
         consent_data_sharing: data.consent_data_sharing,
         consent_marketing: false,
@@ -484,16 +480,12 @@ function Step3({ data, set, errors, t, lang }: StepProps & { lang: "pt" | "es" }
         </select>
       </div>
       <div>
-        <Label htmlFor="buyer_type">{t("signup.buyerType")} *</Label>
-        <select id="buyer_type" value={data.buyer_type}
-          onChange={(e) => set("buyer_type", e.target.value)}
-          className="mt-1.5 h-9 w-full rounded-md border border-input bg-background px-3 text-sm">
-          <option value="">—</option>
-          {TAXONOMY.buyer_types.map((b) => (
-            <option key={b.value} value={b.value}>{lang === "es" ? b.es : b.pt}</option>
-          ))}
-        </select>
-        <FieldError msg={errors.buyer_type} t={t} />
+        <Label>{t("signup.buyerType")} *</Label>
+        <div className="mt-1.5">
+          <MultiSelectChips taxonomyKey="buyer_types" value={data.buyer_types}
+            onChange={(v) => set("buyer_types", v)} />
+        </div>
+        <FieldError msg={errors.buyer_types} t={t} />
       </div>
       <div>
         <Label>{t("signup.segments")} *</Label>

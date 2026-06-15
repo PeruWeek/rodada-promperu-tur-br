@@ -133,8 +133,9 @@
     "website": "Sitio web",
     "phone": "Teléfono",
     "visitorSection": "Como visitante",
+    "companyProfileSection": "Perfil de la empresa",
     "exhibitorSection": "Como expositor",
-    "buyerType": "Tipo de comprador",
+    "buyerType": "Tipo de empresa",
     "interestsSegments": "Segmentos de interés",
     "interestsServices": "Servicios de interés",
     "interestsDestinations": "Destinos de interés",
@@ -145,7 +146,7 @@
     "pitchPt": "Pitch (PT)",
     "pitchEs": "Pitch (ES)",
     "pitchPlaceholder": "Presenta tu empresa en hasta 2 párrafos.",
-    "portfolioPt": "Portafolio (PT)",
+    "portfolioPt": "Perfil de la empresa",
     "portfolioEs": "Portafolio (ES)",
     "notes": "Notas",
     "materials": "Materiales (URLs)",
@@ -283,7 +284,8 @@
       "help": "Edita datos de registro y la ficha comercial (segmentos, pitch, materiales) de empresas visitantes y expositoras. Para crear, inactivar o eliminar un expositor, ve a Usuarios.",
       "roleAll": "Todos",
       "roleVisitor": "Visitantes",
-      "roleExhibitor": "Expositores"
+      "roleExhibitor": "Expositores",
+      "tabVisitor": "Perfil de la empresa"
     },
     "orphans": {
       "title": "Expositores sin empresa vinculada",
@@ -588,7 +590,7 @@
     "phone": "Teléfono",
     "whatsapp": "WhatsApp",
     "preferredLanguage": "Idioma preferido",
-    "buyerType": "Tipo de buyer",
+    "buyerType": "Tipo de empresa",
     "segments": "Segmentos de interés",
     "destinations": "Destinos de interés",
     "destinationsFreePlaceholder": "Otros destinos (separa por coma)",

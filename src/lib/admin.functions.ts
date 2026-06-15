@@ -296,14 +296,12 @@ const profilePatchSchema = z.object({
 });
 
 const visitorPatchSchema = z.object({
-  buyer_type: z.string().trim().max(60).nullable().optional(),
+  buyer_types: z.array(z.string().trim().min(1).max(60)).max(20).default([]),
   interests_segments: z.array(z.string()).max(50),
   interests_destinations: z.array(z.string()).max(50),
   interests_destinations_free: z.string().max(500).nullable().optional(),
   interests_services: z.array(z.string()).max(50),
-  demand_profile: z.string().max(2000).nullable().optional(),
   portfolio_pt: z.string().max(4000).nullable().optional(),
-  portfolio_es: z.string().max(4000).nullable().optional(),
   notes: z.string().max(2000).nullable().optional(),
   consent_marketing: z.boolean(),
 });
@@ -396,14 +394,13 @@ export const updateCompanyFull = createServerFn({ method: "POST" })
       const v = data.visitor;
       const { error: vErr } = await supabaseAdmin.from("visitor_profiles").upsert({
         profile_id: data.profileId,
-        buyer_type: v.buyer_type || null,
+        buyer_type: v.buyer_types[0] ?? null,
+        buyer_types: v.buyer_types,
         interests_segments: v.interests_segments,
         interests_destinations: v.interests_destinations,
         interests_destinations_free: v.interests_destinations_free || null,
         interests_services: v.interests_services,
-        demand_profile: v.demand_profile || null,
         portfolio_pt: v.portfolio_pt || null,
-        portfolio_es: v.portfolio_es || null,
         notes: v.notes || null,
         consent_marketing: v.consent_marketing,
       });
