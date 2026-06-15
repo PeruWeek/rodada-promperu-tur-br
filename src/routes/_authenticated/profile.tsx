@@ -101,8 +101,11 @@ function ProfilePage() {
     }
     if (extra.vis) {
       setBuyerTypes(
-        (extra.vis as { buyer_types?: string[] | null }).buyer_types ??
-          (extra.vis.buyer_type ? [extra.vis.buyer_type] : []),
+        extra.vis.buyer_types && extra.vis.buyer_types.length > 0
+          ? extra.vis.buyer_types
+          : extra.vis.buyer_type
+            ? [extra.vis.buyer_type]
+            : [],
       );
       setVSegments(extra.vis.interests_segments ?? []);
       setVServices(extra.vis.interests_services ?? []);
