@@ -47,7 +47,9 @@ export const stepContactProfileQuickSchema = z.object({
   job_title: z.string().trim().min(2).max(120),
   whatsapp: brWhatsapp,
   preferred_language: z.enum(["pt-BR", "es"]),
-  buyer_type: z.string().trim().min(1, { message: "signup.errors.required" }),
+  buyer_types: z
+    .array(z.string().trim().min(1))
+    .min(1, { message: "signup.errors.required" }),
   interests_segments: z
     .array(z.string())
     .min(1, { message: "signup.errors.required" }),
@@ -111,7 +113,7 @@ export type BuyerSignupData = {
   job_title: string;
   whatsapp: string;
   preferred_language: "pt-BR" | "es";
-  buyer_type: string;
+  buyer_types: string[];
   interests_segments: string[];
   consent_data_sharing: boolean;
   // perfil complementar (opcionais)
@@ -120,9 +122,7 @@ export type BuyerSignupData = {
   interests_destinations: string[];
   interests_destinations_free: string;
   interests_services: string[];
-  demand_profile: string;
   portfolio_pt: string;
-  portfolio_es: string;
   notes: string;
   consent_marketing: boolean;
 };
