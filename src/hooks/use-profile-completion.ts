@@ -38,11 +38,12 @@ export function useProfileCompletion() {
         !!company?.whatsapp?.trim() || !!company?.phone?.trim(),
       ];
       if (isVisitor && vis) {
+        const buyerTypes = (vis as { buyer_types?: string[] | null }).buyer_types ?? [];
         complementary.push(
-          !!vis.buyer_type,
+          Array.isArray(buyerTypes) && buyerTypes.length > 0,
           (vis.interests_segments ?? []).length > 0,
           (vis.interests_services ?? []).length > 0,
-          !!vis.portfolio_pt?.trim() || !!vis.portfolio_es?.trim(),
+          !!vis.portfolio_pt?.trim(),
         );
       }
       if (isExhibitor && exh) {
