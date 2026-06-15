@@ -85,7 +85,7 @@ function OnboardingPage() {
       setAutoFinishing(true);
       (async () => {
         try {
-          await completeExhibitorFn({ data: exhPayload as Parameters<typeof completeExhibitorFn>[0]["data"] });
+          await completeExhibitorFn({ data: exhPayload as never });
           try { sessionStorage.removeItem(EXHIBITOR_SIGNUP_STORAGE_KEY); } catch { /* ignore */ }
           try { await supabase.auth.updateUser({ data: { exhibitor_signup_payload: null } }); } catch { /* ignore */ }
           await qc.invalidateQueries();
