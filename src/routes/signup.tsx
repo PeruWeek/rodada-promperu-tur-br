@@ -792,11 +792,12 @@ function Step5({ data, set, errors, t, lang }: StepProps & { lang: "pt" | "es" }
         <FieldError msg={errors.buyer_type} t={t} />
       </div>
       <div>
-        <Label>{t("signup.segments")}</Label>
+        <Label>{t("signup.segments")} *</Label>
         <div className="mt-1.5">
           <MultiSelectChips taxonomyKey="segments" value={data.interests_segments}
             onChange={(v) => set("interests_segments", v)} />
         </div>
+        <FieldError msg={errors.interests_segments} t={t} />
       </div>
       <div>
         <Label>{t("signup.destinations")}</Label>
