@@ -106,10 +106,37 @@ function ExhibitorDetailPage() {
       </div>
 
       <div className="mt-8 grid gap-4 md:grid-cols-2">
-        {pitch && (
+        {(pitch || comp?.city || comp?.website || comp?.linkedin || comp?.instagram) && (
           <Card className="p-5 md:col-span-2">
             <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{t("explore.pitch")}</h2>
-            <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed">{pitch}</p>
+            {pitch && <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed">{pitch}</p>}
+            {(comp?.city || countryLabel) && (
+              <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
+                <span className="inline-flex items-center gap-1">
+                  <MapPin size={14} />
+                  {[comp?.city, countryLabel].filter(Boolean).join(", ")}
+                </span>
+              </div>
+            )}
+            {(comp?.website || comp?.linkedin || comp?.instagram) && (
+              <div className="mt-3 flex flex-wrap gap-3 text-sm">
+                {comp?.website && (
+                  <a href={comp.website} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-primary hover:underline">
+                    <Globe size={14} />{comp.website}
+                  </a>
+                )}
+                {comp?.linkedin && (
+                  <a href={comp.linkedin} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-primary hover:underline">
+                    <Linkedin size={14} />LinkedIn
+                  </a>
+                )}
+                {comp?.instagram && (
+                  <a href={comp.instagram} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-primary hover:underline">
+                    <Instagram size={14} />Instagram
+                  </a>
+                )}
+              </div>
+            )}
           </Card>
         )}
 
@@ -148,16 +175,6 @@ function ExhibitorDetailPage() {
           </Card>
         )}
 
-        {(comp?.website || comp?.linkedin || comp?.instagram) && (
-          <Card className="p-5 md:col-span-2">
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{t("explore.contact")}</h2>
-            <div className="mt-2 flex flex-wrap gap-3 text-sm">
-              {comp?.website && <a href={comp.website} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-primary hover:underline"><Globe size={14} />{comp.website}</a>}
-              {comp?.linkedin && <a href={comp.linkedin} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-primary hover:underline"><Linkedin size={14} />LinkedIn</a>}
-              {comp?.instagram && <a href={comp.instagram} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-primary hover:underline"><Instagram size={14} />Instagram</a>}
-            </div>
-          </Card>
-        )}
       </div>
     </div>
   );
