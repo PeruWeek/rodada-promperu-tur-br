@@ -58,7 +58,6 @@ function ProfilePage() {
   const [country, setCountry] = useState("");
   const [city, setCity] = useState("");
   const [website, setWebsite] = useState("");
-  const [phone, setPhone] = useState("");
   const [whatsapp, setWhatsapp] = useState("");
   const [linkedin, setLinkedin] = useState("");
   const [instagram, setInstagram] = useState("");
@@ -97,7 +96,6 @@ function ProfilePage() {
       setCountry(c.country_code ?? "");
       setCity(c.city ?? "");
       setWebsite(c.website ?? "");
-      setPhone(c.phone ?? "");
       setWhatsapp(c.whatsapp ?? "");
       setLinkedin(c.linkedin ?? "");
       setInstagram(c.instagram ?? "");
@@ -157,7 +155,6 @@ function ProfilePage() {
             country_code: country || "BR",
             city: city || null,
             website: website || null,
-            phone: phone || null,
             whatsapp: whatsapp || null,
             linkedin: linkedin || null,
             instagram: instagram || null,
@@ -295,7 +292,6 @@ function ProfilePage() {
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <div><Label htmlFor="website">{t("profile.website")}</Label><Input id="website" value={website} onChange={(e) => setWebsite(e.target.value)} className="mt-1.5" placeholder="https://" /></div>
-          <div><Label htmlFor="phone">{t("profile.phone")}</Label><Input id="phone" value={phone} onChange={(e) => setPhone(e.target.value)} className="mt-1.5" /></div>
           <div><Label htmlFor="whatsapp">WhatsApp</Label><Input id="whatsapp" value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} className="mt-1.5" /></div>
           <div><Label htmlFor="linkedin">LinkedIn</Label><Input id="linkedin" value={linkedin} onChange={(e) => setLinkedin(e.target.value)} className="mt-1.5" placeholder="https://" /></div>
           <div className="sm:col-span-2"><Label htmlFor="instagram">Instagram</Label><Input id="instagram" value={instagram} onChange={(e) => setInstagram(e.target.value)} className="mt-1.5" placeholder="https://" /></div>

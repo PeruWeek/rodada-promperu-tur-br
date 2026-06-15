@@ -43,7 +43,6 @@ type CompanyForm = {
   instagram: string;
   linkedin: string;
   general_phone: string;
-  phone: string;
   whatsapp: string;
   specialty: string;
   import_profile: string;
@@ -52,7 +51,6 @@ type CompanyForm = {
 type ProfileForm = {
   full_name: string;
   job_title: string;
-  phone: string;
   whatsapp: string;
   preferred_language: "pt-BR" | "es";
 };
@@ -124,7 +122,6 @@ export function EditCompanyDrawer({ companyId, onClose, onSaved }: Props) {
       instagram: str(c.instagram),
       linkedin: str(c.linkedin),
       general_phone: str(c.general_phone),
-      phone: str(c.phone),
       whatsapp: str(c.whatsapp),
       specialty: str(c.specialty),
       import_profile: str(c.import_profile),
@@ -135,7 +132,6 @@ export function EditCompanyDrawer({ companyId, onClose, onSaved }: Props) {
       setProfile({
         full_name: str(p.full_name),
         job_title: str(p.job_title),
-        phone: str(p.phone),
         whatsapp: str(p.whatsapp),
         preferred_language: langVal === "es" ? "es" : "pt-BR",
       });
@@ -309,9 +305,6 @@ export function EditCompanyDrawer({ companyId, onClose, onSaved }: Props) {
                 <div className="grid gap-4 sm:grid-cols-2">
                   <Field label={t("signup.jobTitle")}>
                     <Input value={profile.job_title} onChange={(e) => setProfile({ ...profile, job_title: e.target.value })} />
-                  </Field>
-                  <Field label={t("signup.phone")}>
-                    <Input value={profile.phone} onChange={(e) => setProfile({ ...profile, phone: e.target.value })} />
                   </Field>
                   <Field label="WhatsApp">
                     <Input value={profile.whatsapp} onChange={(e) => setProfile({ ...profile, whatsapp: e.target.value })} />
