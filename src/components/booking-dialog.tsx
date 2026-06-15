@@ -129,18 +129,10 @@ export function BookingDialog({
 
   const grouped = useMemo(() => {
     if (!data?.slots) return [];
-    type Slot = (typeof data.slots)[number];
-    const out: { period: string; items: Slot[] }[] = [];
-    const morning: Slot[] = [];
-    const afternoon: Slot[] = [];
-    for (const s of data.slots) {
-      const h = new Date(s.start_at).getUTCHours();
-      if (h < 18) morning.push(s);
-      else afternoon.push(s);
-    }
-    if (morning.length) out.push({ period: t("booking.morning"), items: morning });
-    if (afternoon.length) out.push({ period: t("booking.afternoon"), items: afternoon });
-    return out;
+    // Event grade restricted to morning only (09:00–14:00 America/Sao_Paulo).
+    // Render a single "Morning" group; no afternoon section.
+    if (data.slots.length === 0) return [];
+    return [{ period: t("booking.morning"), items: [...data.slots] }];
   }, [data, t]);
 
   return (
