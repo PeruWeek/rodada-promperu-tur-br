@@ -16,7 +16,7 @@ import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import { MultiSelectChips } from "@/components/multi-select-chips";
-import { COUNTRIES, TAXONOMY } from "@/lib/taxonomy";
+import { COUNTRIES } from "@/lib/taxonomy";
 import { useProfileCompletion } from "@/hooks/use-profile-completion";
 
 export const Route = createFileRoute("/_authenticated/profile")({
@@ -62,12 +62,11 @@ function ProfilePage() {
   const [linkedin, setLinkedin] = useState("");
   const [instagram, setInstagram] = useState("");
   // Visitor
-  const [buyerType, setBuyerType] = useState("");
+  const [buyerTypes, setBuyerTypes] = useState<string[]>([]);
   const [vSegments, setVSegments] = useState<string[]>([]);
   const [vServices, setVServices] = useState<string[]>([]);
   const [vDestinations, setVDestinations] = useState<string[]>([]);
   const [vPortPt, setVPortPt] = useState("");
-  const [vPortEs, setVPortEs] = useState("");
   const [vNotes, setVNotes] = useState("");
   // Exhibitor
   const [eSegments, setESegments] = useState<string[]>([]);
@@ -101,12 +100,14 @@ function ProfilePage() {
       setInstagram(c.instagram ?? "");
     }
     if (extra.vis) {
-      setBuyerType(extra.vis.buyer_type ?? "");
+      setBuyerTypes(
+        (extra.vis as { buyer_types?: string[] | null }).buyer_types ??
+          (extra.vis.buyer_type ? [extra.vis.buyer_type] : []),
+      );
       setVSegments(extra.vis.interests_segments ?? []);
       setVServices(extra.vis.interests_services ?? []);
       setVDestinations(extra.vis.interests_destinations ?? []);
       setVPortPt(extra.vis.portfolio_pt ?? "");
-      setVPortEs(extra.vis.portfolio_es ?? "");
       setVNotes(extra.vis.notes ?? "");
     }
     if (extra.exh) {
@@ -166,12 +167,12 @@ function ProfilePage() {
       if (isVisitor) {
         const { error: vErr } = await supabase.from("visitor_profiles").upsert({
           profile_id: profile.id,
-          buyer_type: buyerType || null,
+          buyer_type: buyerTypes[0] ?? null,
+          buyer_types: buyerTypes,
           interests_segments: vSegments,
           interests_services: vServices,
           interests_destinations: vDestinations,
           portfolio_pt: vPortPt || null,
-          portfolio_es: vPortEs || null,
           notes: vNotes || null,
         });
         if (vErr) throw vErr;
@@ -309,21 +310,12 @@ function ProfilePage() {
 
       {isVisitor && !isExhibitor && (
         <Card className="space-y-5 p-6">
-          <h2 className="text-lg font-semibold">{t("profile.visitorSection")}</h2>
-          <div>
-            <Label htmlFor="buyer">{t("profile.buyerType")}</Label>
-            <select id="buyer" value={buyerType} onChange={(e) => setBuyerType(e.target.value)} className="mt-1.5 h-9 w-full rounded-md border border-input bg-background px-3 text-sm">
-              <option value="">—</option>
-              {TAXONOMY.buyer_types.map((b) => <option key={b.value} value={b.value}>{lang === "es" ? b.es : b.pt}</option>)}
-            </select>
-          </div>
+          <h2 className="text-lg font-semibold">{t("profile.companyProfileSection")}</h2>
+          <ChipsField label={t("profile.buyerType")} value={buyerTypes} onChange={setBuyerTypes} taxonomyKey="buyer_types" />
           <ChipsField label={t("profile.interestsSegments")} value={vSegments} onChange={setVSegments} taxonomyKey="segments" />
           <ChipsField label={t("profile.interestsServices")} value={vServices} onChange={setVServices} taxonomyKey="services" />
           <ChipsField label={t("profile.interestsDestinations")} value={vDestinations} onChange={setVDestinations} taxonomyKey="destinations" />
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div><Label>{t("profile.portfolioPt")}</Label><Textarea value={vPortPt} onChange={(e) => setVPortPt(e.target.value)} rows={4} className="mt-1.5" /></div>
-            <div><Label>{t("profile.portfolioEs")}</Label><Textarea value={vPortEs} onChange={(e) => setVPortEs(e.target.value)} rows={4} className="mt-1.5" /></div>
-          </div>
+          <div><Label>{t("profile.portfolioPt")}</Label><Textarea value={vPortPt} onChange={(e) => setVPortPt(e.target.value)} rows={4} className="mt-1.5" /></div>
           <div><Label>{t("profile.notes")}</Label><Textarea value={vNotes} onChange={(e) => setVNotes(e.target.value)} rows={3} className="mt-1.5" /></div>
         </Card>
       )}
