@@ -526,6 +526,18 @@
   },
   "signup": {
     "stepLabel": "Paso {{current}} de {{total}}",
+    "quickTitle": "Registro rápido",
+    "quickSubtitle": "Solo los datos esenciales. Puedes completar el perfil después.",
+    "quickStepTitles": {
+      "1": "Cuenta",
+      "2": "Empresa",
+      "3": "Contacto y perfil"
+    },
+    "exhibitorCta": "Soy expositor (Perú) — registrarme aquí",
+    "buyerCta": "Soy buyer (Brasil) — registrarme aquí",
+    "completeProfileHint": "Después de confirmar tu correo podrás completar tu perfil en /perfil.",
+    "accountEmailNote": "Estamos usando el correo de tu cuenta: {{email}}.",
+    "complementaryHint": "Otros datos de la empresa (razón social, ID de registro, sitio, teléfono, etc.) se pueden completar después en \"Perfil\".",
     "stepTitles": {
       "1": "Cuenta",
       "2": "Empresa",
