@@ -38,9 +38,9 @@ export function useProfileCompletion() {
         !!company?.whatsapp?.trim() || !!company?.phone?.trim(),
       ];
       if (isVisitor && vis) {
-        const buyerTypes = (vis as { buyer_types?: string[] | null }).buyer_types ?? [];
+        const buyerTypes = vis.buyer_types ?? [];
         complementary.push(
-          Array.isArray(buyerTypes) && buyerTypes.length > 0,
+          buyerTypes.length > 0,
           (vis.interests_segments ?? []).length > 0,
           (vis.interests_services ?? []).length > 0,
           !!vis.portfolio_pt?.trim(),
