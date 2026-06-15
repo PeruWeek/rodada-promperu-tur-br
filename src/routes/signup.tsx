@@ -54,6 +54,7 @@ const emptyData: BuyerSignupData = {
   tax_id: "",
   legal_name: "",
   trade_name: "",
+  registration_id: "",
   city: "",
   state_code: "",
   website: "",
