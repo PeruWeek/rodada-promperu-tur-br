@@ -110,13 +110,22 @@
     "completeProfile": "Completa tu perfil para empezar a agendar.",
     "myAgenda": "Mi agenda",
     "tableAgenda": "Agenda de la mesa",
-    "awaitingTable": "Tu cuenta de expositor fue aprobada. Esperando asignación de mesa por la organización."
+    "awaitingTable": "Tu cuenta de expositor fue aprobada. Esperando asignación de mesa por la organización.",
+    "completionTitle": "Completa tu perfil",
+    "completionBody": "Faltan algunos campos para dejar tu perfil listo para matchmaking ({{percent}}%).",
+    "completionCta": "Completar perfil",
+    "completionDone": "¡Perfil completo!"
   },
   "profile": {
     "title": "Mi perfil",
     "subtitle": "Mantén tus datos actualizados para un mejor matchmaking.",
     "staffManagedByAdmin": "Tu perfil es gestionado por el organizador del evento.",
     "personal": "Datos personales",
+    "essentialSection": "Esencial",
+    "essentialHint": "Campos obligatorios para participar del matchmaking.",
+    "complementarySection": "Perfil complementario",
+    "complementaryHint": "Opcional — ayuda al algoritmo a hacer mejores matches.",
+    "completionLabel": "Perfil {{percent}}% completo",
     "preferredLanguage": "Idioma preferido",
     "companyLabel": "Empresa:",
     "nameLabel": "Nombre:",
