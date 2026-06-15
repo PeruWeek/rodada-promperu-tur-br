@@ -49,7 +49,7 @@ function LandingPage() {
           <p className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-primary">
             {t("landing.heroEyebrow")}
           </p>
-          <h1 className="mt-6 max-w-3xl text-4xl font-black leading-tight text-foreground sm:text-5xl md:text-6xl">
+          <h1 className="mt-6 max-w-3xl text-4xl font-black leading-tight text-foreground sm:text-5xl md:text-6xl whitespace-pre-line">
             {t("landing.heroTitle")}
           </h1>
           <p className="mt-6 max-w-2xl text-lg text-muted-foreground">
