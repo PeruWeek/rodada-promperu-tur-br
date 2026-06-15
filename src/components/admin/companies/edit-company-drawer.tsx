@@ -324,18 +324,11 @@ export function EditCompanyDrawer({ companyId, onClose, onSaved }: Props) {
             {visitor && (
               <TabsContent value="visitor" className="mt-4 space-y-4">
                 <Field label={t("profile.buyerType")}>
-                  <select
-                    value={visitor.buyer_type}
-                    onChange={(e) => setVisitor({ ...visitor, buyer_type: e.target.value })}
-                    className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
-                  >
-                    <option value="">—</option>
-                    {TAXONOMY.buyer_types.map((b) => (
-                      <option key={b.value} value={b.value}>
-                        {lang === "es" ? b.es : b.pt}
-                      </option>
-                    ))}
-                  </select>
+                  <MultiSelectChips
+                    taxonomyKey="buyer_types"
+                    value={visitor.buyer_types}
+                    onChange={(v) => setVisitor({ ...visitor, buyer_types: v })}
+                  />
                 </Field>
                 <Field label={t("profile.interestsSegments")}>
                   <MultiSelectChips
@@ -364,29 +357,13 @@ export function EditCompanyDrawer({ companyId, onClose, onSaved }: Props) {
                     onChange={(e) => setVisitor({ ...visitor, interests_destinations_free: e.target.value })}
                   />
                 </Field>
-                <Field label={t("signup.demandProfile")}>
+                <Field label={t("profile.portfolioPt")}>
                   <Textarea
-                    value={visitor.demand_profile}
-                    onChange={(e) => setVisitor({ ...visitor, demand_profile: e.target.value })}
-                    rows={3}
+                    rows={4}
+                    value={visitor.portfolio_pt}
+                    onChange={(e) => setVisitor({ ...visitor, portfolio_pt: e.target.value })}
                   />
                 </Field>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <Field label={t("profile.portfolioPt")}>
-                    <Textarea
-                      rows={4}
-                      value={visitor.portfolio_pt}
-                      onChange={(e) => setVisitor({ ...visitor, portfolio_pt: e.target.value })}
-                    />
-                  </Field>
-                  <Field label={t("profile.portfolioEs")}>
-                    <Textarea
-                      rows={4}
-                      value={visitor.portfolio_es}
-                      onChange={(e) => setVisitor({ ...visitor, portfolio_es: e.target.value })}
-                    />
-                  </Field>
-                </div>
                 <Field label={t("profile.notes")}>
                   <Textarea
                     value={visitor.notes}
