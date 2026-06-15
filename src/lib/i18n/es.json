@@ -110,13 +110,22 @@
     "completeProfile": "Completa tu perfil para empezar a agendar.",
     "myAgenda": "Mi agenda",
     "tableAgenda": "Agenda de la mesa",
-    "awaitingTable": "Tu cuenta de expositor fue aprobada. Esperando asignación de mesa por la organización."
+    "awaitingTable": "Tu cuenta de expositor fue aprobada. Esperando asignación de mesa por la organización.",
+    "completionTitle": "Completa tu perfil",
+    "completionBody": "Faltan algunos campos para dejar tu perfil listo para matchmaking ({{percent}}%).",
+    "completionCta": "Completar perfil",
+    "completionDone": "¡Perfil completo!"
   },
   "profile": {
     "title": "Mi perfil",
     "subtitle": "Mantén tus datos actualizados para un mejor matchmaking.",
     "staffManagedByAdmin": "Tu perfil es gestionado por el organizador del evento.",
     "personal": "Datos personales",
+    "essentialSection": "Esencial",
+    "essentialHint": "Campos obligatorios para participar del matchmaking.",
+    "complementarySection": "Perfil complementario",
+    "complementaryHint": "Opcional — ayuda al algoritmo a hacer mejores matches.",
+    "completionLabel": "Perfil {{percent}}% completo",
     "preferredLanguage": "Idioma preferido",
     "companyLabel": "Empresa:",
     "nameLabel": "Nombre:",
@@ -538,6 +547,15 @@
     "completeProfileHint": "Después de confirmar tu correo podrás completar tu perfil en /perfil.",
     "accountEmailNote": "Estamos usando el correo de tu cuenta: {{email}}.",
     "complementaryHint": "Otros datos de la empresa (razón social, ID de registro, sitio, teléfono, etc.) se pueden completar después en \"Perfil\".",
+    "exhibitor": {
+      "quickTitle": "Registro rápido — Expositor",
+      "quickSubtitle": "Solo los datos esenciales. Completas el perfil después de la aprobación.",
+      "cityRegion": "Ciudad / Región",
+      "segments": "Segmentos",
+      "services": "Servicios principales",
+      "complementaryHint": "Pitch, portafolio, destinos y materiales pueden completarse después en \"Perfil\".",
+      "afterEmailHint": "Después de confirmar el correo tu solicitud quedará pendiente de aprobación."
+    },
     "stepTitles": {
       "1": "Cuenta",
       "2": "Empresa",
