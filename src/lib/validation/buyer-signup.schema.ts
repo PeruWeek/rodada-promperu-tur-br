@@ -14,79 +14,46 @@ export const stepAccountSchema = z
     message: "passwordMismatch",
   });
 
-export const stepCompanySchema = z.object({
-  registration_id: z
-    .string()
-    .trim()
-    .min(1, { message: "signup.errors.required" })
-    .max(40),
+// Quick signup (Cadastro rápido): only the essentials. Everything else
+// lives in the Perfil complementar at /profile.
+export const stepCompanyQuickSchema = z.object({
   tax_id: z
     .string()
     .trim()
-    .optional()
-    .or(z.literal(""))
-    .refine((v) => !v || isValidCNPJ(v), { message: "cnpjInvalid" }),
-  legal_name: z
-    .string()
-    .trim()
-    .min(2, { message: "signup.errors.required" })
-    .max(160),
+    .min(1, { message: "signup.errors.required" })
+    .refine((v) => isValidCNPJ(v), { message: "cnpjInvalid" }),
   trade_name: z.string().trim().min(2).max(160),
   city: z.string().trim().min(2).max(120),
   state_code: z.enum(UF_LIST as unknown as [string, ...string[]]),
-  website: z
-    .string()
-    .trim()
-    .optional()
-    .or(z.literal(""))
-    .refine((v) => !v || /^https?:\/\/.+\..+/.test(v), { message: "urlInvalid" }),
-  instagram: optTrim,
-  linkedin: optTrim,
-  address: optTrim,
-  general_phone: z.string().optional().or(z.literal("")).superRefine((v, ctx) => {
-    if (!v) return;
-    const r = validateBRPhoneDetailed(v);
-    if (!r.ok) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: `signup.errors.phone${r.reason[0].toUpperCase()}${r.reason.slice(1)}`,
-      });
-    }
-  }),
-  specialty: optTrim,
-  import_profile: z.string().trim().max(2000).optional().or(z.literal("")),
 });
 
-export const stepContactSchema = z.object({
+const brWhatsapp = z.string().superRefine((v, ctx) => {
+  if (!v) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "signup.errors.required" });
+    return;
+  }
+  const r = validateBRPhoneDetailed(v);
+  if (!r.ok) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: `signup.errors.phone${r.reason[0].toUpperCase()}${r.reason.slice(1)}`,
+    });
+  }
+});
+
+// Step 3: contact + minimum profile classification + consent.
+export const stepContactProfileQuickSchema = z.object({
   full_name: z.string().trim().min(2).max(160),
   job_title: z.string().trim().min(2).max(120),
-  phone: z.string().superRefine((v, ctx) => {
-    if (!v) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "signup.errors.required" });
-      return;
-    }
-    const r = validateBRPhoneDetailed(v);
-    if (!r.ok) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: `signup.errors.phone${r.reason[0].toUpperCase()}${r.reason.slice(1)}`,
-      });
-    }
-  }),
-  whatsapp: z.string().superRefine((v, ctx) => {
-    if (!v) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "signup.errors.required" });
-      return;
-    }
-    const r = validateBRPhoneDetailed(v);
-    if (!r.ok) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: `signup.errors.phone${r.reason[0].toUpperCase()}${r.reason.slice(1)}`,
-      });
-    }
-  }),
+  whatsapp: brWhatsapp,
   preferred_language: z.enum(["pt-BR", "es"]),
+  buyer_type: z.string().trim().min(1, { message: "signup.errors.required" }),
+  interests_segments: z
+    .array(z.string())
+    .min(1, { message: "signup.errors.required" }),
+  consent_data_sharing: z.literal(true, {
+    errorMap: () => ({ message: "consentRequired" }),
+  }),
 });
 
 const additionalContactSchema = z.object({
@@ -109,43 +76,29 @@ const additionalContactSchema = z.object({
   linkedin: z.string().trim().max(255).optional().or(z.literal("")),
 });
 
-export const stepAdditionalContactsSchema = z.object({
-  additional_contacts: z.array(additionalContactSchema).max(5),
-});
-
 export type AdditionalContact = z.infer<typeof additionalContactSchema>;
 
-export const stepBuyerProfileSchema = z.object({
-  buyer_type: z.string().min(1),
-  interests_segments: z
-    .array(z.string())
-    .min(1, { message: "signup.errors.required" }),
-  interests_destinations: z.array(z.string()),
-  interests_destinations_free: z.string().max(500).optional().or(z.literal("")),
-  interests_services: z.array(z.string()),
-  demand_profile: z.string().max(1000).optional().or(z.literal("")),
-});
+// Optional helper exported for /profile validation of the complementary block.
+export const additionalContactsSchema = z
+  .array(additionalContactSchema)
+  .max(5);
 
-export const stepPortfolioSchema = z.object({
-  portfolio_pt: z.string().max(4000).optional().or(z.literal("")),
-  portfolio_es: z.string().max(4000).optional().or(z.literal("")),
-  notes: z.string().max(500).optional().or(z.literal("")),
-  consent_data_sharing: z.literal(true, { errorMap: () => ({ message: "consentRequired" }) }),
-  consent_marketing: z.boolean(),
-});
+// Re-exported aliases kept for any legacy import.
+export { additionalContactSchema };
 
 export type BuyerSignupData = {
   // step 1 (not persisted to sessionStorage)
   email: string;
   password: string;
   confirmPassword: string;
-  // step 2
-  registration_id: string;
+  // step 2 — Cadastro rápido (essenciais)
   tax_id: string;
-  legal_name: string;
   trade_name: string;
   city: string;
   state_code: string;
+  // perfil complementar (opcionais)
+  registration_id: string;
+  legal_name: string;
   website: string;
   instagram: string;
   linkedin: string;
@@ -153,26 +106,24 @@ export type BuyerSignupData = {
   general_phone: string;
   specialty: string;
   import_profile: string;
-  // step 3
+  // step 3 — contato + perfil mínimo
   full_name: string;
   job_title: string;
-  phone: string;
   whatsapp: string;
   preferred_language: "pt-BR" | "es";
-  // step 4 (additional contacts)
-  additional_contacts: AdditionalContact[];
-  // step 5 (buyer profile)
   buyer_type: string;
   interests_segments: string[];
+  consent_data_sharing: boolean;
+  // perfil complementar (opcionais)
+  phone: string;
+  additional_contacts: AdditionalContact[];
   interests_destinations: string[];
   interests_destinations_free: string;
   interests_services: string[];
   demand_profile: string;
-  // step 6 (portfolio + consent)
   portfolio_pt: string;
   portfolio_es: string;
   notes: string;
-  consent_data_sharing: boolean;
   consent_marketing: boolean;
 };
 

@@ -13,7 +13,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useProfile, getPrimaryRole } from "@/hooks/use-profile";
 import { requestExhibitorAccess } from "@/lib/exhibitor-requests.functions";
+import { completeExhibitorSignup } from "@/lib/exhibitor-requests.functions";
 import { BUYER_SIGNUP_STORAGE_KEY } from "@/lib/validation/buyer-signup.schema";
+import { EXHIBITOR_SIGNUP_STORAGE_KEY } from "@/lib/validation/exhibitor-signup.schema";
 
 export const Route = createFileRoute("/onboarding")({ component: OnboardingPage });
 
@@ -26,6 +28,7 @@ function OnboardingPage() {
   const { user, loading: authLoading } = useAuth();
   const { data: profile } = useProfile();
   const requestExhibitorFn = useServerFn(requestExhibitorAccess);
+  const completeExhibitorFn = useServerFn(completeExhibitorSignup);
   const [kind, setKind] = useState<Kind | null>(null);
   const [fullName, setFullName] = useState("");
   const [companyName, setCompanyName] = useState("");
@@ -68,6 +71,33 @@ function OnboardingPage() {
   // If the buyer wizard left a pending payload, finalize automatically and skip the kind picker.
   useEffect(() => {
     if (!user || !profile || autoFinishing) return;
+    // Exhibitor quick-signup payload takes priority over buyer payload.
+    let exhRaw: string | null = null;
+    try { exhRaw = sessionStorage.getItem(EXHIBITOR_SIGNUP_STORAGE_KEY); } catch { /* ignore */ }
+    let exhPayload: Record<string, unknown> | null = null;
+    if (exhRaw) { try { exhPayload = JSON.parse(exhRaw); } catch { exhPayload = null; } }
+    if (!exhPayload) {
+      const meta = (user.user_metadata ?? {}) as Record<string, unknown>;
+      const fromMeta = meta.exhibitor_signup_payload;
+      if (fromMeta && typeof fromMeta === "object") exhPayload = fromMeta as Record<string, unknown>;
+    }
+    if (exhPayload) {
+      setAutoFinishing(true);
+      (async () => {
+        try {
+          await completeExhibitorFn({ data: exhPayload as never });
+          try { sessionStorage.removeItem(EXHIBITOR_SIGNUP_STORAGE_KEY); } catch { /* ignore */ }
+          try { await supabase.auth.updateUser({ data: { exhibitor_signup_payload: null } }); } catch { /* ignore */ }
+          await qc.invalidateQueries();
+          toast.success(t("onboarding.requestedExhibitor"));
+          navigate({ to: "/pending-exhibitor" });
+        } catch (err) {
+          setAutoFinishing(false);
+          toast.error(err instanceof Error ? err.message : "erro");
+        }
+      })();
+      return;
+    }
     let raw: string | null = null;
     try { raw = sessionStorage.getItem(BUYER_SIGNUP_STORAGE_KEY); } catch { /* ignore */ }
     let payload: Record<string, unknown> | null = null;
@@ -101,7 +131,7 @@ function OnboardingPage() {
         toast.error(err instanceof Error ? err.message : "erro");
       }
     })();
-  }, [user, profile, autoFinishing, qc, navigate, t]);
+  }, [user, profile, autoFinishing, qc, navigate, t, completeExhibitorFn]);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
