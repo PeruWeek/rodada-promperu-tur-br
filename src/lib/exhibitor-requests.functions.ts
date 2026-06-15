@@ -55,6 +55,118 @@ export const requestExhibitorAccess = createServerFn({ method: "POST" })
     return { ok: true, status: "pending" as const };
   });
 
+const completeExhibitorSchema = z.object({
+  trade_name: z.string().trim().min(2).max(160),
+  city: z.string().trim().min(2).max(120),
+  full_name: z.string().trim().min(2).max(160),
+  job_title: z.string().trim().min(2).max(120),
+  whatsapp: z.string().trim().min(6).max(40),
+  preferred_language: z.enum(["pt-BR", "es"]),
+  segments: z.array(z.string()).min(1).max(50),
+  services: z.array(z.string()).min(1).max(50),
+});
+
+/**
+ * Finalizes the exhibitor quick signup: creates the company (PE), updates
+ * the caller's profile, seeds exhibitor_profiles, and opens a pending
+ * exhibitor_request. Idempotent — safe to call twice on retry.
+ */
+export const completeExhibitorSignup = createServerFn({ method: "POST" })
+  .inputValidator((input) => completeExhibitorSchema.parse(input))
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    const { userId } = context;
+
+    // Block if user already has elevated role.
+    const { data: roles } = await supabaseAdmin
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", userId);
+    if ((roles ?? []).some((r) => ["admin", "staff"].includes(r.role))) {
+      throw new Error("Conta de admin/staff não pode virar expositor.");
+    }
+
+    // Resolve profile.
+    const { data: prof, error: pErr } = await supabaseAdmin
+      .from("profiles")
+      .select("id, company_id")
+      .eq("auth_user_id", userId)
+      .maybeSingle();
+    if (pErr) throw new Error(pErr.message);
+    if (!prof) throw new Error("Profile not found");
+
+    // Create company if the profile doesn't have one yet.
+    let companyId = prof.company_id;
+    if (!companyId) {
+      const { data: comp, error: cErr } = await supabaseAdmin
+        .from("companies")
+        .insert({
+          trade_name: data.trade_name,
+          country_code: "PE",
+          city: data.city,
+        })
+        .select("id")
+        .single();
+      if (cErr) throw new Error(cErr.message);
+      companyId = comp.id;
+      const { error: linkErr } = await supabaseAdmin
+        .from("profiles")
+        .update({ company_id: companyId })
+        .eq("id", prof.id);
+      if (linkErr) throw new Error(linkErr.message);
+    } else {
+      // Patch core fields if missing.
+      await supabaseAdmin
+        .from("companies")
+        .update({
+          trade_name: data.trade_name,
+          country_code: "PE",
+          city: data.city,
+        })
+        .eq("id", companyId);
+    }
+
+    // Patch personal profile fields.
+    await supabaseAdmin
+      .from("profiles")
+      .update({
+        full_name: data.full_name,
+        job_title: data.job_title,
+        whatsapp: data.whatsapp,
+        phone: data.whatsapp,
+        preferred_language: data.preferred_language,
+      })
+      .eq("id", prof.id);
+
+    // Seed exhibitor_profile (upsert by profile_id).
+    const { error: epErr } = await supabaseAdmin
+      .from("exhibitor_profiles")
+      .upsert(
+        {
+          profile_id: prof.id,
+          segments: data.segments,
+          services: data.services,
+        },
+        { onConflict: "profile_id" },
+      );
+    if (epErr) throw new Error(epErr.message);
+
+    // Open (or reuse) the pending exhibitor request.
+    const { data: existing } = await supabaseAdmin
+      .from("exhibitor_requests")
+      .select("id, status")
+      .eq("profile_id", prof.id)
+      .maybeSingle();
+    if (!existing) {
+      const { error: rErr } = await supabaseAdmin
+        .from("exhibitor_requests")
+        .insert({ profile_id: prof.id, status: "pending" });
+      if (rErr) throw new Error(rErr.message);
+    }
+
+    return { ok: true };
+  });
+
 export const getMyExhibitorRequest = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
