@@ -78,8 +78,14 @@ function ExhibitorDetailPage() {
   }
 
   const { exh, prof, comp, table } = data;
-  const pitch = lang === "es" ? exh.pitch_es : exh.pitch_pt;
-  const portfolio = lang === "es" ? exh.portfolio_es : exh.portfolio_pt;
+  // Fallback to the other language so a description filled only in PT (or only in ES)
+  // still appears for visitors browsing in the other locale.
+  const pitch = lang === "es"
+    ? (exh.pitch_es || exh.pitch_pt)
+    : (exh.pitch_pt || exh.pitch_es);
+  const portfolio = lang === "es"
+    ? (exh.portfolio_es || exh.portfolio_pt)
+    : (exh.portfolio_pt || exh.portfolio_es);
   const country = COUNTRIES.find((c) => c.value === comp?.country_code);
   const countryLabel = country ? (lang === "es" ? country.es : country.pt) : comp?.country_code;
 
