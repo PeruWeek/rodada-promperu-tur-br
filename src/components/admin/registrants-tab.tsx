@@ -1,14 +1,15 @@
-import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { Download, FileArchive, FileSpreadsheet, FileText, Files, Search } from "lucide-react";
+import { Ban, Download, FileArchive, FileSpreadsheet, FileText, Files, Search, UserCog, UserCheck } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
@@ -18,11 +19,33 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   getParticipantAgenda,
   listEventRegistrants,
   listBulkAgendas,
   type RegistrantRow,
 } from "@/lib/staff-exports.functions";
+import {
+  adminUpdateUserEmail,
+  adminUpdateUserProfile,
+} from "@/lib/admin-auth.functions";
+import { hasRole, useProfile } from "@/hooks/use-profile";
 import { downloadBlob, toCsv } from "@/lib/exports/csv";
 import { downloadXlsx } from "@/lib/exports/xlsx";
 import { buildAgendaPdf } from "@/lib/pdf";
@@ -81,13 +104,21 @@ function buildExportArrays(rows: RegistrantRow[], t: (k: string) => string) {
 
 export function RegistrantsTab() {
   const { t, i18n } = useTranslation();
+  const qc = useQueryClient();
+  const { data: me } = useProfile();
+  const isAdmin = hasRole(me?.roles, "admin");
   const listFn = useServerFn(listEventRegistrants);
   const agendaFn = useServerFn(getParticipantAgenda);
   const bulkFn = useServerFn(listBulkAgendas);
+  const updateProfileFn = useServerFn(adminUpdateUserProfile);
+  const updateEmailFn = useServerFn(adminUpdateUserEmail);
   const [role, setRole] = useState<RoleFilter>("all");
   const [search, setSearch] = useState("");
   const [agendaLoadingId, setAgendaLoadingId] = useState<string | null>(null);
   const [bulkLoading, setBulkLoading] = useState<null | "pdf" | "zip">(null);
+  const [cancelTarget, setCancelTarget] = useState<RegistrantRow | null>(null);
+  const [reactivateTarget, setReactivateTarget] = useState<RegistrantRow | null>(null);
+  const [replaceTarget, setReplaceTarget] = useState<RegistrantRow | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ["registrants", role, search],
@@ -95,6 +126,48 @@ export function RegistrantsTab() {
   });
 
   const rows = useMemo(() => data?.rows ?? [], [data]);
+
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ["registrants"] });
+    qc.invalidateQueries({ queryKey: ["admin-users"] });
+  };
+
+  const activeMut = useMutation({
+    mutationFn: async (v: { userId: string; is_active: boolean }) =>
+      updateProfileFn({ data: v }),
+    onSuccess: (_r, v) => {
+      toast.success(
+        v.is_active
+          ? t("admin.registrants.toasts.reactivated")
+          : t("admin.registrants.toasts.cancelled"),
+      );
+      setCancelTarget(null);
+      setReactivateTarget(null);
+      invalidate();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const replaceMut = useMutation({
+    mutationFn: async (v: {
+      userId: string;
+      currentEmail: string | null;
+      full_name: string;
+      newEmail: string;
+    }) => {
+      await updateProfileFn({ data: { userId: v.userId, full_name: v.full_name } });
+      if (v.newEmail && v.newEmail.toLowerCase() !== (v.currentEmail ?? "").toLowerCase()) {
+        await updateEmailFn({ data: { userId: v.userId, newEmail: v.newEmail } });
+      }
+      return { ok: true };
+    },
+    onSuccess: () => {
+      toast.success(t("admin.registrants.toasts.replaced"));
+      setReplaceTarget(null);
+      invalidate();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
 
   const exportCsv = () => {
     if (rows.length === 0) return;
@@ -269,6 +342,11 @@ export function RegistrantsTab() {
                       ? t("admin.companies.roleExhibitor")
                       : t("admin.companies.roleVisitor")}
                   </Badge>
+                  {!r.is_active && (
+                    <Badge variant="outline" className="border-amber-500 text-amber-700 dark:text-amber-400">
+                      {t("admin.registrants.inactiveBadge")}
+                    </Badge>
+                  )}
                   {r.scheduled_meetings_count > 0 && (
                     <Badge variant="outline">
                       {t("admin.registrants.meetingsCount", {
@@ -285,17 +363,51 @@ export function RegistrantsTab() {
                     : ""}
                 </p>
               </div>
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={agendaLoadingId === r.profile_id}
-                onClick={() => downloadAgendaPdf(r)}
-              >
-                <Download size={14} />{" "}
-                {agendaLoadingId === r.profile_id
-                  ? t("common.loading")
-                  : t("admin.registrants.downloadAgenda")}
-              </Button>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={agendaLoadingId === r.profile_id}
+                  onClick={() => downloadAgendaPdf(r)}
+                >
+                  <Download size={14} />{" "}
+                  {agendaLoadingId === r.profile_id
+                    ? t("common.loading")
+                    : t("admin.registrants.downloadAgenda")}
+                </Button>
+                {isAdmin && r.auth_user_id && (
+                  <>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setReplaceTarget(r)}
+                      title={t("admin.registrants.actions.replace")}
+                    >
+                      <UserCog size={14} /> {t("admin.registrants.actions.replace")}
+                    </Button>
+                    {r.is_active ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-destructive hover:text-destructive"
+                        onClick={() => setCancelTarget(r)}
+                        title={t("admin.registrants.actions.cancel")}
+                      >
+                        <Ban size={14} /> {t("admin.registrants.actions.cancel")}
+                      </Button>
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setReactivateTarget(r)}
+                        title={t("admin.registrants.actions.reactivate")}
+                      >
+                        <UserCheck size={14} /> {t("admin.registrants.actions.reactivate")}
+                      </Button>
+                    )}
+                  </>
+                )}
+              </div>
             </div>
           ))}
         </div>
@@ -306,6 +418,160 @@ export function RegistrantsTab() {
           {t("admin.registrants.total", { count: rows.length })}
         </p>
       )}
+
+      <AlertDialog open={!!cancelTarget} onOpenChange={(o) => !o && setCancelTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("admin.registrants.cancelDialog.title")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("admin.registrants.cancelDialog.description", {
+                name: cancelTarget?.full_name ?? "",
+              })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {cancelTarget?.role === "exhibitor" && (
+            <p className="rounded-md border border-amber-500/40 bg-amber-50 p-3 text-xs text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+              {t("admin.registrants.cancelDialog.exhibitorImpact")}
+            </p>
+          )}
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() =>
+                cancelTarget &&
+                activeMut.mutate({ userId: cancelTarget.auth_user_id, is_active: false })
+              }
+              disabled={activeMut.isPending}
+            >
+              {t("admin.registrants.cancelDialog.confirm")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={!!reactivateTarget}
+        onOpenChange={(o) => !o && setReactivateTarget(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("admin.registrants.reactivateDialog.title")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("admin.registrants.reactivateDialog.description", {
+                name: reactivateTarget?.full_name ?? "",
+              })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() =>
+                reactivateTarget &&
+                activeMut.mutate({ userId: reactivateTarget.auth_user_id, is_active: true })
+              }
+              disabled={activeMut.isPending}
+            >
+              {t("admin.registrants.reactivateDialog.confirm")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <ReplaceContactDialog
+        target={replaceTarget}
+        onClose={() => setReplaceTarget(null)}
+        submitting={replaceMut.isPending}
+        onSubmit={(v) =>
+          replaceTarget &&
+          replaceMut.mutate({
+            userId: replaceTarget.auth_user_id,
+            currentEmail: replaceTarget.email,
+            full_name: v.full_name,
+            newEmail: v.email,
+          })
+        }
+      />
     </Card>
+  );
+}
+
+function ReplaceContactDialog({
+  target,
+  onClose,
+  onSubmit,
+  submitting,
+}: {
+  target: RegistrantRow | null;
+  onClose: () => void;
+  onSubmit: (v: { full_name: string; email: string }) => void;
+  submitting: boolean;
+}) {
+  const { t } = useTranslation();
+  const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
+
+  useEffect(() => {
+    if (target) {
+      setFullName(target.full_name === "—" ? "" : target.full_name);
+      setEmail(target.email ?? "");
+    }
+  }, [target]);
+
+  const valid =
+    fullName.trim().length > 0 && email.trim().length > 3 && email.includes("@");
+
+  return (
+    <Dialog open={!!target} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{t("admin.registrants.replaceDialog.title")}</DialogTitle>
+        </DialogHeader>
+        <p className="text-xs text-muted-foreground">
+          {t("admin.registrants.replaceDialog.description")}
+        </p>
+        {target?.role === "exhibitor" && (
+          <p className="rounded-md border border-amber-500/40 bg-amber-50 p-3 text-xs text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+            {t("admin.registrants.replaceDialog.exhibitorImpact")}
+          </p>
+        )}
+        {target && (
+          <div className="rounded-md bg-muted/40 p-2 text-xs">
+            <span className="font-medium">{target.company_trade_name}</span>
+          </div>
+        )}
+        <div className="grid gap-3">
+          <div>
+            <Label className="text-xs">{t("admin.registrants.replaceDialog.name")}</Label>
+            <Input value={fullName} onChange={(e) => setFullName(e.target.value)} />
+          </div>
+          <div>
+            <Label className="text-xs">{t("admin.registrants.replaceDialog.email")}</Label>
+            <Input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+            <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
+              {t("admin.registrants.replaceDialog.emailHint")}
+            </p>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose}>
+            {t("common.cancel")}
+          </Button>
+          <Button
+            disabled={!valid || submitting}
+            onClick={() =>
+              onSubmit({ full_name: fullName.trim(), email: email.trim().toLowerCase() })
+            }
+          >
+            {submitting
+              ? t("common.loading")
+              : t("admin.registrants.replaceDialog.confirm")}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

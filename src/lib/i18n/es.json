@@ -327,6 +327,37 @@
       "empty": "No se encontraron inscritos.",
       "downloadAgenda": "Agenda (PDF)",
       "noAgenda": "Este participante no tiene reuniones agendadas.",
+      "inactiveBadge": "Inactivo",
+      "actions": {
+        "cancel": "Cancelar inscripción",
+        "reactivate": "Reactivar inscripción",
+        "replace": "Sustituir contacto"
+      },
+      "cancelDialog": {
+        "title": "Cancelar inscripción",
+        "description": "El usuario {{name}} será desactivado y no podrá acceder a la plataforma. El historial, las reuniones y la empresa se preservan. Esta acción es reversible.",
+        "exhibitorImpact": "Este inscrito es expositor. Al cancelar: la empresa y la mesa asignada se mantienen; las reuniones ya agendadas siguen en el historial, pero el expositor no podrá ingresar. Revisa la mesa/agenda si es necesario.",
+        "confirm": "Cancelar inscripción"
+      },
+      "reactivateDialog": {
+        "title": "Reactivar inscripción",
+        "description": "El usuario {{name}} volverá a tener acceso a la plataforma.",
+        "confirm": "Reactivar"
+      },
+      "replaceDialog": {
+        "title": "Sustituir contacto",
+        "description": "Úsalo para cambiar la persona responsable manteniendo la misma empresa. Actualiza nombre y correo del usuario existente. Historial, mesa y agenda permanecen vinculados.",
+        "exhibitorImpact": "Este inscrito es expositor. La empresa, la mesa y las reuniones agendadas siguen vinculadas a esta cuenta — el nuevo contacto las recibirá de inmediato. Avisa al contacto anterior antes de cambiar el correo.",
+        "name": "Nombre del nuevo contacto",
+        "email": "Correo del nuevo contacto",
+        "emailHint": "Si cambia, el nuevo correo se vuelve el inicio de sesión de inmediato. Déjalo igual para mantener.",
+        "confirm": "Guardar sustitución"
+      },
+      "toasts": {
+        "cancelled": "Inscripción cancelada.",
+        "reactivated": "Inscripción reactivada.",
+        "replaced": "Contacto sustituido."
+      },
       "bulk": {
         "pdf": "PDF consolidado",
         "zip": "ZIP individual",
