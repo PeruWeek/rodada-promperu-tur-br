@@ -124,6 +124,19 @@ function ProfilePage() {
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!profile) return;
+    // Exhibitor: require pitch in the contact's preferred language only.
+    if (isExhibitor) {
+      const needsPt = prefLang === "pt-BR";
+      const missingPitch = needsPt ? !pitchPt.trim() : !pitchEs.trim();
+      if (missingPitch) {
+        toast.error(
+          needsPt
+            ? t("profile.pitchPtRequired", { defaultValue: "Informe o pitch em PT." })
+            : t("profile.pitchEsRequired", { defaultValue: "Informa el pitch en ES." }),
+        );
+        return;
+      }
+    }
     setSaving(true);
     try {
       const { error: pErr } = await supabase
@@ -300,8 +313,8 @@ function ProfilePage() {
           <ChipsField label={t("profile.destinations")} value={eDestinations} onChange={setEDestinations} taxonomyKey="destinations" />
           <ChipsField label={t("profile.targetBuyers")} value={eTargetBuyers} onChange={setETargetBuyers} taxonomyKey="buyer_types" />
           <div className="grid gap-4 sm:grid-cols-2">
-            <div><Label>{t("profile.pitchPt")}</Label><Textarea value={pitchPt} onChange={(e) => setPitchPt(e.target.value)} rows={4} className="mt-1.5" placeholder={t("profile.pitchPlaceholder") ?? ""} /></div>
-            <div><Label>{t("profile.pitchEs")}</Label><Textarea value={pitchEs} onChange={(e) => setPitchEs(e.target.value)} rows={4} className="mt-1.5" /></div>
+            <div><Label>{t("profile.pitchPt")}{prefLang === "pt-BR" ? " *" : ""}</Label><Textarea value={pitchPt} onChange={(e) => setPitchPt(e.target.value)} rows={4} className="mt-1.5" placeholder={t("profile.pitchPlaceholder") ?? ""} /></div>
+            <div><Label>{t("profile.pitchEs")}{prefLang === "es" ? " *" : ""}</Label><Textarea value={pitchEs} onChange={(e) => setPitchEs(e.target.value)} rows={4} className="mt-1.5" /></div>
             <div><Label>{t("profile.portfolioPt")}</Label><Textarea value={ePortPt} onChange={(e) => setEPortPt(e.target.value)} rows={4} className="mt-1.5" /></div>
             <div><Label>{t("profile.portfolioEs")}</Label><Textarea value={ePortEs} onChange={(e) => setEPortEs(e.target.value)} rows={4} className="mt-1.5" /></div>
           </div>
