@@ -538,6 +538,15 @@
     "completeProfileHint": "Después de confirmar tu correo podrás completar tu perfil en /perfil.",
     "accountEmailNote": "Estamos usando el correo de tu cuenta: {{email}}.",
     "complementaryHint": "Otros datos de la empresa (razón social, ID de registro, sitio, teléfono, etc.) se pueden completar después en \"Perfil\".",
+    "exhibitor": {
+      "quickTitle": "Registro rápido — Expositor",
+      "quickSubtitle": "Solo los datos esenciales. Completas el perfil después de la aprobación.",
+      "cityRegion": "Ciudad / Región",
+      "segments": "Segmentos",
+      "services": "Servicios principales",
+      "complementaryHint": "Pitch, portafolio, destinos y materiales pueden completarse después en \"Perfil\".",
+      "afterEmailHint": "Después de confirmar el correo tu solicitud quedará pendiente de aprobación."
+    },
     "stepTitles": {
       "1": "Cuenta",
       "2": "Empresa",
