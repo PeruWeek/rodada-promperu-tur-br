@@ -9,7 +9,10 @@ export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
       { title: "Rodada de Negócios Promperu 2026 — Matchmaking MICE Peru × Brasil" },
-      { name: "description", content: "Plataforma oficial de matchmaking e agendamento da Rodada de Negócios MICE Peru × Brasil. 08 de julho de 2026." },
+      {
+        name: "description",
+        content: "Plataforma oficial de matchmaking e agendamento da Rodada de Negócios MICE Peru × Brasil.",
+      },
     ],
   }),
   component: LandingPage,
@@ -41,10 +44,7 @@ function LandingPage() {
           aria-hidden
           className="absolute inset-0 -z-10 bg-gradient-to-br from-primary/5 via-background to-background"
         />
-        <div
-          aria-hidden
-          className="absolute -top-24 -right-24 -z-10 h-72 w-72 rounded-full bg-primary/10 blur-3xl"
-        />
+        <div aria-hidden className="absolute -top-24 -right-24 -z-10 h-72 w-72 rounded-full bg-primary/10 blur-3xl" />
         <div className="mx-auto max-w-6xl px-4 py-16 md:py-24">
           <p className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-primary">
             {t("landing.heroEyebrow")}
@@ -52,9 +52,7 @@ function LandingPage() {
           <h1 className="mt-6 max-w-3xl text-4xl font-black leading-tight text-foreground sm:text-5xl md:text-6xl whitespace-pre-line">
             {t("landing.heroTitle")}
           </h1>
-          <p className="mt-6 max-w-2xl text-lg text-muted-foreground">
-            {t("landing.heroSubtitle")}
-          </p>
+          <p className="mt-6 max-w-2xl text-lg text-muted-foreground">{t("landing.heroSubtitle")}</p>
           <div className="mt-8 flex flex-wrap gap-3">
             <Button asChild size="lg" className="text-base">
               <Link to="/signup">
