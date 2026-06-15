@@ -347,6 +347,37 @@
       "empty": "Nenhum inscrito encontrado.",
       "downloadAgenda": "Agenda (PDF)",
       "noAgenda": "Este participante não possui reuniões agendadas.",
+      "inactiveBadge": "Inativo",
+      "actions": {
+        "cancel": "Cancelar inscrição",
+        "reactivate": "Reativar inscrição",
+        "replace": "Substituir contato"
+      },
+      "cancelDialog": {
+        "title": "Cancelar inscrição",
+        "description": "O usuário {{name}} será inativado e não conseguirá mais acessar a plataforma. O histórico, reuniões e empresa são preservados. Esta ação é reversível.",
+        "exhibitorImpact": "Este inscrito é expositor. Ao cancelar: a empresa e a alocação de mesa permanecem; as reuniões já agendadas continuam visíveis no histórico, mas o expositor não poderá mais entrar na plataforma. Reavalie a mesa/agenda se necessário.",
+        "confirm": "Cancelar inscrição"
+      },
+      "reactivateDialog": {
+        "title": "Reativar inscrição",
+        "description": "O usuário {{name}} voltará a ter acesso à plataforma.",
+        "confirm": "Reativar"
+      },
+      "replaceDialog": {
+        "title": "Substituir contato",
+        "description": "Use para trocar a pessoa responsável mantendo a mesma empresa. Atualiza nome e e-mail do usuário existente. Histórico, mesa e agenda permanecem vinculados.",
+        "exhibitorImpact": "Este inscrito é expositor. A empresa, a mesa e as reuniões agendadas continuam ligadas a esta conta — o novo contato passará a recebê-las imediatamente. Avise o contato anterior antes de trocar o e-mail.",
+        "name": "Nome do novo contato",
+        "email": "E-mail do novo contato",
+        "emailHint": "Se mudar, o novo e-mail vira o login imediatamente. Deixe igual para manter.",
+        "confirm": "Salvar substituição"
+      },
+      "toasts": {
+        "cancelled": "Inscrição cancelada.",
+        "reactivated": "Inscrição reativada.",
+        "replaced": "Contato substituído."
+      },
       "bulk": {
         "pdf": "PDF consolidado",
         "zip": "ZIP individual",
