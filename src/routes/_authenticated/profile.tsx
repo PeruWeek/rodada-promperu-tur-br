@@ -14,8 +14,10 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Progress } from "@/components/ui/progress";
 import { MultiSelectChips } from "@/components/multi-select-chips";
 import { COUNTRIES, TAXONOMY } from "@/lib/taxonomy";
+import { useProfileCompletion } from "@/hooks/use-profile-completion";
 
 export const Route = createFileRoute("/_authenticated/profile")({
   component: ProfilePage,
@@ -26,6 +28,7 @@ function ProfilePage() {
   const lang = (i18n.language === "es" ? "es" : "pt") as "pt" | "es";
   const { data: profile, isLoading } = useProfile();
   const qc = useQueryClient();
+  const { data: completion } = useProfileCompletion();
 
   const isExhibitor = hasRole(profile?.roles, "exhibitor");
   const isVisitor = hasRole(profile?.roles, "visitor") || !isExhibitor;
@@ -234,7 +237,22 @@ function ProfilePage() {
       <header>
         <h1 className="text-3xl font-bold">{t("profile.title")}</h1>
         <p className="mt-1 text-sm text-muted-foreground">{t("profile.subtitle")}</p>
+        {completion && (
+          <div className="mt-4 space-y-1.5">
+            <p className="text-xs font-medium text-muted-foreground">
+              {t("profile.completionLabel", { percent: completion.percent })}
+            </p>
+            <Progress value={completion.percent} className="h-2" />
+          </div>
+        )}
       </header>
+
+      <div className="space-y-1 border-l-2 border-primary pl-3">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-primary">
+          {t("profile.essentialSection")}
+        </h2>
+        <p className="text-xs text-muted-foreground">{t("profile.essentialHint")}</p>
+      </div>
 
       <Card className="space-y-4 p-6">
         <h2 className="text-lg font-semibold">{t("profile.personal")}</h2>
@@ -283,6 +301,15 @@ function ProfilePage() {
           <div className="sm:col-span-2"><Label htmlFor="instagram">Instagram</Label><Input id="instagram" value={instagram} onChange={(e) => setInstagram(e.target.value)} className="mt-1.5" placeholder="https://" /></div>
         </div>
       </Card>
+
+      {(isVisitor || isExhibitor) && (
+        <div className="space-y-1 border-l-2 border-muted-foreground/40 pl-3">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+            {t("profile.complementarySection")}
+          </h2>
+          <p className="text-xs text-muted-foreground">{t("profile.complementaryHint")}</p>
+        </div>
+      )}
 
       {isVisitor && !isExhibitor && (
         <Card className="space-y-5 p-6">
