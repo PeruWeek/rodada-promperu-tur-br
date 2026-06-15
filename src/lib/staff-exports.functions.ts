@@ -26,6 +26,8 @@ async function getCurrentEventId(explicit?: string) {
 
 export type RegistrantRow = {
   profile_id: string;
+  auth_user_id: string;
+  is_active: boolean;
   full_name: string;
   email: string | null;
   phone: string | null;
@@ -91,9 +93,9 @@ export const listEventRegistrants = createServerFn({ method: "POST" })
     const { data: profs } = profileIds.length
       ? await supabaseAdmin
           .from("profiles")
-          .select("id, job_title, phone, whatsapp, auth_user_id")
+          .select("id, job_title, phone, whatsapp, auth_user_id, is_active")
           .in("id", profileIds)
-      : { data: [] as Array<{ id: string; job_title: string | null; phone: string | null; whatsapp: string | null; auth_user_id: string | null }> };
+      : { data: [] as Array<{ id: string; job_title: string | null; phone: string | null; whatsapp: string | null; auth_user_id: string | null; is_active: boolean | null }> };
     const profById = new Map((profs ?? []).map((p) => [p.id, p]));
 
     const out: RegistrantRow[] = (rows ?? [])
@@ -106,6 +108,8 @@ export const listEventRegistrants = createServerFn({ method: "POST" })
         const p = profById.get(r.primary_profile_id as string);
         return {
           profile_id: r.primary_profile_id as string,
+          auth_user_id: (p?.auth_user_id ?? "") as string,
+          is_active: p?.is_active !== false,
           full_name: r.primary_contact_name ?? "—",
           email: r.primary_contact_email ?? null,
           phone: p?.phone ?? r.primary_contact_phone ?? null,
