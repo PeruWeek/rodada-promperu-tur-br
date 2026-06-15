@@ -175,16 +175,6 @@ function ExhibitorDetailPage() {
           </Card>
         )}
 
-        {(comp?.website || comp?.linkedin || comp?.instagram) && (
-          <Card className="p-5 md:col-span-2">
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{t("explore.contact")}</h2>
-            <div className="mt-2 flex flex-wrap gap-3 text-sm">
-              {comp?.website && <a href={comp.website} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-primary hover:underline"><Globe size={14} />{comp.website}</a>}
-              {comp?.linkedin && <a href={comp.linkedin} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-primary hover:underline"><Linkedin size={14} />LinkedIn</a>}
-              {comp?.instagram && <a href={comp.instagram} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-primary hover:underline"><Instagram size={14} />Instagram</a>}
-            </div>
-          </Card>
-        )}
       </div>
     </div>
   );
