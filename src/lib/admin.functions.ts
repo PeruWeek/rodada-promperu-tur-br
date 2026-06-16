@@ -161,7 +161,7 @@ export const listAdminCompanies = createServerFn({ method: "POST" })
 
     let q = supabaseAdmin
       .from("companies")
-      .select("id, trade_name, legal_name, country_code, state_code, city, created_at", { count: "exact" })
+      .select("id, trade_name, legal_name, country_code, state_code, city, created_at")
       .order("trade_name", { ascending: true });
     if (data.search?.trim()) {
       const s = data.search.trim();
@@ -185,12 +185,12 @@ export const listAdminCompanies = createServerFn({ method: "POST" })
       }
       q = q.or(orParts.join(","));
     }
-    const from = (data.page - 1) * data.pageSize;
-    const to = from + data.pageSize - 1;
-    q = q.range(from, to);
-    const { data: companies, count, error } = await q;
+    // Fetch all matching companies; role/confirmed are computed post-query,
+    // so DB-level pagination would produce empty pages when most rows are filtered out.
+    q = q.limit(5000);
+    const { data: companies, error } = await q;
     if (error) throw new Error(error.message);
-    if (!companies || companies.length === 0) return { rows: [], total: count ?? 0 };
+    if (!companies || companies.length === 0) return { rows: [], total: 0 };
 
     const ids = companies.map((c) => c.id);
     const [{ data: profs }, { data: exhProfs }] = await Promise.all([
@@ -227,7 +227,10 @@ export const listAdminCompanies = createServerFn({ method: "POST" })
     if (data.role !== "all") filtered = rows.filter((r) => r.role === data.role);
     if (data.confirmed === "yes") filtered = filtered.filter((r) => r.confirmed);
     else if (data.confirmed === "no") filtered = filtered.filter((r) => !r.confirmed);
-    return { rows: filtered, total: count ?? 0 };
+    const total = filtered.length;
+    const from = (data.page - 1) * data.pageSize;
+    const paged = filtered.slice(from, from + data.pageSize);
+    return { rows: paged, total };
   });
 
 export const getCompanyForEdit = createServerFn({ method: "POST" })
