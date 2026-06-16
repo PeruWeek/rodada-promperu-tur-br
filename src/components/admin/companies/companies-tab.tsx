@@ -45,7 +45,7 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
   });
 
   const headers = [
-    t("admin.companies.roleExhibitor") === "Expositor" ? "Empresa" : "Empresa",
+    "Empresa",
     "Razão social",
     "Tipo",
     "Status",
