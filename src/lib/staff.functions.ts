@@ -9,7 +9,7 @@ async function getMyRoles(userId: string) {
     .from("user_roles")
     .select("role")
     .eq("user_id", userId);
-  return (data ?? []).map((r) => r.role as "admin" | "staff" | "exhibitor" | "visitor");
+  return (data ?? []).map((r) => r.role as "admin" | "staff" | "exhibitor" | "visitor" | "cliente");
 }
 
 async function getMyProfileId(userId: string) {
