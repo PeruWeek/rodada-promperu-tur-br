@@ -151,7 +151,7 @@ export const listAdminCompanies = createServerFn({ method: "POST" })
         role: z.enum(["all", "visitor", "exhibitor"]).default("all"),
         confirmed: z.enum(["all", "yes", "no"]).default("all"),
         page: z.number().int().min(1).default(1),
-        pageSize: z.number().int().min(1).max(100).default(25),
+        pageSize: z.number().int().min(1).max(5000).default(25),
       })
       .parse(input),
   )
