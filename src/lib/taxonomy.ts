@@ -3,7 +3,6 @@ export type TaxonomyKey = "segments" | "services" | "destinations" | "buyer_type
 export const TAXONOMY: Record<TaxonomyKey, { value: string; pt: string; es: string }[]> = {
   segments: [
     { value: "mice", pt: "MICE", es: "MICE" },
-    { value: "corporate", pt: "Corporativo", es: "Corporativo" },
     { value: "incentive", pt: "Incentivo", es: "Incentivos" },
     { value: "luxury", pt: "Luxo", es: "Lujo" },
     { value: "adventure", pt: "Aventura", es: "Aventura" },
@@ -41,7 +40,7 @@ export const TAXONOMY: Record<TaxonomyKey, { value: string; pt: string; es: stri
     { value: "operator", pt: "Operadora", es: "Operador" },
     { value: "corporate", pt: "Corporativo", es: "Corporativo" },
     { value: "event_planner", pt: "Organizador de eventos", es: "Organizador de eventos" },
-    { value: "association", pt: "Associação", es: "Asociación" },
+    { value: "association", pt: "Agência de incentivos", es: "Agencia de incentivos" },
     { value: "other", pt: "Outro", es: "Otro" },
   ],
 };
