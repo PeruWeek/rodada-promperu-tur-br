@@ -30,7 +30,7 @@ import { TAXONOMY } from "@/lib/taxonomy";
 import { lookupPreRegistration, type PreRegPrefill } from "@/lib/pre-registration.functions";
 
 export const Route = createFileRoute("/signup")({
-  head: () => ({ meta: [{ title: "Cadastro — Rodada de Negócios Promperu 2026" }] }),
+  head: () => ({ meta: [{ title: "Cadastro — PERU MICE Networking Evento" }] }),
   beforeLoad: async () => {
     if (typeof window === "undefined") return;
     const { data } = await supabase.auth.getSession();
@@ -267,6 +267,7 @@ function SignupPage() {
           <>
             <h1 className="text-3xl font-bold">{t("signup.quickTitle")}</h1>
             <p className="mt-2 text-sm text-muted-foreground">{t("signup.quickSubtitle")}</p>
+            <p className="mt-2 text-xs text-muted-foreground">{t("signup.mandatoryNote")}</p>
             <p className="mt-2 text-xs text-muted-foreground">
               <Link to="/signup-exhibitor" className="font-medium text-primary hover:underline">
                 {t("signup.exhibitorCta")}
@@ -412,6 +413,12 @@ function Step2({ data, set, errors, t }: StepProps) {
         <FieldError msg={errors.tax_id} t={t} />
       </div>
       <div>
+        <Label htmlFor="legal_name">{t("signup.legalName")} *</Label>
+        <Input id="legal_name" value={data.legal_name}
+          onChange={(e) => set("legal_name", e.target.value)} className="mt-1.5" />
+        <FieldError msg={errors.legal_name} t={t} />
+      </div>
+      <div>
         <Label htmlFor="trade_name">{t("signup.tradeName")} *</Label>
         <Input id="trade_name" value={data.trade_name}
           onChange={(e) => set("trade_name", e.target.value)} className="mt-1.5" />
@@ -435,7 +442,6 @@ function Step2({ data, set, errors, t }: StepProps) {
           <FieldError msg={errors.state_code} t={t} />
         </div>
       </div>
-      <p className="text-xs text-muted-foreground">{t("signup.complementaryHint")}</p>
     </div>
   );
 }
@@ -469,15 +475,6 @@ function Step3({ data, set, errors, t, lang }: StepProps & { lang: "pt" | "es" }
           <p className="mt-1 text-xs text-muted-foreground">{t("signup.hints.includeDDD")}</p>
         )}
         <FieldError msg={errors.whatsapp} t={t} />
-      </div>
-      <div>
-        <Label htmlFor="preferred_language">{t("signup.preferredLanguage")} *</Label>
-        <select id="preferred_language" value={data.preferred_language}
-          onChange={(e) => set("preferred_language", e.target.value as "pt-BR" | "es")}
-          className="mt-1.5 h-9 w-full rounded-md border border-input bg-background px-3 text-sm">
-          <option value="pt-BR">Português</option>
-          <option value="es">Español</option>
-        </select>
       </div>
       <div>
         <Label>{t("signup.buyerType")} *</Label>

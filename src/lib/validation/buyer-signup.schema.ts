@@ -22,6 +22,7 @@ export const stepCompanyQuickSchema = z.object({
     .trim()
     .min(1, { message: "signup.errors.required" })
     .refine((v) => isValidCNPJ(v), { message: "cnpjInvalid" }),
+  legal_name: z.string().trim().min(2).max(200),
   trade_name: z.string().trim().min(2).max(160),
   city: z.string().trim().min(2).max(120),
   state_code: z.enum(UF_LIST as unknown as [string, ...string[]]),
@@ -46,7 +47,6 @@ export const stepContactProfileQuickSchema = z.object({
   full_name: z.string().trim().min(2).max(160),
   job_title: z.string().trim().min(2).max(120),
   whatsapp: brWhatsapp,
-  preferred_language: z.enum(["pt-BR", "es"]),
   buyer_types: z
     .array(z.string().trim().min(1))
     .min(1, { message: "signup.errors.required" }),
