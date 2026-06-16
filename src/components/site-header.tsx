@@ -49,6 +49,11 @@ export function SiteHeader() {
         { to: "/admin", label: t("nav.admin") },
       ];
     }
+    if (primaryRole === "cliente") {
+      return [
+        { to: "/admin", label: t("nav.admin") },
+      ];
+    }
     if (primaryRole === "exhibitor") {
       return [
         { to: "/dashboard", label: t("nav.dashboard") },
