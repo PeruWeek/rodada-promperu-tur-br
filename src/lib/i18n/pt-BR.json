@@ -155,7 +155,7 @@
     "errorSave": "Não foi possível salvar."
   },
   "explore": {
-    "title": "Explorar expositores",
+    "title": "Empresas peruanas participantes",
     "subtitle": "Encontre operadores peruanos por segmento, serviço ou destino.",
     "searchPlaceholder": "Buscar por empresa ou nome...",
     "filters": "Filtros",
@@ -197,7 +197,7 @@
     "title": "Minha Agenda",
     "subtitle": "Suas reuniões confirmadas na PERU MICE Networking Evento.",
     "empty": "Você ainda não tem reuniões agendadas.",
-    "exploreCta": "Explorar expositores",
+    "exploreCta": "Empresas peruanas participantes",
     "cancel": "Cancelar",
     "cancelled": "Reunião cancelada.",
     "cancelError": "Não foi possível cancelar.",
