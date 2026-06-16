@@ -161,7 +161,7 @@ export const listAdminCompanies = createServerFn({ method: "POST" })
 
     let q = supabaseAdmin
       .from("companies")
-      .select("id, trade_name, legal_name, country_code, state_code, city, created_at")
+      .select("id, trade_name, legal_name, country_code, state_code, city, whatsapp, phone, general_phone, created_at")
       .order("trade_name", { ascending: true });
     if (data.search?.trim()) {
       const s = data.search.trim();
@@ -196,7 +196,7 @@ export const listAdminCompanies = createServerFn({ method: "POST" })
     const [{ data: profs }, { data: exhProfs }] = await Promise.all([
       supabaseAdmin
         .from("profiles")
-        .select("id, full_name, email, company_id, created_at, auth_user_id")
+        .select("id, full_name, email, whatsapp, phone, company_id, created_at, auth_user_id")
         .in("company_id", ids)
         .order("created_at", { ascending: true }),
       supabaseAdmin.from("exhibitor_profiles").select("profile_id"),
@@ -217,7 +217,16 @@ export const listAdminCompanies = createServerFn({ method: "POST" })
         country_code: c.country_code,
         state_code: c.state_code,
         city: c.city,
-        primary_contact: primary ? { id: primary.id, full_name: primary.full_name, email: primary.email } : null,
+        whatsapp: c.whatsapp ?? null,
+        primary_contact: primary
+          ? {
+              id: primary.id,
+              full_name: primary.full_name,
+              email: primary.email,
+              whatsapp: primary.whatsapp ?? null,
+              phone: primary.phone ?? null,
+            }
+          : null,
         role,
         confirmed,
       };
