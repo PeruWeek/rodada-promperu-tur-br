@@ -698,7 +698,7 @@ function CheckinTab() {
   );
 }
 
-const ROLE_OPTIONS: AppRole[] = ["admin", "staff", "exhibitor", "visitor"];
+const ROLE_OPTIONS: AppRole[] = ["admin", "staff", "cliente", "exhibitor", "visitor"];
 
 type AdminUser = {
   id: string;
