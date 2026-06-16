@@ -1,10 +1,10 @@
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { MapPin, Table2 } from "lucide-react";
+import { Table2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { COUNTRIES, TAXONOMY } from "@/lib/taxonomy";
+import { TAXONOMY } from "@/lib/taxonomy";
 
 export interface ExhibitorListItem {
   profile_id: string;
@@ -21,8 +21,6 @@ export interface ExhibitorListItem {
 export function ExhibitorCard({ item }: { item: ExhibitorListItem }) {
   const { t, i18n } = useTranslation();
   const lang = (i18n.language === "es" ? "es" : "pt") as "pt" | "es";
-  const country = COUNTRIES.find((c) => c.value === item.country_code);
-  const countryLabel = country ? (lang === "es" ? country.es : country.pt) : item.country_code;
 
   const segmentChips = item.segments
     .slice(0, 3)
@@ -40,15 +38,6 @@ export function ExhibitorCard({ item }: { item: ExhibitorListItem }) {
           <Badge variant="secondary" className="shrink-0 gap-1">
             <Table2 size={12} /> {t("explore.table")} {item.table_number}
           </Badge>
-        )}
-      </div>
-
-      <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
-        {countryLabel && (
-          <span className="inline-flex items-center gap-1">
-            <MapPin size={12} />
-            {[item.city, countryLabel].filter(Boolean).join(", ")}
-          </span>
         )}
       </div>
 

@@ -99,14 +99,11 @@ function ExhibitorDetailPage() {
         <div>
           <h1 className="text-3xl font-bold">{comp?.trade_name ?? "—"}</h1>
           <p className="mt-1 text-sm text-muted-foreground">{prof?.full_name}</p>
-          <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
-            {countryLabel && (
-              <span className="inline-flex items-center gap-1"><MapPin size={14} />{[comp?.city, countryLabel].filter(Boolean).join(", ")}</span>
-            )}
-            {table?.table_number != null && (
+          {table?.table_number != null && (
+            <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
               <span className="inline-flex items-center gap-1"><Table2 size={14} />{t("explore.table")} {table.table_number}</span>
-            )}
-          </div>
+            </div>
+          )}
         </div>
         <BookingDialog exhibitorProfileId={id} exhibitorName={comp?.trade_name ?? prof?.full_name ?? undefined} />
       </div>
