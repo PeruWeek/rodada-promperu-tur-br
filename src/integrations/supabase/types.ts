@@ -1140,6 +1140,12 @@ export type Database = {
           phone: string | null
           preferred_language: Database["public"]["Enums"]["app_language"]
           qa_run_id: string | null
+          review_created_at: string | null
+          review_payload: Json | null
+          review_reasons: string[]
+          review_resolved_at: string | null
+          review_resolved_by: string | null
+          review_status: Database["public"]["Enums"]["profile_review_status"]
           whatsapp: string | null
         }
         Insert: {
@@ -1155,6 +1161,12 @@ export type Database = {
           phone?: string | null
           preferred_language?: Database["public"]["Enums"]["app_language"]
           qa_run_id?: string | null
+          review_created_at?: string | null
+          review_payload?: Json | null
+          review_reasons?: string[]
+          review_resolved_at?: string | null
+          review_resolved_by?: string | null
+          review_status?: Database["public"]["Enums"]["profile_review_status"]
           whatsapp?: string | null
         }
         Update: {
@@ -1170,6 +1182,12 @@ export type Database = {
           phone?: string | null
           preferred_language?: Database["public"]["Enums"]["app_language"]
           qa_run_id?: string | null
+          review_created_at?: string | null
+          review_payload?: Json | null
+          review_reasons?: string[]
+          review_resolved_at?: string | null
+          review_resolved_by?: string | null
+          review_status?: Database["public"]["Enums"]["profile_review_status"]
           whatsapp?: string | null
         }
         Relationships: [
@@ -1178,6 +1196,13 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_review_resolved_by_fkey"
+            columns: ["review_resolved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -1741,6 +1766,16 @@ export type Database = {
         Args: { p_company_id: string; p_event_id: string }
         Returns: undefined
       }
+      pre_reg_match_quality: {
+        Args: {
+          p_country_code?: string
+          p_email: string
+          p_legal_name?: string
+          p_tax_id?: string
+          p_trade_name?: string
+        }
+        Returns: Json
+      }
       public_companies: {
         Args: { _ids: string[] }
         Returns: {
@@ -1818,6 +1853,8 @@ export type Database = {
         Args: { p_deactivate_previous?: boolean; p_event_id: string }
         Returns: string
       }
+      show_limit: { Args: never; Returns: number }
+      show_trgm: { Args: { "": string }; Returns: string[] }
     }
     Enums: {
       agent_base_url_mode: "api" | "free"
@@ -1886,6 +1923,7 @@ export type Database = {
         | "agendado_parcial"
         | "agendado_ok"
         | "agenda_fechada"
+      profile_review_status: "none" | "needs_review" | "resolved"
       skill_scope: "public" | "staff"
     }
     CompositeTypes: {
@@ -2087,6 +2125,7 @@ export const Constants = {
         "agendado_ok",
         "agenda_fechada",
       ],
+      profile_review_status: ["none", "needs_review", "resolved"],
       skill_scope: ["public", "staff"],
     },
   },
