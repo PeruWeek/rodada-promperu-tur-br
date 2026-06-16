@@ -38,6 +38,7 @@ import { CompaniesTab } from "@/components/admin/companies/companies-tab";
 import { RegistrantsTab } from "@/components/admin/registrants-tab";
 import { PreRegistrationsTab } from "@/components/admin/pre-registrations-tab";
 import { QaSimulationTab } from "@/components/admin/qa-simulation-tab";
+import { ReviewQueueTab } from "@/components/admin/review-queue-tab";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -145,6 +146,7 @@ function AdminPage() {
             <TabsTrigger value="companies">{t("admin.tabs.companies")}</TabsTrigger>
             <TabsTrigger value="registrants">{t("admin.tabs.registrants")}</TabsTrigger>
             <TabsTrigger value="requests">{t("admin.tabs.requests")}</TabsTrigger>
+            <TabsTrigger value="review">{t("admin.tabs.review")}</TabsTrigger>
             <TabsTrigger value="preRegistration">{t("admin.tabs.preRegistration")}</TabsTrigger>
             <TabsTrigger value="emails">{t("admin.tabs.emails")}</TabsTrigger>
             <TabsTrigger value="emailTemplates">{t("admin.tabs.emailTemplates")}</TabsTrigger>
@@ -160,6 +162,7 @@ function AdminPage() {
           <TabsContent value="companies" className="mt-4"><CompaniesTab /></TabsContent>
           <TabsContent value="registrants" className="mt-4"><RegistrantsTab /></TabsContent>
           <TabsContent value="requests" className="mt-4"><RequestsTab /></TabsContent>
+          <TabsContent value="review" className="mt-4"><ReviewQueueTab /></TabsContent>
           <TabsContent value="preRegistration" className="mt-4"><PreRegistrationsTab /></TabsContent>
           <TabsContent value="emails" className="mt-4"><EmailsTab /></TabsContent>
           <TabsContent value="emailTemplates" className="mt-4"><EmailTemplatesTab /></TabsContent>
