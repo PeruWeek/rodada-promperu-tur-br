@@ -268,11 +268,6 @@ function SignupPage() {
             <h1 className="text-3xl font-bold">{t("signup.quickTitle")}</h1>
             <p className="mt-2 text-sm text-muted-foreground">{t("signup.quickSubtitle")}</p>
             <p className="mt-2 text-xs text-muted-foreground">{t("signup.mandatoryNote")}</p>
-            <p className="mt-2 text-xs text-muted-foreground">
-              <Link to="/signup-exhibitor" className="font-medium text-primary hover:underline">
-                {t("signup.exhibitorCta")}
-              </Link>
-            </p>
             <div className="mt-6">
               <div className="flex items-center justify-between text-xs text-muted-foreground">
                 <span>{t("signup.stepLabel", { current: step, total: TOTAL_STEPS })}</span>
