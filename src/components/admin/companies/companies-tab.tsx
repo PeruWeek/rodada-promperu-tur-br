@@ -34,14 +34,17 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
   const listFn = useServerFn(listAdminCompanies);
   const [search, setSearch] = useState("");
   const [role, setRole] = useState<RoleFilter>("all");
-  const [confirmed, setConfirmed] = useState<ConfirmedFilter>("all");
+  const [confirmed, setConfirmed] = useState<ConfirmedFilter>(readOnly ? "yes" : "all");
   const [page, setPage] = useState(1);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [exporting, setExporting] = useState<null | "xlsx" | "csv" | "pdf">(null);
 
   const { data, isLoading, refetch } = useQuery({
-    queryKey: ["admin-companies", search, role, confirmed, page],
-    queryFn: () => listFn({ data: { search, role, confirmed, page, pageSize: 25 } }),
+    queryKey: ["admin-companies", search, role, confirmed, page, readOnly],
+    queryFn: () =>
+      listFn({
+        data: { search, role, confirmed: readOnly ? "yes" : confirmed, page, pageSize: 25 },
+      }),
   });
 
   const headers = [
@@ -57,7 +60,9 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
   ];
 
   const fetchAll = async () => {
-    const res = await listFn({ data: { search, role, confirmed, page: 1, pageSize: 5000 } });
+    const res = await listFn({
+      data: { search, role, confirmed: readOnly ? "yes" : confirmed, page: 1, pageSize: 5000 },
+    });
     return res.rows;
   };
 
@@ -186,6 +191,7 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
             <SelectItem value="exhibitor">{t("admin.companies.roleExhibitor")}</SelectItem>
           </SelectContent>
         </Select>
+        {!readOnly && (
         <Select
           value={confirmed}
           onValueChange={(v) => {
@@ -202,6 +208,7 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
             <SelectItem value="no">Pré-cadastro</SelectItem>
           </SelectContent>
         </Select>
+        )}
         <Button variant="outline" size="sm" onClick={exportXlsx} disabled={exporting !== null}>
           <FileSpreadsheet size={14} /> {exporting === "xlsx" ? t("common.loading") : "XLSX"}
         </Button>

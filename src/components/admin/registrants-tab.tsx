@@ -130,8 +130,15 @@ export function RegistrantsTab({
 
   const rows = useMemo(() => {
     const all = data?.rows ?? [];
-    return onlyWithMeetings ? all.filter((r) => r.scheduled_meetings_count > 0) : all;
-  }, [data, onlyWithMeetings]);
+    let filtered = onlyWithMeetings ? all.filter((r) => r.scheduled_meetings_count > 0) : all;
+    if (readOnly) {
+      const preStatuses = new Set(["nao_iniciado", "em_preenchimento", "aguardando_aprovacao"]);
+      filtered = filtered.filter(
+        (r) => !!r.auth_user_id && !preStatuses.has(r.registration_status ?? ""),
+      );
+    }
+    return filtered;
+  }, [data, onlyWithMeetings, readOnly]);
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["registrants"] });
