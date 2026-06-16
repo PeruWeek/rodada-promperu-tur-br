@@ -9,7 +9,9 @@ async function assertAdminOrStaff(userId: string) {
     .from("user_roles")
     .select("role")
     .eq("user_id", userId);
-  const ok = (data ?? []).some((r) => r.role === "admin" || r.role === "staff");
+  const ok = (data ?? []).some(
+    (r) => r.role === "admin" || r.role === "staff" || r.role === "cliente",
+  );
   if (!ok) throw new Error("Forbidden");
 }
 
