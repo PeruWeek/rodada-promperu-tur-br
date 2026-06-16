@@ -244,7 +244,39 @@
       "staff": "Staff",
       "companies": "Empresas",
       "registrants": "Inscritos",
-      "preRegistration": "Pre-registros"
+      "preRegistration": "Pre-registros",
+      "review": "Revisión"
+    },
+    "review": {
+      "title": "Cola de Revisión",
+      "subtitle": "Registros que requieren decisión manual antes de convertirse en registro final.",
+      "count": "{{count}} pendiente(s)",
+      "empty": "Nada para revisar ahora.",
+      "detailTitle": "Resolver revisión",
+      "detailSubtitle": "Compará el registro enviado con los pre-registros candidatos y elegí la acción.",
+      "reasons": "Motivos",
+      "submitted": "Registro enviado",
+      "candidates": "Pre-registros candidatos",
+      "candidatesCount": "{{count}} candidato(s)",
+      "noCandidates": "No hay pre-registros para vincular.",
+      "note": "Observación (opcional)",
+      "notePlaceholder": "Anotá el motivo de la decisión para el historial.",
+      "reason": {
+        "emailDuplicate": "Email duplicado",
+        "cnpjDuplicate": "CNPJ/RUC duplicado",
+        "divergent": "Datos divergentes",
+        "missingCritical": "Dato crítico ausente"
+      },
+      "actions": {
+        "link": "Vincular",
+        "merge": "Combinar",
+        "keep": "Mantener separados",
+        "discard": "Descartar duplicado",
+        "linked": "Vinculado al pre-registro.",
+        "merged": "Registros combinados.",
+        "keptSeparate": "Mantenidos separados.",
+        "discarded": "Duplicado descartado."
+      }
     },
     "preRegistration": {
       "title": "Pre-registros por CSV",
