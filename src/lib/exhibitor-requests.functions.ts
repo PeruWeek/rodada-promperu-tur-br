@@ -100,10 +100,8 @@ export const completeExhibitorSignup = createServerFn({ method: "POST" })
     try {
       const { data: quality } = await supabaseAdmin.rpc("pre_reg_match_quality", {
         p_email: (prof.email as string | null) ?? "",
-        p_tax_id: null,
         p_country_code: "PE",
         p_trade_name: data.trade_name,
-        p_legal_name: null,
       });
       const q = quality as { unique?: boolean; reasons?: string[] } | null;
       if (q && q.unique === false && Array.isArray(q.reasons) && q.reasons.length > 0) {
