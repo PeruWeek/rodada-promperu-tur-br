@@ -195,7 +195,7 @@
   },
   "agenda": {
     "title": "Minha Agenda",
-    "subtitle": "Suas reuniões confirmadas na Rodada de Negócios Promperu 2026.",
+    "subtitle": "Suas reuniões confirmadas na PERU MICE Networking Evento.",
     "empty": "Você ainda não tem reuniões agendadas.",
     "exploreCta": "Explorar expositores",
     "cancel": "Cancelar",
@@ -210,7 +210,7 @@
       "no_show": "Não compareceu",
       "needs_reschedule": "Reagendar"
     },
-    "pdfTitle": "Minha Agenda — Rodada de Negócios Promperu 2026",
+    "pdfTitle": "Minha Agenda — PERU MICE Networking Evento",
     "pdfGenerated": "Gerado em {{date}}",
     "downloadPdf": "Baixar PDF"
   },

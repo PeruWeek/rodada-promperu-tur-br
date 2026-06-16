@@ -21,7 +21,7 @@ import {
 } from "@/lib/validation/exhibitor-signup.schema";
 
 export const Route = createFileRoute("/signup-exhibitor")({
-  head: () => ({ meta: [{ title: "Registro de expositor — Promperu 2026" }] }),
+  head: () => ({ meta: [{ title: "Registro de expositor — PERU MICE Networking Evento" }] }),
   beforeLoad: async () => {
     if (typeof window === "undefined") return;
     const { data } = await supabase.auth.getSession();

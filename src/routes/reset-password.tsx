@@ -11,7 +11,7 @@ import { PasswordInput } from "@/components/ui/password-input";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/reset-password")({
-  head: () => ({ meta: [{ title: "Nova senha — Rodada de Negócios Promperu 2026" }] }),
+  head: () => ({ meta: [{ title: "Nova senha — PERU MICE Networking Evento" }] }),
   component: ResetPasswordPage,
 });
 

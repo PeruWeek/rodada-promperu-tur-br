@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/forgot-password")({
-  head: () => ({ meta: [{ title: "Recuperar senha — Rodada de Negócios Promperu 2026" }] }),
+  head: () => ({ meta: [{ title: "Recuperar senha — PERU MICE Networking Evento" }] }),
   component: ForgotPasswordPage,
 });
 
