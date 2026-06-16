@@ -393,7 +393,7 @@ export const adminListUsers = createServerFn({ method: "POST" })
           company,
           roles: (roles ?? [])
             .filter((r) => r.user_id === p.auth_user_id)
-            .map((r) => r.role as "admin" | "staff" | "exhibitor" | "visitor"),
+            .map((r) => r.role as "admin" | "staff" | "exhibitor" | "visitor" | "cliente"),
         };
       }),
     };
