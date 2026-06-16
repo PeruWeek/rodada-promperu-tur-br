@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./use-auth";
 
-export type AppRole = "admin" | "staff" | "exhibitor" | "visitor";
+export type AppRole = "admin" | "staff" | "exhibitor" | "visitor" | "cliente";
 
 export type ProfileWithRoles = {
   id: string;
@@ -63,7 +63,7 @@ export function hasRole(roles: AppRole[] | undefined, ...accepted: AppRole[]): b
   return roles.some((r) => accepted.includes(r));
 }
 
-const ROLE_PRIORITY: AppRole[] = ["admin", "staff", "exhibitor", "visitor"];
+const ROLE_PRIORITY: AppRole[] = ["admin", "staff", "cliente", "exhibitor", "visitor"];
 
 export function getPrimaryRole(roles: AppRole[] | undefined): AppRole | null {
   if (!roles || roles.length === 0) return null;
