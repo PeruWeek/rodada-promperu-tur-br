@@ -89,7 +89,7 @@ function AdminPage() {
     );
   }
 
-  if (!hasRole(me?.roles, "admin", "staff")) {
+  if (!hasRole(me?.roles, "admin", "staff", "cliente")) {
     return (
       <div className="mx-auto max-w-6xl px-4 py-10">
         <Card className="p-6 text-sm text-muted-foreground">{t("admin.forbidden")}</Card>
@@ -100,13 +100,23 @@ function AdminPage() {
   const primary = getPrimaryRole(me?.roles);
   const isStaffOnly = primary === "staff";
   const isAdmin = hasRole(me?.roles, "admin");
+  const isClienteOnly = primary === "cliente";
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 sm:py-10">
       <h1 className="text-3xl font-bold">{t("admin.title")}</h1>
       <p className="mt-1 text-sm text-muted-foreground">{t("admin.subtitle")}</p>
 
-      {isStaffOnly ? (
+      {isClienteOnly ? (
+        <Tabs defaultValue="companies" className="mt-6">
+          <TabsList className="flex flex-wrap h-auto">
+            <TabsTrigger value="companies">{t("admin.tabs.companies")}</TabsTrigger>
+            <TabsTrigger value="meetings">{t("admin.tabs.meetings", { defaultValue: "Agendamentos" })}</TabsTrigger>
+          </TabsList>
+          <TabsContent value="companies" className="mt-4"><CompaniesTab readOnly /></TabsContent>
+          <TabsContent value="meetings" className="mt-4"><RegistrantsTab readOnly onlyWithMeetings /></TabsContent>
+        </Tabs>
+      ) : isStaffOnly ? (
         <Tabs defaultValue="dashboard" className="mt-6">
           <TabsList className="flex flex-wrap h-auto">
             <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
