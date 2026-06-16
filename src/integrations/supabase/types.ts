@@ -1822,7 +1822,7 @@ export type Database = {
     Enums: {
       agent_base_url_mode: "api" | "free"
       app_language: "pt-BR" | "es"
-      app_role: "admin" | "staff" | "exhibitor" | "visitor"
+      app_role: "admin" | "staff" | "exhibitor" | "visitor" | "cliente"
       checkin_method: "qr" | "manual"
       conversation_message_role: "user" | "assistant" | "tool" | "system"
       meeting_checkin_by_role: "staff" | "exhibitor" | "visitor"
@@ -2016,7 +2016,7 @@ export const Constants = {
     Enums: {
       agent_base_url_mode: ["api", "free"],
       app_language: ["pt-BR", "es"],
-      app_role: ["admin", "staff", "exhibitor", "visitor"],
+      app_role: ["admin", "staff", "exhibitor", "visitor", "cliente"],
       checkin_method: ["qr", "manual"],
       conversation_message_role: ["user", "assistant", "tool", "system"],
       meeting_checkin_by_role: ["staff", "exhibitor", "visitor"],
