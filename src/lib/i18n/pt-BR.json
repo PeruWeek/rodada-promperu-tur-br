@@ -541,7 +541,8 @@
     "admin": "Admin",
     "staff": "Staff",
     "exhibitor": "Expositor",
-    "visitor": "Visitante"
+    "visitor": "Visitante",
+    "cliente": "Cliente"
   },
   "pendingExhibitor": {
     "pendingTitle": "Solicitação em análise",
