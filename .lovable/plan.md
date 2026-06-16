@@ -1,68 +1,80 @@
-## Ajustes no formulário de visitante (revisado)
+# Promoção de Pré-cadastro com fila de Revisão
 
-Aplicar 6 mudanças em **signup wizard (passo 4)**, **`/profile` aba Visitante** e **admin drawer aba Visitante**, mantendo paridade.
+## Regra de negócio
 
-### 1. Renomear aba e título
-- i18n `admin.companies.tabVisitor`: "Perfil de visitante" → **"Perfil da empresa"** (pt-BR e es).
-- Mesma renomeação onde aparece como título da seção do passo 4 do signup e da aba do `/profile`.
+Pré-cadastro vira cadastro final automaticamente apenas quando o match é **único e confiável**. Em qualquer ambiguidade, o registro entra na fila de **Revisão** no Admin, com motivo explícito, sem promoção automática.
 
-### 2. `Tipo de comprador` → `Tipo de empresa` (multiseleção)
-- i18n `signup.buyerType`: **"Tipo de empresa"** / "Tipo de empresa".
-- Substituir o `<select>` único por `MultiSelectChips` com `taxonomyKey="buyer_types"` nas 3 telas. Continua obrigatório no signup (mínimo 1).
+### Match único e confiável (auto-promove)
+- Existe **exatamente 1** pré-cadastro pendente com o e-mail informado, **e**
+- Existe **exatamente 1** pré-cadastro com o CNPJ informado (quando há CNPJ), **e**
+- Os dois apontam para o mesmo registro, **e**
+- Não há divergência relevante entre pré-cadastro e formulário.
 
-**Banco (nova migration):**
-- `ALTER TABLE public.visitor_profiles ADD COLUMN buyer_types text[] NOT NULL DEFAULT '{}'`.
-- Backfill: `UPDATE visitor_profiles SET buyer_types = ARRAY[buyer_type] WHERE buyer_type IS NOT NULL AND buyer_type <> ''`.
-- Atualizar a função `public.complete_buyer_signup(p_payload jsonb)` (única RPC do fluxo, usada por `src/routes/onboarding.tsx` e `src/routes/signup.tsx`) para:
-  - ler `p_payload->'buyer_types'` como `text[]` e gravar em `buyer_types`;
-  - continuar gravando `buyer_type` com o primeiro item do array (compat com a view `match_pool_v` que expõe `visitor_buyer_type` e com o gate `consent_data_sharing AND buyer_type<>''` em `can_open_calendar`);
-  - parar de ler `demand_profile` (gravar `null`).
-- Após a migration aprovada, `src/integrations/supabase/types.ts` será regenerado automaticamente com a coluna `buyer_types: string[]` — nenhum edit manual.
+### Vai para Revisão (não auto-promove)
+Motivos possíveis, gravados como tags:
+- `email_duplicado` — 2+ pré-cadastros pendentes com o mesmo e-mail
+- `cnpj_duplicado` — 2+ pré-cadastros com o mesmo CNPJ
+- `dados_divergentes` — CNPJ do form ≠ CNPJ do pré-cadastro, **ou** razão social com similaridade < 80%, **ou** país diferente
+- `dado_critico_ausente` — empresa BR sem CNPJ nem no pré-cadastro nem no form
 
-### 3. Remover `Perfil de demanda`
-Remover o campo das 3 telas e do payload:
-- `src/routes/signup.tsx` (passo 4 e payload do `complete_buyer_signup`).
-- `src/routes/_authenticated/profile.tsx` (state + `.upsert(...)` em `visitor_profiles`).
-- `src/components/admin/companies/edit-company-drawer.tsx` (state, tab, save).
-- `src/lib/validation/buyer-signup.schema.ts` (remover `demand_profile` do schema e do tipo).
-- `src/lib/admin.functions.ts` (remover do schema Zod e do upsert).
-- Coluna `demand_profile` permanece no banco (sem drop), mesmo padrão da remoção do `phone`.
+## Mudanças
 
-### 4. Portfólio
-- i18n `profile.portfolioPt`: **"Perfil da empresa"** / "Perfil de la empresa" (mantém a key).
-- Remover o campo Portfólio (ES) das 3 telas e do save:
-  - `src/routes/_authenticated/profile.tsx` (state + `.upsert(...)`).
-  - `src/components/admin/companies/edit-company-drawer.tsx` (state, tab, save).
-  - `src/lib/admin.functions.ts` (remover `portfolio_es` do schema Zod e do upsert).
-- Coluna `portfolio_es` permanece no banco.
+### 1. Schema (migration)
+Adicionar em `public.profiles`:
+- `review_status` enum `none | needs_review | resolved` (default `none`)
+- `review_reasons text[]` (default `{}`)
+- `review_payload jsonb` — snapshot do form e dos candidatos detectados, para o admin auditar
+- `review_created_at`, `review_resolved_at`, `review_resolved_by` (FK profiles)
 
-### 5. Destinos — remover opções
-Em `src/lib/taxonomy.ts`, remover `machu_picchu` e `sacred_valley` de `destinations`. Valores já gravados continuam no banco; a renderização de chips antigos cai no fallback do `taxonomyLabel` (exibe o `value`) — aceitável.
+Novas funções SQL:
+- `pre_reg_match_quality(p_email, p_tax_id, p_country_code) → jsonb` — retorna `{unique: bool, reasons: text[], candidate_profile_ids: uuid[]}`. Usada pelo trigger e pelas RPCs.
+- `pre_reg_similarity(text, text) → numeric` — wrapper sobre `similarity()` (pg_trgm já instalada? se não, habilitar) para a checagem de razão social.
 
-### 6. Segmentos — adicionar opção
-Em `src/lib/taxonomy.ts`, adicionar em `segments`:
-`{ value: "sports_events", pt: "Eventos esportivos", es: "Eventos deportivos" }`.
+### 2. Trigger `handle_new_user()` (gatilho 1: signup)
+Alterar para:
+- Contar pendentes pelo e-mail. Se **= 1**, claim normal (como hoje). Se **> 1**, criar um profile novo `pending_signup=false, auth_user_id=new.id, review_status='needs_review', review_reasons=['email_duplicado']`, sem mexer nos pendentes — admin resolve depois.
+- Se **= 0**, criar profile novo normal (como hoje).
 
-### Atualização do `use-profile-completion`
-Em `src/hooks/use-profile-completion.ts`, trocar `!!vis.buyer_type` por `Array.isArray(vis.buyer_types) && vis.buyer_types.length > 0`.
+### 3. `complete_buyer_signup` RPC e `completeExhibitorSignup` server fn (gatilho 2: form final)
+Antes de gravar company/profile, rodar `pre_reg_match_quality` com `{email, tax_id, country_code}` do form + comparar com o pré-cadastro reivindicado:
+- Se a função retornar `unique: true` **e** o diff form↔pré-cadastro não bater nenhuma regra de divergência → gravar normalmente (auto-promoção).
+- Caso contrário → gravar os dados do form num registro próprio (sem tocar no pré-cadastro original), marcar `review_status='needs_review'` com `review_reasons` e snapshot completo em `review_payload`. O usuário continua o fluxo normalmente; o admin decide depois.
 
-### Ordem de execução
-1. **Migration** (`supabase--migration`): adiciona `buyer_types`, faz backfill, atualiza `complete_buyer_signup`. Aguarda aprovação. `types.ts` é regenerado.
-2. **Front + libs**: aplica mudanças nos arquivos abaixo, todos já existentes.
+Regras de divergência (todas bloqueiam):
+- `tax_id` informado no form ≠ `tax_id` no pré-cadastro vinculado
+- `similarity(trade_name_form, trade_name_pre) < 0.80` E `similarity(legal_name_form, legal_name_pre) < 0.80`
+- `country_code` diferente
 
-### Arquivos afetados
-- `supabase/migrations/<novo-timestamp>_visitor_buyer_types_array.sql` (nova)
-- `src/integrations/supabase/types.ts` (regenerado pós-migration; não editar à mão)
-- `src/lib/taxonomy.ts`
-- `src/lib/validation/buyer-signup.schema.ts`
-- `src/routes/signup.tsx`
-- `src/routes/_authenticated/profile.tsx`
-- `src/components/admin/companies/edit-company-drawer.tsx` *(arquivo existente confirmado)*
-- `src/lib/admin.functions.ts`
-- `src/hooks/use-profile-completion.ts` *(arquivo existente confirmado)*
-- `src/lib/i18n/pt-BR.json` e `src/lib/i18n/es.json`
+Dado crítico ausente: `country_code='BR'` e nenhum `tax_id` em nenhum dos dois lados → `dado_critico_ausente`.
 
-### Fora de escopo
-- Não dropar `demand_profile`, `portfolio_es` ou `buyer_type` (mantidos por compat com view de matching e dados históricos).
-- Não alterar `target_buyers` do expositor.
-- Não alterar wizard do expositor.
+### 4. Nova aba "Revisão" no Admin
+Arquivo novo `src/components/admin/review-queue-tab.tsx`, plugado em `src/routes/_authenticated/admin.tsx` entre `requests` e `preRegistration`.
+
+Tela mostra tabela com: data, e-mail, nome, empresa, motivo(s) (badges coloridos), candidatos detectados. Drawer de detalhe com snapshot lado-a-lado (pré-cadastro × form) e quatro ações:
+- **Vincular ao pré-cadastro correto** — escolher 1 dos candidatos; copia `auth_user_id` para o pré-cadastro, descarta o profile novo, transfere `company_id` se houver.
+- **Mesclar registros** — funde campos vazios do pré-cadastro com os do form (estratégia "form ganha quando preenchido"), apaga o profile duplicado.
+- **Manter separados** — só limpa `review_status='resolved'`, deixa os dois registros existindo.
+- **Descartar duplicado** — soft delete do profile sob revisão (`is_active=false`), grava motivo no audit.
+
+Cada ação chama uma server fn dedicada (`resolveReviewLink`, `resolveReviewMerge`, `resolveReviewKeep`, `resolveReviewDiscard`) com `requireSupabaseAuth` + checagem `has_role(...,'admin')`, grava em `audit_logs`.
+
+### 5. Filtro na aba Pré-cadastros
+Pequeno badge no header ("3 registros aguardando revisão →") com link pra nova aba, para visibilidade.
+
+### 6. i18n
+Adicionar chaves em `pt-BR.json` e `es.json` para nomes da aba, motivos, ações, mensagens.
+
+## Critérios de aceite
+- E-mail único + CNPJ único + sem divergência → auto-promove (igual hoje).
+- 2 pré-cadastros mesmo e-mail → ambos ficam intactos; o novo signup cai em Revisão com `email_duplicado`.
+- CNPJ do form difere do pré-cadastro → Revisão com `dados_divergentes`, pré-cadastro original não é sobrescrito.
+- Empresa BR sem CNPJ em nenhum lado → Revisão com `dado_critico_ausente`.
+- Admin vê motivo, snapshot e candidatos; resolve com 1 clique; ação fica no `audit_logs`.
+- Telas existentes (Empresas, Agendamentos do perfil Cliente) continuam filtrando só registros já efetivamente cadastrados (mantém o filtro atual `auth_user_id IS NOT NULL AND pending_signup=false`); registros em `needs_review` permanecem fora até o admin resolver.
+
+## Notas técnicas
+- `pg_trgm` precisa estar habilitada (`CREATE EXTENSION IF NOT EXISTS pg_trgm`).
+- O índice parcial `profiles_pending_email_unique` continua válido — `email_duplicado` só aparece quando alguém tentou contornar (ex.: importações concorrentes).
+- Trigger e RPCs gravam o snapshot completo em `review_payload` para o admin não precisar reconstruir o estado.
+- Server fns de resolução são privilegiadas: `requireSupabaseAuth` + `has_role(auth.uid(),'admin')`; carregam `supabaseAdmin` via `await import(...)` dentro do handler.
+- Sem mudança nos exports do perfil `Cliente` — eles continuam usando o mesmo filtro de "cadastro efetivo".
