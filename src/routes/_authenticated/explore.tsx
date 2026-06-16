@@ -47,12 +47,18 @@ function ExplorePage() {
   const filtered = useMemo(() => {
     if (!data) return [];
     const q = search.trim().toLowerCase();
-    return data.filter((item) => {
+    const result = data.filter((item) => {
       if (q && !item.trade_name.toLowerCase().includes(q) && !item.full_name.toLowerCase().includes(q)) return false;
       if (segments.length && !segments.some((s) => item.segments.includes(s))) return false;
       if (services.length && !services.some((s) => item.services.includes(s))) return false;
       if (destinations.length && !destinations.some((s) => item.destinations.includes(s))) return false;
       return true;
+    });
+    return result.sort((a, b) => {
+      const an = a.table_number ?? Number.POSITIVE_INFINITY;
+      const bn = b.table_number ?? Number.POSITIVE_INFINITY;
+      if (an !== bn) return an - bn;
+      return a.trade_name.localeCompare(b.trade_name);
     });
   }, [data, search, segments, services, destinations]);
 
