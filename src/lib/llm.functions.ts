@@ -12,7 +12,7 @@ import {
 } from "./llm/openrouter.server";
 import { executeSkill, skillRegistry } from "./llm/skills.server";
 
-type Role = "admin" | "staff" | "exhibitor" | "visitor";
+type Role = "admin" | "staff" | "exhibitor" | "visitor" | "cliente";
 
 async function getCtx(userId: string) {
   const { data: profile } = await supabaseAdmin
