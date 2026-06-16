@@ -89,11 +89,41 @@ export const completeExhibitorSignup = createServerFn({ method: "POST" })
     // Resolve profile.
     const { data: prof, error: pErr } = await supabaseAdmin
       .from("profiles")
-      .select("id, company_id")
+      .select("id, company_id, email")
       .eq("auth_user_id", userId)
       .maybeSingle();
     if (pErr) throw new Error(pErr.message);
     if (!prof) throw new Error("Profile not found");
+
+    // Evaluate match quality against pending pre-registrations.
+    // If the form data diverges from a pre-reg claimed at signup, flag for admin review.
+    try {
+      const { data: quality } = await supabaseAdmin.rpc("pre_reg_match_quality", {
+        p_email: (prof.email as string | null) ?? "",
+        p_tax_id: null,
+        p_country_code: "PE",
+        p_trade_name: data.trade_name,
+        p_legal_name: null,
+      });
+      const q = quality as { unique?: boolean; reasons?: string[] } | null;
+      if (q && q.unique === false && Array.isArray(q.reasons) && q.reasons.length > 0) {
+        await supabaseAdmin
+          .from("profiles")
+          .update({
+            review_status: "needs_review",
+            review_reasons: q.reasons,
+            review_created_at: new Date().toISOString(),
+            review_payload: {
+              source: "complete_exhibitor_signup",
+              submitted: data,
+              quality: q,
+            },
+          })
+          .eq("id", prof.id);
+      }
+    } catch {
+      // Non-fatal: continue with signup even if the quality check fails.
+    }
 
     // Create company if the profile doesn't have one yet.
     let companyId = prof.company_id;
