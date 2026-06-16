@@ -244,7 +244,39 @@
       "staff": "Staff",
       "companies": "Empresas",
       "registrants": "Inscritos",
-      "preRegistration": "Pré-cadastros"
+      "preRegistration": "Pré-cadastros",
+      "review": "Revisão"
+    },
+    "review": {
+      "title": "Fila de Revisão",
+      "subtitle": "Cadastros que precisam de decisão manual antes de virarem cadastro final.",
+      "count": "{{count}} pendente(s)",
+      "empty": "Nada para revisar agora.",
+      "detailTitle": "Resolver revisão",
+      "detailSubtitle": "Compare o cadastro enviado com os pré-cadastros candidatos e escolha a ação.",
+      "reasons": "Motivos",
+      "submitted": "Cadastro enviado",
+      "candidates": "Pré-cadastros candidatos",
+      "candidatesCount": "{{count}} candidato(s)",
+      "noCandidates": "Nenhum pré-cadastro encontrado para vincular.",
+      "note": "Observação (opcional)",
+      "notePlaceholder": "Anote o motivo da decisão para o histórico.",
+      "reason": {
+        "emailDuplicate": "E-mail duplicado",
+        "cnpjDuplicate": "CNPJ duplicado",
+        "divergent": "Dados divergentes",
+        "missingCritical": "Dado crítico ausente"
+      },
+      "actions": {
+        "link": "Vincular",
+        "merge": "Mesclar",
+        "keep": "Manter separados",
+        "discard": "Descartar duplicado",
+        "linked": "Vinculado ao pré-cadastro.",
+        "merged": "Registros mesclados.",
+        "keptSeparate": "Mantidos separados.",
+        "discarded": "Duplicado descartado."
+      }
     },
     "preRegistration": {
       "title": "Pré-cadastros via CSV",
