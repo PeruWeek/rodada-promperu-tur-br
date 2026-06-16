@@ -102,11 +102,14 @@ function buildExportArrays(rows: RegistrantRow[], t: (k: string) => string) {
   return { headers, data };
 }
 
-export function RegistrantsTab() {
+export function RegistrantsTab({
+  readOnly = false,
+  onlyWithMeetings = false,
+}: { readOnly?: boolean; onlyWithMeetings?: boolean } = {}) {
   const { t, i18n } = useTranslation();
   const qc = useQueryClient();
   const { data: me } = useProfile();
-  const isAdmin = hasRole(me?.roles, "admin");
+  const isAdmin = hasRole(me?.roles, "admin") && !readOnly;
   const listFn = useServerFn(listEventRegistrants);
   const agendaFn = useServerFn(getParticipantAgenda);
   const bulkFn = useServerFn(listBulkAgendas);
@@ -125,7 +128,10 @@ export function RegistrantsTab() {
     queryFn: () => listFn({ data: { role, search } }),
   });
 
-  const rows = useMemo(() => data?.rows ?? [], [data]);
+  const rows = useMemo(() => {
+    const all = data?.rows ?? [];
+    return onlyWithMeetings ? all.filter((r) => r.scheduled_meetings_count > 0) : all;
+  }, [data, onlyWithMeetings]);
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["registrants"] });

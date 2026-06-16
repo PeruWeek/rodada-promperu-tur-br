@@ -13,7 +13,7 @@ import {
   SCHEDULING_STATUSES,
 } from "./pipeline.constants";
 
-type Role = "admin" | "staff" | "exhibitor" | "visitor";
+type Role = "admin" | "staff" | "exhibitor" | "visitor" | "cliente";
 
 async function getRoles(userId: string): Promise<Role[]> {
   const { data } = await supabaseAdmin.from("user_roles").select("role").eq("user_id", userId);

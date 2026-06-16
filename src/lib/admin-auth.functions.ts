@@ -93,7 +93,7 @@ export const adminCreateConfirmedUser = createServerFn({ method: "POST" })
         password: z.string().min(8).max(128),
         full_name: z.string().trim().min(1).max(120),
         preferred_language: z.enum(["pt-BR", "es"]).default("pt-BR"),
-        role: z.enum(["admin", "staff", "exhibitor", "visitor"]).optional(),
+        role: z.enum(["admin", "staff", "exhibitor", "visitor", "cliente"]).optional(),
       })
       .parse(input),
   )
@@ -307,7 +307,7 @@ export const adminSetPrimaryRole = createServerFn({ method: "POST" })
     z
       .object({
         userId: z.string().uuid(),
-        role: z.enum(["admin", "staff", "exhibitor", "visitor"]),
+        role: z.enum(["admin", "staff", "exhibitor", "visitor", "cliente"]),
       })
       .parse(input),
   )
@@ -393,7 +393,7 @@ export const adminListUsers = createServerFn({ method: "POST" })
           company,
           roles: (roles ?? [])
             .filter((r) => r.user_id === p.auth_user_id)
-            .map((r) => r.role as "admin" | "staff" | "exhibitor" | "visitor"),
+            .map((r) => r.role as "admin" | "staff" | "exhibitor" | "visitor" | "cliente"),
         };
       }),
     };

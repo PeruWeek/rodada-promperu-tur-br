@@ -23,7 +23,7 @@ function AuthenticatedLayout() {
   const { data: profile, isLoading: profileLoading } = useProfile();
   const fetchReq = useServerFn(getMyExhibitorRequest);
 
-  const isAdminStaff = hasRole(profile?.roles, "admin", "staff");
+  const isAdminStaff = hasRole(profile?.roles, "admin", "staff", "cliente");
   const primaryRole = getPrimaryRole(profile?.roles);
 
   const { data: reqData, isLoading: reqLoading } = useQuery({
@@ -37,12 +37,12 @@ function AuthenticatedLayout() {
 
     // Route gating by primary role
     const adminStaffForbidden = ["/explore", "/agenda", "/table-agenda", "/dashboard", "/onboarding", "/pending-exhibitor"];
-    if (primaryRole === "admin" || primaryRole === "staff") {
+    if (primaryRole === "admin" || primaryRole === "staff" || primaryRole === "cliente") {
       if (adminStaffForbidden.some((p) => pathname === p || pathname.startsWith(p + "/"))) {
         navigate({ to: "/admin" });
         return;
       }
-      if (primaryRole === "staff" && (pathname === "/profile" || pathname.startsWith("/profile/"))) {
+      if ((primaryRole === "staff" || primaryRole === "cliente") && (pathname === "/profile" || pathname.startsWith("/profile/"))) {
         navigate({ to: "/admin" });
         return;
       }
