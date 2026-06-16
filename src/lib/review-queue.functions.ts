@@ -2,6 +2,11 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import type { Database, Json } from "@/integrations/supabase/types";
+
+type ProfileUpdate = Database["public"]["Tables"]["profiles"]["Update"];
+type CompanyUpdate = Database["public"]["Tables"]["companies"]["Update"];
+type CompanyRow = Database["public"]["Tables"]["companies"]["Row"];
 
 async function assertAdmin(userId: string): Promise<void> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -25,7 +30,7 @@ export type ReviewRow = {
   company_country: string | null;
   review_reasons: string[];
   review_created_at: string | null;
-  review_payload: Record<string, unknown> | null;
+  review_payload: Json | null;
   candidates: Array<{
     id: string;
     full_name: string;
@@ -145,7 +150,7 @@ export const listReviewQueue = createServerFn({ method: "POST" })
         company_country: co?.country_code ?? null,
         review_reasons: (r.review_reasons ?? []) as string[],
         review_created_at: r.review_created_at as string | null,
-        review_payload: (r.review_payload ?? null) as Record<string, unknown> | null,
+        review_payload: (r.review_payload ?? null) as Json | null,
         candidates,
       });
     }
@@ -163,7 +168,7 @@ async function loadActor(userId: string): Promise<string | null> {
   return data?.id ?? null;
 }
 
-async function auditAction(action: string, payload: Record<string, unknown>, actorId: string | null) {
+async function auditAction(action: string, payload: Json, actorId: string | null) {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   await supabaseAdmin
     .from("audit_logs")
@@ -261,7 +266,7 @@ export const resolveReviewLink = createServerFn({ method: "POST" })
       .eq("id", data.profileId);
     if (detachErr) throw new Error(detachErr.message);
 
-    const patch: Record<string, unknown> = {
+    const patch: ProfileUpdate = {
       auth_user_id: rev.auth_user_id,
       pending_signup: false,
     };
@@ -270,7 +275,7 @@ export const resolveReviewLink = createServerFn({ method: "POST" })
     if (rev.job_title) patch.job_title = rev.job_title;
     if (rev.phone) patch.phone = rev.phone;
     if (rev.whatsapp) patch.whatsapp = rev.whatsapp;
-    if (rev.preferred_language) patch.preferred_language = rev.preferred_language;
+    if (rev.preferred_language) patch.preferred_language = rev.preferred_language as ProfileUpdate["preferred_language"];
 
     const { error: linkErr } = await supabaseAdmin
       .from("profiles")
@@ -329,14 +334,14 @@ export const resolveReviewMerge = createServerFn({ method: "POST" })
         .eq("id", rev.company_id)
         .maybeSingle();
       if (srcCo) {
-        const patch: Record<string, unknown> = {};
+        const patch: CompanyUpdate = {};
         for (const k of [
           "trade_name", "legal_name", "tax_id", "registration_id", "country_code",
           "state_code", "city", "website", "instagram", "linkedin", "address",
           "general_phone", "specialty", "import_profile",
         ] as const) {
-          const v = (srcCo as Record<string, unknown>)[k];
-          if (v !== null && v !== undefined && v !== "") patch[k] = v;
+          const v = (srcCo as CompanyRow)[k];
+          if (v !== null && v !== undefined && v !== "") (patch as Record<string, unknown>)[k] = v;
         }
         if (Object.keys(patch).length) {
           await supabaseAdmin.from("companies").update(patch).eq("id", target.company_id);
@@ -356,7 +361,7 @@ export const resolveReviewMerge = createServerFn({ method: "POST" })
       })
       .eq("id", data.profileId);
 
-    const patch: Record<string, unknown> = {
+    const patch: ProfileUpdate = {
       auth_user_id: rev.auth_user_id,
       pending_signup: false,
     };
@@ -364,7 +369,7 @@ export const resolveReviewMerge = createServerFn({ method: "POST" })
     if (rev.job_title) patch.job_title = rev.job_title;
     if (rev.phone) patch.phone = rev.phone;
     if (rev.whatsapp) patch.whatsapp = rev.whatsapp;
-    if (rev.preferred_language) patch.preferred_language = rev.preferred_language;
+    if (rev.preferred_language) patch.preferred_language = rev.preferred_language as ProfileUpdate["preferred_language"];
     if (!target.company_id && rev.company_id) patch.company_id = rev.company_id;
 
     const { error: linkErr } = await supabaseAdmin
