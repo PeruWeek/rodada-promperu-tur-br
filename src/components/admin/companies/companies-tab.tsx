@@ -57,6 +57,7 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
     "País",
     "Contato",
     "E-mail",
+    "WhatsApp",
   ];
 
   const fetchAll = async () => {
@@ -79,6 +80,7 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
       c.country_code ?? "",
       c.primary_contact?.full_name ?? "",
       c.primary_contact?.email ?? "",
+      c.primary_contact?.whatsapp ?? c.whatsapp ?? "",
     ]);
 
   const stamp = () => new Date().toISOString().slice(0, 10);
@@ -249,6 +251,9 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
                   {[c.city, c.state_code, c.country_code].filter(Boolean).join(" / ")}
                   {c.primary_contact?.full_name ? ` · ${c.primary_contact.full_name}` : ""}
                   {c.primary_contact?.email ? ` · ${c.primary_contact.email}` : ""}
+                  {c.primary_contact?.whatsapp || c.whatsapp
+                    ? ` · WhatsApp: ${c.primary_contact?.whatsapp ?? c.whatsapp}`
+                    : ""}
                 </p>
               </div>
               {!readOnly && (
