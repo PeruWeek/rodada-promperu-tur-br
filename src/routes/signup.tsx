@@ -28,6 +28,7 @@ import {
 } from "@/lib/validation/buyer-signup.schema";
 import { TAXONOMY } from "@/lib/taxonomy";
 import { lookupPreRegistration, type PreRegPrefill } from "@/lib/pre-registration.functions";
+import { checkSignupAvailability } from "@/lib/signup-availability.functions";
 import { trackMauticEvent } from "@/lib/mautic";
 
 export const Route = createFileRoute("/signup")({
@@ -108,6 +109,7 @@ function SignupPage() {
   const [prefill, setPrefill] = useState<Prefill>({ status: "idle" });
   const prefillRequestId = useRef(0);
   const lookupFn = useServerFn(lookupPreRegistration);
+  const availabilityFn = useServerFn(checkSignupAvailability);
 
   const set = <K extends keyof BuyerSignupData>(key: K, value: BuyerSignupData[K]) =>
     setData((d) => ({ ...d, [key]: value }));
@@ -253,6 +255,54 @@ function SignupPage() {
     );
     setLoading(true);
     try {
+      // Pre-check: e-mail e CNPJ duplicados ANTES de chamar supabase.auth.signUp,
+      // porque o Supabase Auth NÃO retorna erro para e-mail existente (anti
+      // user-enumeration) e o CNPJ só é validado no RPC de onboarding —
+      // sem este pré-check o usuário recebe "confirmação enviada" indevidamente
+      // e os eventos Mautic signup_duplicate_* nunca disparam.
+      try {
+        const availability = await availabilityFn({
+          data: { email: data.email, tax_id: data.tax_id },
+        });
+        console.info("[mautic] signup availability", availability);
+        const emailKey = data.email.toLowerCase();
+        if (availability.email_taken) {
+          toast.error(t("auth.emailAlreadyRegistered", { defaultValue: "Este e-mail já está cadastrado. Faça login ou recupere a senha." }));
+          trackMauticEvent(
+            "signup_duplicate_email",
+            {
+              page_url: `${window.location.origin}/signup`,
+              page_title: "signup_duplicate_email",
+              email: data.email,
+            },
+            { dedupeKey: emailKey },
+          );
+          setErrors((e) => ({ ...e, email: "signup.errors.emailTaken" }));
+          setStep(1);
+          return;
+        }
+        if (availability.cnpj_taken) {
+          toast.error(t("signup.errors.cnpjTaken", { defaultValue: "Este CNPJ já está cadastrado em outra conta." }));
+          trackMauticEvent(
+            "signup_duplicate_cnpj",
+            {
+              page_url: `${window.location.origin}/signup`,
+              page_title: "signup_duplicate_cnpj",
+              email: data.email,
+              tax_id: data.tax_id,
+            },
+            { dedupeKey: `${emailKey}:${data.tax_id}` },
+          );
+          setErrors((e) => ({ ...e, tax_id: "signup.errors.cnpjTaken" }));
+          setStep(2);
+          return;
+        }
+      } catch (availErr) {
+        // Falha no pré-check não bloqueia o fluxo — segue para signUp e a
+        // classificação do erro do Supabase Auth abaixo cobre o fallback.
+        console.warn("[mautic] signup availability check failed", availErr);
+      }
+
       // Payload sent to complete_buyer_signup. Optional complementary fields
       // are sent empty; user fills them later in /profile.
       const payload = {
