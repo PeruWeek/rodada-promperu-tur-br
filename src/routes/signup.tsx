@@ -199,7 +199,7 @@ function SignupPage() {
           ? `${window.location.origin}/signup`
           : "/signup",
         page_title: "signup_validation_error",
-        email: data.email || undefined,
+        ...(data.email ? { email: data.email } : {}),
         signup_step: s,
         error_fields: errorKeys,
       },
