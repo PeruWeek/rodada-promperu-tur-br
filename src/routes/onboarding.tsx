@@ -16,6 +16,7 @@ import { requestExhibitorAccess } from "@/lib/exhibitor-requests.functions";
 import { completeExhibitorSignup } from "@/lib/exhibitor-requests.functions";
 import { BUYER_SIGNUP_STORAGE_KEY } from "@/lib/validation/buyer-signup.schema";
 import { EXHIBITOR_SIGNUP_STORAGE_KEY } from "@/lib/validation/exhibitor-signup.schema";
+import { trackMauticEvent } from "@/lib/mautic";
 
 export const Route = createFileRoute("/onboarding")({ component: OnboardingPage });
 
@@ -123,6 +124,23 @@ function OnboardingPage() {
         try { sessionStorage.removeItem(BUYER_SIGNUP_STORAGE_KEY); } catch { /* ignore */ }
         // Clear the metadata copy so we don't replay on subsequent visits.
         try { await supabase.auth.updateUser({ data: { buyer_signup_payload: null } }); } catch { /* ignore */ }
+        // Mautic: inscrição concluída (RPC retornou sem erro = conversão real).
+        // Dedupe por user.id para evitar duplicidade em reexecuções do efeito.
+        try {
+          const email = user.email ?? (payload as Record<string, unknown>)["email"] as string | undefined;
+          const fullName = ((payload as Record<string, unknown>)["full_name"] as string | undefined) ?? profile.full_name ?? "";
+          const firstname = fullName.trim().split(/\s+/)[0] ?? "";
+          trackMauticEvent(
+            "lead_signup_completed",
+            {
+              page_url: `${window.location.origin}/onboarding/sucesso`,
+              page_title: "Lead signup completed",
+              email,
+              firstname,
+            },
+            { dedupeKey: user.id },
+          );
+        } catch { /* analytics never breaks the flow */ }
         await qc.invalidateQueries();
         toast.success(t("onboarding.savedVisitor"));
         navigate({ to: "/agenda" });

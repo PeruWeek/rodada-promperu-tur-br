@@ -1,0 +1,1 @@
+ALTER TABLE public.visitor_profiles ADD COLUMN IF NOT EXISTS signup_completed_at TIMESTAMPTZ;
