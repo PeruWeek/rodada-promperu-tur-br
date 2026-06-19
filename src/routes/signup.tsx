@@ -112,6 +112,21 @@ function SignupPage() {
   const set = <K extends keyof BuyerSignupData>(key: K, value: BuyerSignupData[K]) =>
     setData((d) => ({ ...d, [key]: value }));
 
+  // Mautic: signup_started — dispara quando o usuário abre a tela de cadastro.
+  // Dedupe fixo por sessão para não duplicar em reload/hot reload/StrictMode.
+  useEffect(() => {
+    trackMauticEvent(
+      "signup_started",
+      {
+        page_url: typeof window !== "undefined"
+          ? `${window.location.origin}/signup`
+          : "/signup",
+        page_title: "signup_started",
+      },
+      { dedupeKey: "session" },
+    );
+  }, []);
+
   const runLookup = async (rawEmail: string) => {
     const email = rawEmail.trim().toLowerCase();
     if (!email) {
@@ -171,17 +186,71 @@ function SignupPage() {
     const schemas = [stepAccountSchema, stepCompanyQuickSchema, stepContactProfileQuickSchema];
     const r = schemas[s - 1].safeParse(data);
     if (r.success) { setErrors({}); return true; }
-    setErrors(flattenZodErrors(r.error));
+    const flat = flattenZodErrors(r.error);
+    setErrors(flat);
+    // Mautic: signup_validation_error. Dedupe por (step + chaves de erro)
+    // para não inflar a timeline em cliques repetidos com os mesmos erros,
+    // mas registrar quando o usuário muda os campos quebrados.
+    const errorKeys = Object.keys(flat).sort().join("|");
+    trackMauticEvent(
+      "signup_validation_error",
+      {
+        page_url: typeof window !== "undefined"
+          ? `${window.location.origin}/signup`
+          : "/signup",
+        page_title: "signup_validation_error",
+        email: data.email || undefined,
+        signup_step: s,
+        error_fields: errorKeys,
+      },
+      { dedupeKey: `${s}:${errorKeys}` },
+    );
     return false;
   };
 
   const next = () => {
-    if (validateStep(step)) setStep((s) => Math.min(TOTAL_STEPS, s + 1));
+    if (!validateStep(step)) return;
+    // Mautic: signup_step_N_completed. Dedupe por (email|sessão + step) para
+    // não duplicar em re-cliques no botão Continuar.
+    const stepEvent = (
+      step === 1
+        ? "signup_step_1_completed"
+        : step === 2
+          ? "signup_step_2_completed"
+          : "signup_step_3_completed"
+    ) as
+      | "signup_step_1_completed"
+      | "signup_step_2_completed"
+      | "signup_step_3_completed";
+    trackMauticEvent(
+      stepEvent,
+      {
+        page_url: typeof window !== "undefined"
+          ? `${window.location.origin}/signup`
+          : "/signup",
+        page_title: stepEvent,
+        email: data.email || undefined,
+      },
+      { dedupeKey: `${data.email.toLowerCase() || "anon"}:${step}` },
+    );
+    setStep((s) => Math.min(TOTAL_STEPS, s + 1));
   };
   const back = () => setStep((s) => Math.max(1, s - 1));
 
   const onFinish = async () => {
     if (!validateStep(TOTAL_STEPS)) return;
+    // Mautic: step 3 concluída (validação passou no submit final).
+    trackMauticEvent(
+      "signup_step_3_completed",
+      {
+        page_url: typeof window !== "undefined"
+          ? `${window.location.origin}/signup`
+          : "/signup",
+        page_title: "signup_step_3_completed",
+        email: data.email || undefined,
+      },
+      { dedupeKey: `${data.email.toLowerCase() || "anon"}:3` },
+    );
     setLoading(true);
     try {
       // Payload sent to complete_buyer_signup. Optional complementary fields
@@ -234,6 +303,51 @@ function SignupPage() {
       });
       if (error) {
         toast.error(error.message);
+        // Mautic: classificar a falha do signUp.
+        const msg = (error.message || "").toLowerCase();
+        const emailKey = data.email.toLowerCase();
+        const isDupEmail =
+          msg.includes("already registered") ||
+          msg.includes("already exists") ||
+          msg.includes("user already") ||
+          msg.includes("registrado") ||
+          msg.includes("já existe") ||
+          msg.includes("duplicate") && msg.includes("email");
+        const isDupCnpj =
+          msg.includes("cnpj") || msg.includes("tax_id") || msg.includes("tax id");
+        if (isDupEmail) {
+          trackMauticEvent(
+            "signup_duplicate_email",
+            {
+              page_url: `${window.location.origin}/signup`,
+              page_title: "signup_duplicate_email",
+              email: data.email,
+            },
+            { dedupeKey: emailKey },
+          );
+        } else if (isDupCnpj) {
+          trackMauticEvent(
+            "signup_duplicate_cnpj",
+            {
+              page_url: `${window.location.origin}/signup`,
+              page_title: "signup_duplicate_cnpj",
+              email: data.email,
+              tax_id: data.tax_id,
+            },
+            { dedupeKey: `${emailKey}:${data.tax_id}` },
+          );
+        } else {
+          trackMauticEvent(
+            "signup_submit_failed",
+            {
+              page_url: `${window.location.origin}/signup`,
+              page_title: "signup_submit_failed",
+              email: data.email,
+              error_message: error.message,
+            },
+            { dedupeKey: `${emailKey}:${error.message}` },
+          );
+        }
         return;
       }
       // Mautic: conta criada. Disparado só no caminho de sucesso, com
