@@ -1512,6 +1512,7 @@ export type Database = {
           portfolio_es: string | null
           portfolio_pt: string | null
           profile_id: string
+          signup_completed_at: string | null
         }
         Insert: {
           additional_contacts?: Json
@@ -1529,6 +1530,7 @@ export type Database = {
           portfolio_es?: string | null
           portfolio_pt?: string | null
           profile_id: string
+          signup_completed_at?: string | null
         }
         Update: {
           additional_contacts?: Json
@@ -1546,6 +1548,7 @@ export type Database = {
           portfolio_es?: string | null
           portfolio_pt?: string | null
           profile_id?: string
+          signup_completed_at?: string | null
         }
         Relationships: [
           {
