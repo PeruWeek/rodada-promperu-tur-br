@@ -20,6 +20,22 @@ export type MauticEvent =
   | "lead_signup_completed"
   | "meeting_scheduled";
 
+// Mapeamento evento -> tag aplicada ao contato no Mautic.
+// As tags abaixo casam 1:1 com os segmentos do funil principal, que devem
+// ser configurados no Mautic como "Contact tags contém <tag>":
+//   - rodada---conta-criada
+//   - rodada---cadastro-concluido
+//   - rodada---agendamento-realizado
+// O segmento amplo `rodada-2026` deve ser definido no Mautic por filtro
+// de tag `rodada-2026`, que aplicamos em TODOS os eventos do funil — assim
+// qualquer contato que toca a jornada entra automaticamente nele.
+const EVENT_SEGMENT_TAGS: Record<MauticEvent, string> = {
+  lead_account_created: "rodada---conta-criada",
+  lead_signup_completed: "rodada---cadastro-concluido",
+  meeting_scheduled: "rodada---agendamento-realizado",
+};
+const GLOBAL_FUNNEL_TAG = "rodada-2026";
+
 // Guard against double-fires when a flow re-runs (StrictMode, retries, etc.).
 const SENT_KEY = "mautic_sent_events_v1";
 
@@ -59,18 +75,38 @@ export function trackMauticEvent(
 ): void {
   if (typeof window === "undefined") return;
   const dedupe = `${event}:${options?.dedupeKey ?? payload.page_url}`;
-  if (alreadySent(dedupe)) return;
+  if (alreadySent(dedupe)) {
+    console.info("[mautic] skip (dedupe)", { event, dedupeKey: dedupe });
+    return;
+  }
 
   const mt = window.mt;
-  if (typeof mt !== "function") return;
+  if (typeof mt !== "function") {
+    console.info("[mautic] skip (mt.js indisponível)", { event });
+    return;
+  }
+
+  const segmentTag = EVENT_SEGMENT_TAGS[event];
+  // Tags como string CSV — formato aceito pelo mtc.js para adicionar
+  // tags ao contato identificado nesta chamada.
+  const tags = [GLOBAL_FUNNEL_TAG, segmentTag].filter(Boolean).join(",");
 
   try {
     mt("send", "pageview", {
       ...payload,
       mautic_event: event,
+      tags,
+    });
+    console.info("[mautic] sent", {
+      event,
+      segmentTag,
+      tags,
+      email: payload.email,
+      dedupeKey: dedupe,
     });
   } catch {
     // Never break the UI flow because of analytics.
+    console.warn("[mautic] tracking failed (ignorado)", { event });
   }
 }
 
