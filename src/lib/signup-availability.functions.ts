@@ -31,6 +31,12 @@ export const checkSignupAvailability = createServerFn({ method: "POST" })
     const email = data.email;
     const taxDigits = onlyDigits(data.tax_id ?? "");
 
+    console.log("[signup-availability] input", {
+      email,
+      tax_id_raw: data.tax_id,
+      tax_id_digits: taxDigits,
+    });
+
     // Email check: a claimed profile (auth_user_id NOT NULL) with this email
     // means the account already exists. Pending pre-registrations
     // (pending_signup=true, auth_user_id=null) are NOT duplicates — they get
@@ -45,33 +51,35 @@ export const checkSignupAvailability = createServerFn({ method: "POST" })
     if (emailErr) throw new Error(emailErr.message);
 
     let cnpj_taken = false;
-    if (taxDigits.length >= 11) {
-      // Match by digits-only on tax_id. Companies table stores the masked
-      // value, so compare via regexp_replace would need RPC — instead pull
-      // candidates by trigram-ish ilike on the digits and compare in JS.
+    if (taxDigits.length === 14) {
+      // Pull ALL companies (small dataset for this event) and compare by
+      // digits-only on tax_id. Avoids fragile ilike prefixes that miss masked
+      // values like "08.030.124/0001-21" when digits don't appear together.
       const { data: companies, error: cErr } = await supabaseAdmin
         .from("companies")
         .select("id, tax_id")
-        .not("tax_id", "is", null)
-        .ilike("tax_id", `%${taxDigits.slice(0, 4)}%`)
-        .limit(200);
+        .not("tax_id", "is", null);
       if (cErr) throw new Error(cErr.message);
-      const matchingCompanyIds = (companies ?? [])
-        .filter((c) => onlyDigits(c.tax_id ?? "") === taxDigits)
-        .map((c) => c.id);
-      if (matchingCompanyIds.length > 0) {
-        // Only count as "taken" if a claimed profile is linked to that company.
-        const { data: claimed, error: pErr } = await supabaseAdmin
-          .from("profiles")
-          .select("id")
-          .in("company_id", matchingCompanyIds)
-          .not("auth_user_id", "is", null)
-          .limit(1)
-          .maybeSingle();
-        if (pErr) throw new Error(pErr.message);
-        cnpj_taken = !!claimed;
-      }
+      const matchingCompanies = (companies ?? []).filter(
+        (c) => onlyDigits(c.tax_id ?? "") === taxDigits,
+      );
+      console.log("[signup-availability] cnpj companies", {
+        scanned: companies?.length ?? 0,
+        matched: matchingCompanies.length,
+        matched_ids: matchingCompanies.map((c) => c.id),
+      });
+      // Any existing company with this CNPJ — whether already claimed or
+      // still a pending pre-registration — blocks the signup. Pending
+      // pre-registrations are only claimable via the matching email, so a
+      // different-email signup against the same CNPJ would otherwise create
+      // a duplicate company silently.
+      cnpj_taken = matchingCompanies.length > 0;
     }
+
+    console.log("[signup-availability] result", {
+      email_taken: !!emailRow,
+      cnpj_taken,
+    });
 
     return {
       email_taken: !!emailRow,
