@@ -95,6 +95,7 @@ export function trackMauticEvent(
     mt("send", "pageview", {
       ...payload,
       mautic_event: event,
+      page_title: event,
       tags,
     });
     console.info("[mautic] sent", {
