@@ -109,7 +109,7 @@ export function BookingDialog({
         },
       });
     },
-    onSuccess: (result) => {
+    onSuccess: async (result) => {
       toast.success(t("booking.success"));
       qc.invalidateQueries({ queryKey: ["booking-slots", exhibitorProfileId] });
       qc.invalidateQueries({ queryKey: ["my-agenda"] });
@@ -118,11 +118,24 @@ export function BookingDialog({
       try {
         const meetingId =
           (result as { id?: string } | null | undefined)?.id ?? selectedSlot ?? "";
+        // Enriquecer com email/firstname do usuário logado para o Mautic
+        // casar o lead. Nunca quebra o fluxo se a chamada falhar.
+        let email: string | undefined;
+        let firstname: string | undefined;
+        try {
+          const { data: auth } = await supabase.auth.getUser();
+          email = auth.user?.email ?? undefined;
+          const meta = (auth.user?.user_metadata ?? {}) as Record<string, unknown>;
+          const fullName = (meta.full_name as string | undefined) ?? "";
+          firstname = fullName.trim().split(/\s+/)[0] || undefined;
+        } catch { /* analytics never breaks the flow */ }
         trackMauticEvent(
           "meeting_scheduled",
           {
             page_url: `${window.location.origin}/agenda/agendamento-sucesso`,
             page_title: "Meeting scheduled",
+            email,
+            firstname,
             exhibitor_profile_id: exhibitorProfileId,
             exhibitor_name: exhibitorName ?? undefined,
             slot_id: selectedSlot ?? undefined,
