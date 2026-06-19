@@ -18,7 +18,18 @@ declare global {
 export type MauticEvent =
   | "lead_account_created"
   | "lead_signup_completed"
-  | "meeting_scheduled";
+  | "meeting_scheduled"
+  // Eventos intermediários do funil de cadastro (rastreio de abandono).
+  // Não têm segmento dedicado: entram apenas no segmento amplo `rodada-2026`
+  // e ficam visíveis na timeline do contato via `page_title`.
+  | "signup_started"
+  | "signup_step_1_completed"
+  | "signup_step_2_completed"
+  | "signup_step_3_completed"
+  | "signup_validation_error"
+  | "signup_duplicate_email"
+  | "signup_duplicate_cnpj"
+  | "signup_submit_failed";
 
 // Mapeamento evento -> tag aplicada ao contato no Mautic.
 // As tags abaixo casam 1:1 com os segmentos do funil principal, que devem
@@ -29,7 +40,7 @@ export type MauticEvent =
 // O segmento amplo `rodada-2026` deve ser definido no Mautic por filtro
 // de tag `rodada-2026`, que aplicamos em TODOS os eventos do funil — assim
 // qualquer contato que toca a jornada entra automaticamente nele.
-const EVENT_SEGMENT_TAGS: Record<MauticEvent, string> = {
+const EVENT_SEGMENT_TAGS: Partial<Record<MauticEvent, string>> = {
   lead_account_created: "rodada---conta-criada",
   lead_signup_completed: "rodada---cadastro-concluido",
   meeting_scheduled: "rodada---agendamento-realizado",
