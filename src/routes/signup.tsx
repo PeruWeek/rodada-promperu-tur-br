@@ -28,6 +28,7 @@ import {
 } from "@/lib/validation/buyer-signup.schema";
 import { TAXONOMY } from "@/lib/taxonomy";
 import { lookupPreRegistration, type PreRegPrefill } from "@/lib/pre-registration.functions";
+import { trackMauticEvent } from "@/lib/mautic";
 
 export const Route = createFileRoute("/signup")({
   head: () => ({ meta: [{ title: "Cadastro — PERU MICE Networking Evento" }] }),
@@ -235,6 +236,21 @@ function SignupPage() {
         toast.error(error.message);
         return;
       }
+      // Mautic: conta criada. Disparado só no caminho de sucesso, com
+      // dedupe por e-mail para evitar duplicidade em reenvios.
+      try {
+        const firstname = data.full_name.trim().split(/\s+/)[0] ?? "";
+        trackMauticEvent(
+          "lead_account_created",
+          {
+            page_url: `${window.location.origin}/signup/sucesso`,
+            page_title: "Lead account created",
+            email: data.email,
+            firstname,
+          },
+          { dedupeKey: data.email.toLowerCase() },
+        );
+      } catch { /* analytics never breaks the flow */ }
       setSent(true);
     } finally {
       setLoading(false);
