@@ -7,6 +7,7 @@ import { toast } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
 import { bookMeeting } from "@/lib/booking.functions";
+import { trackMauticEvent } from "@/lib/mautic";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -108,10 +109,27 @@ export function BookingDialog({
         },
       });
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       toast.success(t("booking.success"));
       qc.invalidateQueries({ queryKey: ["booking-slots", exhibitorProfileId] });
       qc.invalidateQueries({ queryKey: ["my-agenda"] });
+      // Mautic: reunião agendada. Dedupe por slotId para evitar duplicar
+      // se o onSuccess re-disparar. A contraprova oficial é meetings.created_at.
+      try {
+        const meetingId =
+          (result as { id?: string } | null | undefined)?.id ?? selectedSlot ?? "";
+        trackMauticEvent(
+          "meeting_scheduled",
+          {
+            page_url: `${window.location.origin}/agenda/agendamento-sucesso`,
+            page_title: "Meeting scheduled",
+            exhibitor_profile_id: exhibitorProfileId,
+            exhibitor_name: exhibitorName ?? undefined,
+            slot_id: selectedSlot ?? undefined,
+          },
+          { dedupeKey: meetingId || (selectedSlot ?? "") },
+        );
+      } catch { /* analytics never breaks the flow */ }
       setOpen(false);
       setSelectedSlot(null);
     },
