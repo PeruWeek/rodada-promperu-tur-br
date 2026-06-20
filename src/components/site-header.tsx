@@ -51,8 +51,8 @@ export function SiteHeader() {
     }
     if (primaryRole === "cliente") {
       return [
-        { to: "/admin", label: t("nav.admin") },
         { to: "/explore", label: t("nav.explore") },
+        { to: "/admin", label: t("nav.admin") },
       ];
     }
     if (primaryRole === "exhibitor") {

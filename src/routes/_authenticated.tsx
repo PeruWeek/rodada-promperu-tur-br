@@ -41,12 +41,13 @@ function AuthenticatedLayout() {
     const clienteForbidden = ["/agenda", "/table-agenda", "/dashboard", "/onboarding", "/pending-exhibitor"];
     if (primaryRole === "admin" || primaryRole === "staff" || primaryRole === "cliente") {
       const forbidden = primaryRole === "cliente" ? clienteForbidden : adminStaffForbidden;
+      const fallback = primaryRole === "cliente" ? "/explore" : "/admin";
       if (forbidden.some((p) => pathname === p || pathname.startsWith(p + "/"))) {
-        navigate({ to: "/admin" });
+        navigate({ to: fallback });
         return;
       }
       if ((primaryRole === "staff" || primaryRole === "cliente") && (pathname === "/profile" || pathname.startsWith("/profile/"))) {
-        navigate({ to: "/admin" });
+        navigate({ to: fallback });
         return;
       }
     } else if (primaryRole === "visitor") {
