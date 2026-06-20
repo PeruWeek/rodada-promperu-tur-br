@@ -37,8 +37,11 @@ function AuthenticatedLayout() {
 
     // Route gating by primary role
     const adminStaffForbidden = ["/explore", "/agenda", "/table-agenda", "/dashboard", "/onboarding", "/pending-exhibitor"];
+    // Cliente has read-only access to /explore and /exhibitor/* — keep the rest blocked.
+    const clienteForbidden = ["/agenda", "/table-agenda", "/dashboard", "/onboarding", "/pending-exhibitor"];
     if (primaryRole === "admin" || primaryRole === "staff" || primaryRole === "cliente") {
-      if (adminStaffForbidden.some((p) => pathname === p || pathname.startsWith(p + "/"))) {
+      const forbidden = primaryRole === "cliente" ? clienteForbidden : adminStaffForbidden;
+      if (forbidden.some((p) => pathname === p || pathname.startsWith(p + "/"))) {
         navigate({ to: "/admin" });
         return;
       }
