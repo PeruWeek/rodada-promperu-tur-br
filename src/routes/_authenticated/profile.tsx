@@ -168,7 +168,13 @@ function ProfilePage() {
       }
 
       if (isVisitor) {
-        const { error: vErr } = await supabase.from("visitor_profiles").upsert({
+        // Critério de "signup concluído" do banco: buyer_types >= 1 e
+        // interests_segments >= 1 (mesmos mínimos exigidos pelo wizard).
+        // Se a row ainda não tem `signup_completed_at` e os mínimos foram
+        // atingidos agora, marcamos — sem sobrescrever um carimbo anterior.
+        const meetsMinimum = buyerTypes.length > 0 && vSegments.length > 0;
+        const previouslyCompleted = !!extra?.vis?.signup_completed_at;
+        const upsertPayload: Record<string, unknown> = {
           profile_id: profile.id,
           buyer_type: buyerTypes[0] ?? null,
           buyer_types: buyerTypes,
@@ -177,7 +183,13 @@ function ProfilePage() {
           interests_destinations: vDestinations,
           portfolio_pt: vPortPt || null,
           notes: vNotes || null,
-        });
+        };
+        if (!previouslyCompleted && meetsMinimum) {
+          upsertPayload.signup_completed_at = new Date().toISOString();
+        }
+        const { error: vErr } = await supabase
+          .from("visitor_profiles")
+          .upsert(upsertPayload as never);
         if (vErr) throw vErr;
       }
 
@@ -204,16 +216,16 @@ function ProfilePage() {
       await qc.invalidateQueries({ queryKey: ["profile-completion"] });
 
       // Mautic: visitante recém-completou o perfil → `lead_signup_completed`.
-      // Avaliamos a condição com os valores recém-salvos (não dependemos
-      // do cache de query). O `trackMauticEvent` faz dedupe por user.id,
-      // então saves subsequentes não duplicam o evento.
+      // Critério alinhado com o hook `useVisitorReady` e com a RPC
+      // `complete_buyer_signup` do banco (mesmos mínimos do wizard).
+      // `trackMauticEvent` faz dedupe por user.id → saves subsequentes
+      // não duplicam o evento.
       if (isVisitor && !isExhibitor && user) {
         const ready =
           !!trade.trim() &&
           !!city.trim() &&
           buyerTypes.length > 0 &&
-          vSegments.length > 0 &&
-          vDestinations.length > 0;
+          vSegments.length > 0;
         if (ready) {
           try {
             const firstname = (fullName || "").trim().split(/\s+/)[0] ?? "";
@@ -231,7 +243,12 @@ function ProfilePage() {
             /* analytics never breaks the flow */
           }
         } else {
-          console.info("[mautic] skip lead_signup_completed (perfil ainda incompleto)");
+          console.info("[mautic] skip lead_signup_completed (perfil ainda incompleto)", {
+            trade: !!trade.trim(),
+            city: !!city.trim(),
+            buyer_types_len: buyerTypes.length,
+            segments_len: vSegments.length,
+          });
         }
       }
 
