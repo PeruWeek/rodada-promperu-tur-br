@@ -10,6 +10,7 @@ import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { COUNTRIES, taxonomyLabel } from "@/lib/taxonomy";
 import { BookingDialog } from "@/components/booking-dialog";
+import { useProfile, getPrimaryRole } from "@/hooks/use-profile";
 
 export const Route = createFileRoute("/_authenticated/exhibitor/$id")({
   component: ExhibitorDetailPage,
@@ -19,6 +20,9 @@ function ExhibitorDetailPage() {
   const { id } = Route.useParams();
   const { t, i18n } = useTranslation();
   const lang = (i18n.language === "es" ? "es" : "pt-BR") as "pt-BR" | "es";
+  const { data: profile } = useProfile();
+  const primaryRole = getPrimaryRole(profile?.roles);
+  const canBook = primaryRole === "visitor";
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["exhibitor-detail", id],
@@ -105,7 +109,9 @@ function ExhibitorDetailPage() {
             </div>
           )}
         </div>
-        <BookingDialog exhibitorProfileId={id} exhibitorName={comp?.trade_name ?? prof?.full_name ?? undefined} />
+        {canBook && (
+          <BookingDialog exhibitorProfileId={id} exhibitorName={comp?.trade_name ?? prof?.full_name ?? undefined} />
+        )}
       </div>
 
       <div className="mt-8 grid gap-4 md:grid-cols-2">
