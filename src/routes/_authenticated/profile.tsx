@@ -16,6 +16,8 @@ import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MultiSelectChips } from "@/components/multi-select-chips";
 import { COUNTRIES } from "@/lib/taxonomy";
+import { trackMauticEvent } from "@/lib/mautic";
+import { useAuth } from "@/hooks/use-auth";
 
 export const Route = createFileRoute("/_authenticated/profile")({
   component: ProfilePage,
@@ -25,6 +27,7 @@ function ProfilePage() {
   const { t, i18n } = useTranslation();
   const lang = (i18n.language === "es" ? "es" : "pt") as "pt" | "es";
   const { data: profile, isLoading } = useProfile();
+  const { user } = useAuth();
   const qc = useQueryClient();
 
   const isExhibitor = hasRole(profile?.roles, "exhibitor");
@@ -197,6 +200,41 @@ function ProfilePage() {
 
       await qc.invalidateQueries({ queryKey: ["profile"] });
       await qc.invalidateQueries({ queryKey: ["profile-extra"] });
+      await qc.invalidateQueries({ queryKey: ["visitor-ready"] });
+      await qc.invalidateQueries({ queryKey: ["profile-completion"] });
+
+      // Mautic: visitante recém-completou o perfil → `lead_signup_completed`.
+      // Avaliamos a condição com os valores recém-salvos (não dependemos
+      // do cache de query). O `trackMauticEvent` faz dedupe por user.id,
+      // então saves subsequentes não duplicam o evento.
+      if (isVisitor && !isExhibitor && user) {
+        const ready =
+          !!trade.trim() &&
+          !!city.trim() &&
+          buyerTypes.length > 0 &&
+          vSegments.length > 0 &&
+          vDestinations.length > 0;
+        if (ready) {
+          try {
+            const firstname = (fullName || "").trim().split(/\s+/)[0] ?? "";
+            trackMauticEvent(
+              "lead_signup_completed",
+              {
+                page_url: `${window.location.origin}/profile`,
+                page_title: "lead_signup_completed",
+                email: user.email ?? undefined,
+                firstname,
+              },
+              { dedupeKey: user.id },
+            );
+          } catch {
+            /* analytics never breaks the flow */
+          }
+        } else {
+          console.info("[mautic] skip lead_signup_completed (perfil ainda incompleto)");
+        }
+      }
+
       toast.success(t("profile.saved"));
     } catch (err) {
       toast.error(err instanceof Error ? err.message : t("profile.errorSave"));

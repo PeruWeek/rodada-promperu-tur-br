@@ -4,6 +4,7 @@ import { ArrowRight } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { useProfile, hasRole, getPrimaryRole } from "@/hooks/use-profile";
+import { useVisitorReady } from "@/hooks/use-visitor-ready";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   component: DashboardPage,
@@ -14,6 +15,8 @@ function DashboardPage() {
   const { data: profile } = useProfile();
   const isExhibitor = hasRole(profile?.roles, "exhibitor");
   const primaryRole = getPrimaryRole(profile?.roles);
+  const { data: visitorReady } = useVisitorReady();
+  const ready = !!visitorReady?.ready;
 
   const showCompanyAndName = primaryRole === "visitor" || primaryRole === "exhibitor";
 
@@ -44,7 +47,11 @@ function DashboardPage() {
         </div>
         <div className="rounded-xl border border-border bg-card p-6">
           <h2 className="text-lg font-bold">{isExhibitor ? t("dashboard.tableAgenda") : t("dashboard.myAgenda")}</h2>
-          <p className="mt-2 text-sm text-muted-foreground">{t("dashboard.completeProfile")}</p>
+          <p className="mt-2 text-sm text-muted-foreground">
+            {isExhibitor || ready
+              ? t("dashboard.agendaReady", { defaultValue: "Sua agenda está pronta. Veja seus horários e compromissos." })
+              : t("dashboard.completeProfile")}
+          </p>
           <Button asChild className="mt-4" size="sm" variant="outline"><Link to={isExhibitor ? "/table-agenda" : "/agenda"}>{t("nav.agenda")}</Link></Button>
         </div>
       </div>
