@@ -88,7 +88,6 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { property: "og:title", content: "PERU MICE Networking Evento — Peru × Brasil" },
       { property: "og:description", content: "Plataforma oficial de matchmaking e agendamento da PERU MICE Networking Evento — Peru × Brasil. 08 de julho de 2026." },
       { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary" },
       { name: "twitter:title", content: "PERU MICE Networking Evento — Peru × Brasil" },
       { name: "twitter:description", content: "Plataforma oficial de matchmaking e agendamento da PERU MICE Networking Evento — Peru × Brasil. 08 de julho de 2026." },
       { property: "og:image", content: "https://rodada.promperu.tur.br/og-image.jpg" },
