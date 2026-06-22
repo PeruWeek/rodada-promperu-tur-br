@@ -307,40 +307,60 @@ export const adminSetPrimaryRole = createServerFn({ method: "POST" })
     z
       .object({
         userId: z.string().uuid(),
-        role: z.enum(["admin", "staff", "exhibitor", "visitor", "cliente"]),
+        role: z.enum(["staff", "exhibitor", "visitor", "cliente"]),
       })
       .parse(input),
   )
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
     await assertAdmin(context.userId);
-    // Only admin can grant/revoke admin or staff
-    if (data.role === "admin" || data.role === "staff") {
+    // Only admin can grant/revoke staff
+    if (data.role === "staff") {
       await assertAdminStrict(context.userId);
     }
-    // Prevent removing your own admin role (lockout protection)
-    if (data.userId === context.userId && data.role !== "admin") {
-      throw new Error("Você não pode remover seu próprio papel de admin.");
+    // Block editing admins through this flow (admins must be managed elsewhere)
+    const { data: targetRoles } = await supabaseAdmin
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", data.userId);
+    if ((targetRoles ?? []).some((r) => r.role === "admin")) {
+      throw new Error("Usuários admin não podem ter a categoria alterada por este fluxo.");
     }
+    // Replace any non-admin role with the chosen one. Preserve admin if present
+    // (defensive — blocked above, but keep the delete narrow).
     const { error: delErr } = await supabaseAdmin
       .from("user_roles")
       .delete()
-      .eq("user_id", data.userId);
+      .eq("user_id", data.userId)
+      .in("role", ["staff", "exhibitor", "visitor", "cliente"]);
     if (delErr) throw new Error(delErr.message);
     const { error: insErr } = await supabaseAdmin
       .from("user_roles")
       .insert({ user_id: data.userId, role: data.role });
     if (insErr) throw new Error(insErr.message);
-    // If becoming exhibitor, ensure exhibitor_profiles row
-    if (data.role === "exhibitor") {
-      const { data: prof } = await supabaseAdmin
-        .from("profiles")
-        .select("id")
-        .eq("auth_user_id", data.userId)
-        .maybeSingle();
-      if (prof?.id) {
+    // Sync dependent profile rows so derived listings (companies/registrants)
+    // reflect the new category immediately.
+    const { data: prof } = await supabaseAdmin
+      .from("profiles")
+      .select("id")
+      .eq("auth_user_id", data.userId)
+      .maybeSingle();
+    if (prof?.id) {
+      if (data.role === "exhibitor") {
         await supabaseAdmin
           .from("exhibitor_profiles")
+          .upsert({ profile_id: prof.id }, { onConflict: "profile_id" });
+      } else {
+        // Remove exhibitor profile so company/registrant listings stop
+        // labeling this user as exhibitor. event_tables FK is ON DELETE SET NULL.
+        await supabaseAdmin
+          .from("exhibitor_profiles")
+          .delete()
+          .eq("profile_id", prof.id);
+      }
+      if (data.role === "visitor") {
+        await supabaseAdmin
+          .from("visitor_profiles")
           .upsert({ profile_id: prof.id }, { onConflict: "profile_id" });
       }
     }
