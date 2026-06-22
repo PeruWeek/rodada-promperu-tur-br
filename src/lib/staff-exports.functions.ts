@@ -104,7 +104,7 @@ export const listEventRegistrants = createServerFn({ method: "POST" })
       .filter((r) => r.company_id && r.primary_profile_id)
       .filter((r) => {
         const p = profById.get(r.primary_profile_id as string);
-        return !!p?.auth_user_id;
+        return !!p?.auth_user_id && p?.is_active !== false;
       })
       .map((r) => {
         const p = profById.get(r.primary_profile_id as string);
