@@ -140,15 +140,25 @@ function RootComponent() {
   const router = useRouter();
 
   useEffect(() => {
+    let lastUserId: string | null | undefined;
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
       // Only react to identity transitions. Ignore INITIAL_SESSION and
       // TOKEN_REFRESHED (fires ~hourly + on tab focus) to avoid thrashing
       // the router and the query cache.
       if (event !== "SIGNED_IN" && event !== "SIGNED_OUT" && event !== "USER_UPDATED") {
         return;
       }
+      // Supabase fires SIGNED_IN on every tab focus/visibility regain once a
+      // session exists. Filter to true identity changes so the email
+      // confirmation callback doesn't loop router.invalidate +
+      // queryClient.invalidateQueries on every focus.
+      const nextUserId = session?.user?.id ?? null;
+      if (event === "SIGNED_IN" && lastUserId === nextUserId) {
+        return;
+      }
+      lastUserId = nextUserId;
       // Always re-run loaders so route gates re-evaluate.
       router.invalidate();
       // Never refetch protected queries against a cleared session — that
@@ -168,17 +178,27 @@ function RootComponent() {
     if (window.location.pathname === "/reset-password") return;
     const expired = err.errorCode === "otp_expired" || err.error === "access_denied";
     if (expired) {
-      toast.error("Seu link de confirmação expirou ou já foi usado. Reenvie abaixo.");
-      const target = `/login?reason=otp_expired`;
+      // Stable toast id deduplicates if anything re-triggers this branch.
+      toast.error(
+        "Seu link de confirmação expirou ou já foi usado. Reenvie abaixo.",
+        { id: "auth-otp-expired" },
+      );
+      // Already on /login → the page renders its own expired-link alert; no
+      // navigation needed. Otherwise use the router (no full reload, no
+      // onAuthStateChange storm).
       if (window.location.pathname !== "/login") {
-        window.history.replaceState(null, "", target);
-        // Force router to pick up new URL.
-        window.location.assign(target);
+        router.navigate({
+          to: "/login",
+          search: { reason: "otp_expired" },
+          replace: true,
+        });
       }
     } else if (err.description) {
-      toast.error(err.description);
+      toast.error(err.description, { id: "auth-hash-error" });
     }
-  }, []);
+    // router is stable across renders; effect still runs once because
+    // consumeAuthHashError is guarded module-side.
+  }, [router]);
 
   return (
     <QueryClientProvider client={queryClient}>
