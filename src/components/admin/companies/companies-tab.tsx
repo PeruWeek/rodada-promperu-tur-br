@@ -107,7 +107,7 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
         ? "Sim"
         : c.networking_lunch_participation === false
           ? "Não"
-          : "",
+          : "Não informado",
     ]);
 
   const stamp = () => new Date().toISOString().slice(0, 10);
