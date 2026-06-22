@@ -607,6 +607,12 @@
     "completeProfileHint": "Após confirmar seu e-mail você poderá acessar seu painel.",
     "accountEmailNote": "Estamos usando o e-mail da sua conta: {{email}}.",
     "complementaryHint": "",
+    "networkingLunch": {
+      "label": "Participação no almoço de networking",
+      "help": "As vagas para o almoço de networking são limitadas e serão reservadas mediante confirmação prévia.",
+      "yes": "Sim, participarei do almoço",
+      "no": "Não participarei do almoço"
+    },
     "exhibitor": {
       "quickTitle": "Cadastro — Expositor",
       "quickSubtitle": "Dados obrigatórios",

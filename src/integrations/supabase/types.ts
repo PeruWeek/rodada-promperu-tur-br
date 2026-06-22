@@ -1508,6 +1508,7 @@ export type Database = {
           interests_destinations_free: string | null
           interests_segments: string[] | null
           interests_services: string[] | null
+          networking_lunch_participation: boolean | null
           notes: string | null
           portfolio_es: string | null
           portfolio_pt: string | null
@@ -1526,6 +1527,7 @@ export type Database = {
           interests_destinations_free?: string | null
           interests_segments?: string[] | null
           interests_services?: string[] | null
+          networking_lunch_participation?: boolean | null
           notes?: string | null
           portfolio_es?: string | null
           portfolio_pt?: string | null
@@ -1544,6 +1546,7 @@ export type Database = {
           interests_destinations_free?: string | null
           interests_segments?: string[] | null
           interests_services?: string[] | null
+          networking_lunch_participation?: boolean | null
           notes?: string | null
           portfolio_es?: string | null
           portfolio_pt?: string | null
