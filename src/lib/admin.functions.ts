@@ -152,6 +152,7 @@ export const listAdminCompanies = createServerFn({ method: "POST" })
         confirmed: z.enum(["all", "yes", "no"]).default("all"),
         page: z.number().int().min(1).default(1),
         pageSize: z.number().int().min(1).max(5000).default(25),
+        activeOnly: z.boolean().optional(),
       })
       .parse(input),
   )
@@ -196,7 +197,7 @@ export const listAdminCompanies = createServerFn({ method: "POST" })
     const [{ data: profs }, { data: exhProfs }] = await Promise.all([
       supabaseAdmin
         .from("profiles")
-        .select("id, full_name, email, whatsapp, phone, company_id, created_at, auth_user_id")
+        .select("id, full_name, email, whatsapp, phone, company_id, created_at, auth_user_id, is_active")
         .in("company_id", ids)
         .order("created_at", { ascending: true }),
       supabaseAdmin.from("exhibitor_profiles").select("profile_id"),
@@ -205,7 +206,9 @@ export const listAdminCompanies = createServerFn({ method: "POST" })
 
     // Determine company role by checking if any profile of the company is an exhibitor.
     const rows = companies.map((c) => {
-      const owners = (profs ?? []).filter((p) => p.company_id === c.id);
+      const allOwners = (profs ?? []).filter((p) => p.company_id === c.id);
+      const activeOwners = allOwners.filter((p) => p.is_active !== false);
+      const owners = data.activeOnly ? activeOwners : allOwners;
       const primary = owners[0] ?? null;
       const isExh = owners.some((p) => exhProfileIds.has(p.id));
       const role: "exhibitor" | "visitor" = isExh ? "exhibitor" : "visitor";
@@ -229,11 +232,13 @@ export const listAdminCompanies = createServerFn({ method: "POST" })
           : null,
         role,
         confirmed,
+        hasActiveOwner: activeOwners.length > 0,
       };
     });
 
     let filtered = rows;
-    if (data.role !== "all") filtered = rows.filter((r) => r.role === data.role);
+    if (data.activeOnly) filtered = filtered.filter((r) => r.hasActiveOwner);
+    if (data.role !== "all") filtered = filtered.filter((r) => r.role === data.role);
     if (data.confirmed === "yes") filtered = filtered.filter((r) => r.confirmed);
     else if (data.confirmed === "no") filtered = filtered.filter((r) => !r.confirmed);
     const total = filtered.length;

@@ -33,17 +33,27 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
   const { t, i18n } = useTranslation();
   const listFn = useServerFn(listAdminCompanies);
   const [search, setSearch] = useState("");
-  const [role, setRole] = useState<RoleFilter>("all");
+  const [role, setRole] = useState<RoleFilter>(readOnly ? "visitor" : "all");
   const [confirmed, setConfirmed] = useState<ConfirmedFilter>(readOnly ? "yes" : "all");
   const [page, setPage] = useState(1);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [exporting, setExporting] = useState<null | "xlsx" | "csv" | "pdf">(null);
 
+  const effectiveRole: RoleFilter = readOnly ? "visitor" : role;
+  const effectiveConfirmed: ConfirmedFilter = readOnly ? "yes" : confirmed;
+
   const { data, isLoading, refetch } = useQuery({
-    queryKey: ["admin-companies", search, role, confirmed, page, readOnly],
+    queryKey: ["admin-companies", search, effectiveRole, effectiveConfirmed, page, readOnly],
     queryFn: () =>
       listFn({
-        data: { search, role, confirmed: readOnly ? "yes" : confirmed, page, pageSize: 25 },
+        data: {
+          search,
+          role: effectiveRole,
+          confirmed: effectiveConfirmed,
+          page,
+          pageSize: 25,
+          activeOnly: readOnly,
+        },
       }),
   });
 
@@ -62,7 +72,14 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
 
   const fetchAll = async () => {
     const res = await listFn({
-      data: { search, role, confirmed: readOnly ? "yes" : confirmed, page: 1, pageSize: 5000 },
+      data: {
+        search,
+        role: effectiveRole,
+        confirmed: effectiveConfirmed,
+        page: 1,
+        pageSize: 5000,
+        activeOnly: readOnly,
+      },
     });
     return res.rows;
   };
@@ -177,7 +194,7 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
             className="pl-8"
           />
         </div>
-        <Select
+        {!readOnly && <Select
           value={role}
           onValueChange={(v) => {
             setPage(1);
@@ -192,7 +209,7 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
             <SelectItem value="visitor">{t("admin.companies.roleVisitor")}</SelectItem>
             <SelectItem value="exhibitor">{t("admin.companies.roleExhibitor")}</SelectItem>
           </SelectContent>
-        </Select>
+        </Select>}
         {!readOnly && (
         <Select
           value={confirmed}
