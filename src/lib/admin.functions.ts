@@ -153,6 +153,7 @@ export const listAdminCompanies = createServerFn({ method: "POST" })
         page: z.number().int().min(1).default(1),
         pageSize: z.number().int().min(1).max(5000).default(25),
         activeOnly: z.boolean().optional(),
+        lunch: z.enum(["all", "yes", "no"]).optional().default("all"),
       })
       .parse(input),
   )
@@ -204,6 +205,18 @@ export const listAdminCompanies = createServerFn({ method: "POST" })
     ]);
     const exhProfileIds = new Set((exhProfs ?? []).map((e) => e.profile_id));
 
+    const profileIds = (profs ?? []).map((p) => p.id);
+    const { data: visProfs } = profileIds.length
+      ? await supabaseAdmin
+          .from("visitor_profiles")
+          .select("profile_id, networking_lunch_participation")
+          .in("profile_id", profileIds)
+      : { data: [] as { profile_id: string; networking_lunch_participation: boolean | null }[] };
+    const lunchByProfile = new Map<string, boolean | null>();
+    (visProfs ?? []).forEach((v) =>
+      lunchByProfile.set(v.profile_id, v.networking_lunch_participation ?? null),
+    );
+
     // Determine company role by checking if any profile of the company is an exhibitor.
     const rows = companies.map((c) => {
       const allOwners = (profs ?? []).filter((p) => p.company_id === c.id);
@@ -213,6 +226,7 @@ export const listAdminCompanies = createServerFn({ method: "POST" })
       const isExh = owners.some((p) => exhProfileIds.has(p.id));
       const role: "exhibitor" | "visitor" = isExh ? "exhibitor" : "visitor";
       const confirmed = owners.some((p) => !!p.auth_user_id);
+      const lunch = primary ? lunchByProfile.get(primary.id) ?? null : null;
       return {
         id: c.id,
         trade_name: c.trade_name,
@@ -233,6 +247,7 @@ export const listAdminCompanies = createServerFn({ method: "POST" })
         role,
         confirmed,
         hasActiveOwner: activeOwners.length > 0,
+        networking_lunch_participation: lunch,
       };
     });
 
@@ -241,6 +256,8 @@ export const listAdminCompanies = createServerFn({ method: "POST" })
     if (data.role !== "all") filtered = filtered.filter((r) => r.role === data.role);
     if (data.confirmed === "yes") filtered = filtered.filter((r) => r.confirmed);
     else if (data.confirmed === "no") filtered = filtered.filter((r) => !r.confirmed);
+    if (data.lunch === "yes") filtered = filtered.filter((r) => r.networking_lunch_participation === true);
+    else if (data.lunch === "no") filtered = filtered.filter((r) => r.networking_lunch_participation === false);
     const total = filtered.length;
     const from = (data.page - 1) * data.pageSize;
     const paged = filtered.slice(from, from + data.pageSize);

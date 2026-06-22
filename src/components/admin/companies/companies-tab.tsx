@@ -28,6 +28,7 @@ import { UnpublishedExhibitorsPanel } from "./unpublished-exhibitors-panel";
 
 type RoleFilter = "all" | "visitor" | "exhibitor";
 type ConfirmedFilter = "all" | "yes" | "no";
+type LunchFilter = "all" | "yes" | "no";
 
 export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) {
   const { t, i18n } = useTranslation();
@@ -35,6 +36,7 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
   const [search, setSearch] = useState("");
   const [role, setRole] = useState<RoleFilter>(readOnly ? "visitor" : "all");
   const [confirmed, setConfirmed] = useState<ConfirmedFilter>(readOnly ? "yes" : "all");
+  const [lunch, setLunch] = useState<LunchFilter>("all");
   const [page, setPage] = useState(1);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [exporting, setExporting] = useState<null | "xlsx" | "csv" | "pdf">(null);
@@ -43,13 +45,14 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
   const effectiveConfirmed: ConfirmedFilter = readOnly ? "yes" : confirmed;
 
   const { data, isLoading, refetch } = useQuery({
-    queryKey: ["admin-companies", search, effectiveRole, effectiveConfirmed, page, readOnly],
+    queryKey: ["admin-companies", search, effectiveRole, effectiveConfirmed, lunch, page, readOnly],
     queryFn: () =>
       listFn({
         data: {
           search,
           role: effectiveRole,
           confirmed: effectiveConfirmed,
+          lunch,
           page,
           pageSize: 25,
           activeOnly: readOnly,
@@ -68,6 +71,7 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
     "Contato",
     "E-mail",
     "WhatsApp",
+    "Almoço de networking",
   ];
 
   const fetchAll = async () => {
@@ -76,6 +80,7 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
         search,
         role: effectiveRole,
         confirmed: effectiveConfirmed,
+        lunch,
         page: 1,
         pageSize: 5000,
         activeOnly: readOnly,
@@ -98,6 +103,11 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
       c.primary_contact?.full_name ?? "",
       c.primary_contact?.email ?? "",
       c.primary_contact?.whatsapp ?? c.whatsapp ?? "",
+      c.networking_lunch_participation === true
+        ? "Sim"
+        : c.networking_lunch_participation === false
+          ? "Não"
+          : "",
     ]);
 
   const stamp = () => new Date().toISOString().slice(0, 10);
@@ -228,6 +238,22 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
           </SelectContent>
         </Select>
         )}
+        <Select
+          value={lunch}
+          onValueChange={(v) => {
+            setPage(1);
+            setLunch(v as LunchFilter);
+          }}
+        >
+          <SelectTrigger className="w-full sm:w-56">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Almoço: todos</SelectItem>
+            <SelectItem value="yes">Participará do almoço</SelectItem>
+            <SelectItem value="no">Não participará do almoço</SelectItem>
+          </SelectContent>
+        </Select>
         <Button variant="outline" size="sm" onClick={exportXlsx} disabled={exporting !== null}>
           <FileSpreadsheet size={14} /> {exporting === "xlsx" ? t("common.loading") : "XLSX"}
         </Button>
@@ -270,6 +296,9 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
                   {c.primary_contact?.email ? ` · ${c.primary_contact.email}` : ""}
                   {c.primary_contact?.whatsapp || c.whatsapp
                     ? ` · WhatsApp: ${c.primary_contact?.whatsapp ?? c.whatsapp}`
+                    : ""}
+                  {c.role === "visitor" && c.networking_lunch_participation !== null
+                    ? ` · Almoço de networking: ${c.networking_lunch_participation ? "Sim" : "Não"}`
                     : ""}
                 </p>
               </div>
