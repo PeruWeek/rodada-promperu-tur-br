@@ -669,6 +669,37 @@ function Step3({ data, set, errors, t, lang }: StepProps & { lang: "pt" | "es" }
         </div>
         <FieldError msg={errors.interests_segments} t={t} />
       </div>
+      <div className="space-y-2 rounded-md border p-3">
+        <Label>{t("signup.networkingLunch.label")} *</Label>
+        <p className="text-xs text-muted-foreground">
+          {t("signup.networkingLunch.help")}
+        </p>
+        <div className="mt-1 space-y-2">
+          <label className="flex items-start gap-2 text-sm leading-snug">
+            <input
+              type="radio"
+              name="networking_lunch_participation"
+              value="yes"
+              checked={data.networking_lunch_participation === "yes"}
+              onChange={() => set("networking_lunch_participation", "yes")}
+              className="mt-0.5"
+            />
+            <span>{t("signup.networkingLunch.yes")}</span>
+          </label>
+          <label className="flex items-start gap-2 text-sm leading-snug">
+            <input
+              type="radio"
+              name="networking_lunch_participation"
+              value="no"
+              checked={data.networking_lunch_participation === "no"}
+              onChange={() => set("networking_lunch_participation", "no")}
+              className="mt-0.5"
+            />
+            <span>{t("signup.networkingLunch.no")}</span>
+          </label>
+        </div>
+        <FieldError msg={errors.networking_lunch_participation} t={t} />
+      </div>
       <div className="flex items-start gap-2 rounded-md border p-3">
         <Checkbox id="consent_data_sharing" checked={data.consent_data_sharing}
           onCheckedChange={(v) => set("consent_data_sharing", v === true)} />
