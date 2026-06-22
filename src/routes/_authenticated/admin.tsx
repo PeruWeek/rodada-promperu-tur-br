@@ -738,7 +738,14 @@ function UsersTab({ currentAuthUserId, canDelete }: { currentAuthUserId: string 
     queryFn: () => listFn({ data: { q } }),
   });
 
-  const invalidate = () => qc.invalidateQueries({ queryKey: ["admin-users"] });
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ["admin-users"] });
+    qc.invalidateQueries({ queryKey: ["registrants"] });
+    qc.invalidateQueries({ queryKey: ["admin-companies"] });
+    qc.invalidateQueries({ queryKey: ["companies"] });
+    qc.invalidateQueries({ queryKey: ["pipeline"] });
+    qc.invalidateQueries({ queryKey: ["profile"] });
+  };
 
   const createMut = useMutation({
     mutationFn: async (v: {
