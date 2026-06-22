@@ -264,8 +264,6 @@ export const listAdminCompanies = createServerFn({ method: "POST" })
     return { rows: paged, total };
   });
 
-export const getCompanyForEdit = createServerFn({ method: "POST" })
-
 export const setVisitorLunchParticipation = createServerFn({ method: "POST" })
   .inputValidator((input) =>
     z
