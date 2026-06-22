@@ -588,6 +588,12 @@
     "completeProfileHint": "Después de confirmar tu correo podrás acceder a tu panel.",
     "accountEmailNote": "Estamos usando el correo de tu cuenta: {{email}}.",
     "complementaryHint": "",
+    "networkingLunch": {
+      "label": "Participación en el almuerzo de networking",
+      "help": "Las plazas para el almuerzo de networking son limitadas y se reservarán previa confirmación.",
+      "yes": "Sí, participaré del almuerzo",
+      "no": "No participaré del almuerzo"
+    },
     "exhibitor": {
       "quickTitle": "Registro — Expositor",
       "quickSubtitle": "Datos obligatorios",
