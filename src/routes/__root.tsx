@@ -176,6 +176,9 @@ function RootComponent() {
     // Recovery-flow errors must be handled on /reset-password itself, not
     // bounced to /login (which mixes recovery with signup confirmation).
     if (window.location.pathname === "/reset-password") return;
+    // The dedicated /auth/callback route owns hash parsing and redirects.
+    // Don't double-handle here or we get duplicate toasts + nav storms.
+    if (window.location.pathname === "/auth/callback") return;
     const expired = err.errorCode === "otp_expired" || err.error === "access_denied";
     if (expired) {
       // Stable toast id deduplicates if anything re-triggers this branch.
