@@ -23,7 +23,7 @@ const secondaryButton = {
 export const SignupEmail = ({ siteName, siteUrl, recipient, confirmationUrl }: SignupEmailProps) => (
   <Html lang="pt-BR" dir="ltr">
     <Head />
-    <Preview>Cadastro recebido — confirme seu e-mail e acesse sua agenda</Preview>
+    <Preview>Cadastro recebido — confirme seu e-mail e agende suas reuniões</Preview>
     <Body style={main}>
       <Container style={container}>
         <Heading style={h1}>Cadastro recebido com sucesso!</Heading>
@@ -33,7 +33,7 @@ export const SignupEmail = ({ siteName, siteUrl, recipient, confirmationUrl }: S
         </Text>
         <Button style={button} href={confirmationUrl}>Confirmar e-mail</Button>
         <Text style={{ ...text, marginTop: '16px' }}>
-          Depois de confirmar, entre com o e-mail e a senha cadastrados para acessar sua agenda da Rodada de Negócios.
+          Depois de confirmar, entre com o e-mail e a senha cadastrados para agendar suas reuniões na rodada de negocios.
         </Text>
         <Button style={secondaryButton} href={LOGIN_URL}>Entrar e ver minha agenda</Button>
         <Text style={{ ...text, marginTop: '16px', fontSize: '13px', color: '#666' }}>
