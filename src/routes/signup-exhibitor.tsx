@@ -105,7 +105,7 @@ function SignupExhibitorPage() {
         email: data.email,
         password: data.password,
         options: {
-          emailRedirectTo: `${window.location.origin}/onboarding`,
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
           data: {
             full_name: data.full_name,
             preferred_language: data.preferred_language,

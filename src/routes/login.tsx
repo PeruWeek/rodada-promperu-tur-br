@@ -75,7 +75,7 @@ function LoginPage() {
       return;
     }
     setResending(true);
-    const redirectTo = `${window.location.origin}/onboarding`;
+    const redirectTo = `${window.location.origin}/auth/callback`;
     console.info("[auth.resend] request", { email: target, redirectTo });
     const startedAt = Date.now();
     const { data, error } = await supabase.auth.resend({

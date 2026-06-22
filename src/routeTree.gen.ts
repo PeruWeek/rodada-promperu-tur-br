@@ -19,6 +19,7 @@ import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as EmailUnsubscribeRouteImport } from './routes/email/unsubscribe'
+import { Route as AuthCallbackRouteImport } from './routes/auth.callback'
 import { Route as AuthenticatedTableAgendaRouteImport } from './routes/_authenticated/table-agenda'
 import { Route as AuthenticatedProfileRouteImport } from './routes/_authenticated/profile'
 import { Route as AuthenticatedPendingExhibitorRouteImport } from './routes/_authenticated/pending-exhibitor'
@@ -84,6 +85,11 @@ const IndexRoute = IndexRouteImport.update({
 const EmailUnsubscribeRoute = EmailUnsubscribeRouteImport.update({
   id: '/email/unsubscribe',
   path: '/email/unsubscribe',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthCallbackRoute = AuthCallbackRouteImport.update({
+  id: '/auth/callback',
+  path: '/auth/callback',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedTableAgendaRoute =
@@ -198,6 +204,7 @@ export interface FileRoutesByFullPath {
   '/pending-exhibitor': typeof AuthenticatedPendingExhibitorRoute
   '/profile': typeof AuthenticatedProfileRoute
   '/table-agenda': typeof AuthenticatedTableAgendaRoute
+  '/auth/callback': typeof AuthCallbackRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/exhibitor/$id': typeof AuthenticatedExhibitorIdRoute
   '/api/public/sendgrid-webhook': typeof ApiPublicSendgridWebhookRoute
@@ -226,6 +233,7 @@ export interface FileRoutesByTo {
   '/pending-exhibitor': typeof AuthenticatedPendingExhibitorRoute
   '/profile': typeof AuthenticatedProfileRoute
   '/table-agenda': typeof AuthenticatedTableAgendaRoute
+  '/auth/callback': typeof AuthCallbackRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/exhibitor/$id': typeof AuthenticatedExhibitorIdRoute
   '/api/public/sendgrid-webhook': typeof ApiPublicSendgridWebhookRoute
@@ -256,6 +264,7 @@ export interface FileRoutesById {
   '/_authenticated/pending-exhibitor': typeof AuthenticatedPendingExhibitorRoute
   '/_authenticated/profile': typeof AuthenticatedProfileRoute
   '/_authenticated/table-agenda': typeof AuthenticatedTableAgendaRoute
+  '/auth/callback': typeof AuthCallbackRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/_authenticated/exhibitor/$id': typeof AuthenticatedExhibitorIdRoute
   '/api/public/sendgrid-webhook': typeof ApiPublicSendgridWebhookRoute
@@ -286,6 +295,7 @@ export interface FileRouteTypes {
     | '/pending-exhibitor'
     | '/profile'
     | '/table-agenda'
+    | '/auth/callback'
     | '/email/unsubscribe'
     | '/exhibitor/$id'
     | '/api/public/sendgrid-webhook'
@@ -314,6 +324,7 @@ export interface FileRouteTypes {
     | '/pending-exhibitor'
     | '/profile'
     | '/table-agenda'
+    | '/auth/callback'
     | '/email/unsubscribe'
     | '/exhibitor/$id'
     | '/api/public/sendgrid-webhook'
@@ -343,6 +354,7 @@ export interface FileRouteTypes {
     | '/_authenticated/pending-exhibitor'
     | '/_authenticated/profile'
     | '/_authenticated/table-agenda'
+    | '/auth/callback'
     | '/email/unsubscribe'
     | '/_authenticated/exhibitor/$id'
     | '/api/public/sendgrid-webhook'
@@ -364,6 +376,7 @@ export interface RootRouteChildren {
   SignupRoute: typeof SignupRoute
   SignupExhibitorRoute: typeof SignupExhibitorRoute
   UnsubscribeRoute: typeof UnsubscribeRoute
+  AuthCallbackRoute: typeof AuthCallbackRoute
   EmailUnsubscribeRoute: typeof EmailUnsubscribeRoute
   ApiPublicSendgridWebhookRoute: typeof ApiPublicSendgridWebhookRoute
   LovableEmailSuppressionRoute: typeof LovableEmailSuppressionRoute
@@ -444,6 +457,13 @@ declare module '@tanstack/react-router' {
       path: '/email/unsubscribe'
       fullPath: '/email/unsubscribe'
       preLoaderRoute: typeof EmailUnsubscribeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth/callback': {
+      id: '/auth/callback'
+      path: '/auth/callback'
+      fullPath: '/auth/callback'
+      preLoaderRoute: typeof AuthCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/table-agenda': {
@@ -608,6 +628,7 @@ const rootRouteChildren: RootRouteChildren = {
   SignupRoute: SignupRoute,
   SignupExhibitorRoute: SignupExhibitorRoute,
   UnsubscribeRoute: UnsubscribeRoute,
+  AuthCallbackRoute: AuthCallbackRoute,
   EmailUnsubscribeRoute: EmailUnsubscribeRoute,
   ApiPublicSendgridWebhookRoute: ApiPublicSendgridWebhookRoute,
   LovableEmailSuppressionRoute: LovableEmailSuppressionRoute,

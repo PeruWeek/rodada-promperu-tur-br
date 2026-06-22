@@ -171,6 +171,9 @@ function RootComponent() {
   }, [queryClient, router]);
 
   useEffect(() => {
+    // /auth/callback owns hash parsing — bail out before consuming, so the
+    // callback page sees the original hash.
+    if (typeof window !== "undefined" && window.location.pathname === "/auth/callback") return;
     const err = consumeAuthHashError();
     if (!err) return;
     // Recovery-flow errors must be handled on /reset-password itself, not
