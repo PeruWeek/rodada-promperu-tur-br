@@ -298,7 +298,7 @@ export const setVisitorLunchParticipation = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
-const _getCompanyForEdit = createServerFn({ method: "POST" })
+export const getCompanyForEdit = createServerFn({ method: "POST" })
   .inputValidator((input) => z.object({ companyId: z.string().uuid() }).parse(input))
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
