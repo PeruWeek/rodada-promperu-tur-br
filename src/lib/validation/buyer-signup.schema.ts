@@ -49,10 +49,12 @@ export const stepContactProfileQuickSchema = z.object({
   whatsapp: brWhatsapp,
   buyer_types: z
     .array(z.string().trim().min(1))
-    .min(1, { message: "signup.errors.required" }),
+    .optional()
+    .default([]),
   interests_segments: z
     .array(z.string())
-    .min(1, { message: "signup.errors.required" }),
+    .optional()
+    .default([]),
   consent_data_sharing: z.literal(true, {
     errorMap: () => ({ message: "consentRequired" }),
   }),

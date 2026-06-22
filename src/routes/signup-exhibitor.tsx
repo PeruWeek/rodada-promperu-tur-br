@@ -282,7 +282,7 @@ function Step3({ data, set, errors, t }: StepProps & { lang: "pt" | "es" }) {
         </select>
       </div>
       <div>
-        <Label>{t("signup.exhibitor.segments")} *</Label>
+        <Label>{t("signup.exhibitor.segments")}</Label>
         <div className="mt-1.5">
           <MultiSelectChips taxonomyKey="segments" value={data.segments}
             onChange={(v) => set("segments", v)} />
@@ -290,7 +290,7 @@ function Step3({ data, set, errors, t }: StepProps & { lang: "pt" | "es" }) {
         <FieldError msg={errors.segments} t={t} />
       </div>
       <div>
-        <Label>{t("signup.exhibitor.services")} *</Label>
+        <Label>{t("signup.exhibitor.services")}</Label>
         <div className="mt-1.5">
           <MultiSelectChips taxonomyKey="services" value={data.services}
             onChange={(v) => set("services", v)} />
