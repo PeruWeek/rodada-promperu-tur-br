@@ -4,7 +4,6 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
 import { SiteHeader } from "@/components/site-header";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -39,6 +38,13 @@ function LoginPage() {
   const [cooldown, setCooldown] = useState(0);
   const linkExpired = reason === "otp_expired";
 
+  // Pre-fill the resend field with whatever the user typed in the login
+  // form (and vice-versa) so they don't have to retype.
+  const [resendEmail, setResendEmail] = useState("");
+  useEffect(() => {
+    if (linkExpired && email && !resendEmail) setResendEmail(email);
+  }, [linkExpired, email, resendEmail]);
+
   useEffect(() => {
     if (cooldown <= 0) return;
     const id = window.setTimeout(() => setCooldown((c) => c - 1), 1000);
@@ -63,9 +69,9 @@ function LoginPage() {
   };
 
   const onResend = async () => {
-    const target = email.trim().toLowerCase();
+    const target = (resendEmail || email).trim().toLowerCase();
     if (!target) {
-      toast.error(t("auth.resendNeedEmail"));
+      toast.error(t("auth.resendNeedEmail"), { id: "auth-resend" });
       return;
     }
     setResending(true);
@@ -78,16 +84,22 @@ function LoginPage() {
     if (error) {
       const msg = error.message?.toLowerCase() ?? "";
       if (msg.includes("rate") || msg.includes("limit") || msg.includes("seconds")) {
-        toast.error("Aguarde alguns segundos antes de pedir outro reenvio.");
+        toast.error("Aguarde alguns segundos antes de pedir outro reenvio.", {
+          id: "auth-resend",
+        });
       } else if (msg.includes("already") || msg.includes("confirmed")) {
-        toast.info("Este e-mail já está confirmado. Tente entrar normalmente.");
+        toast.info("Este e-mail já está confirmado. Tente entrar normalmente.", {
+          id: "auth-resend",
+        });
       } else {
-        toast.error("Não foi possível reenviar agora. Tente novamente em instantes.");
+        toast.error("Não foi possível reenviar agora. Tente novamente em instantes.", {
+          id: "auth-resend",
+        });
       }
       setCooldown(30);
       return;
     }
-    toast.success(t("auth.resendSuccess"));
+    toast.success(t("auth.resendSuccess"), { id: "auth-resend" });
     setCooldown(60);
   };
 
@@ -105,10 +117,49 @@ function LoginPage() {
         <h1 className="text-3xl font-bold">{t("auth.loginTitle")}</h1>
         <p className="mt-2 text-sm text-muted-foreground">{t("auth.loginSubtitle")}</p>
         {linkExpired && (
-          <Alert className="mt-6">
-            <AlertTitle>{t("auth.linkExpiredTitle")}</AlertTitle>
-            <AlertDescription>{t("auth.linkExpiredBody")}</AlertDescription>
-          </Alert>
+          <div className="mt-6 rounded-lg border border-destructive/40 bg-destructive/5 p-5">
+            <h2 className="text-base font-semibold text-destructive">
+              {t("auth.linkExpiredTitle")}
+            </h2>
+            <p className="mt-2 text-sm text-foreground">
+              {t("auth.linkExpiredBody")}
+            </p>
+            <p className="mt-2 text-xs text-muted-foreground">
+              {t("auth.linkExpiredOnlyLatest")}
+            </p>
+            <div className="mt-4 space-y-3">
+              <div>
+                <Label htmlFor="resend-email">
+                  {t("auth.linkExpiredEmailLabel")}
+                </Label>
+                <Input
+                  id="resend-email"
+                  type="email"
+                  autoComplete="email"
+                  placeholder={t("auth.linkExpiredEmailPlaceholder")}
+                  value={resendEmail}
+                  onChange={(e) => setResendEmail(e.target.value)}
+                  className="mt-1.5"
+                />
+              </div>
+              <Button
+                type="button"
+                className="w-full"
+                size="lg"
+                onClick={onResend}
+                disabled={resending || cooldown > 0}
+              >
+                {resending
+                  ? "…"
+                  : cooldown > 0
+                    ? `${t("auth.resendConfirmation")} (${cooldown}s)`
+                    : t("auth.resendConfirmation")}
+              </Button>
+            </div>
+            <p className="mt-4 text-xs text-muted-foreground">
+              {t("auth.linkExpiredAlreadyConfirmed")}
+            </p>
+          </div>
         )}
         <form onSubmit={onSubmit} className="mt-8 space-y-4">
           <div>
@@ -122,11 +173,6 @@ function LoginPage() {
           <Button type="submit" className="w-full" size="lg" disabled={loading}>
             {t("auth.submitLogin")}
           </Button>
-          {linkExpired && (
-            <Button type="button" variant="outline" className="w-full" size="lg" onClick={onResend} disabled={resending || cooldown > 0}>
-              {resending ? "…" : cooldown > 0 ? `${t("auth.resendConfirmation")} (${cooldown}s)` : t("auth.resendConfirmation")}
-            </Button>
-          )}
           <p className="text-center text-sm text-muted-foreground">
             <Link to="/signup" className="font-medium text-primary hover:underline">
               {t("auth.switchToSignup")}
