@@ -107,7 +107,7 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
         ? "Sim"
         : c.networking_lunch_participation === false
           ? "Não"
-          : "",
+          : "Não informado",
     ]);
 
   const stamp = () => new Date().toISOString().slice(0, 10);
@@ -297,8 +297,8 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
                   {c.primary_contact?.whatsapp || c.whatsapp
                     ? ` · WhatsApp: ${c.primary_contact?.whatsapp ?? c.whatsapp}`
                     : ""}
-                  {c.role === "visitor" && c.networking_lunch_participation !== null
-                    ? ` · Almoço de networking: ${c.networking_lunch_participation ? "Sim" : "Não"}`
+                  {c.role === "visitor"
+                    ? ` · Almoço de networking: ${c.networking_lunch_participation === true ? "Sim" : c.networking_lunch_participation === false ? "Não" : "Não informado"}`
                     : ""}
                 </p>
               </div>
