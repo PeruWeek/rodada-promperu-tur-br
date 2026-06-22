@@ -42,9 +42,7 @@ export function useVisitorReady() {
       const wizardCompleted = !!vis?.signup_completed_at;
       const profileFilled =
         !!company?.trade_name?.trim() &&
-        !!company?.city?.trim() &&
-        (vis?.buyer_types?.length ?? 0) > 0 &&
-        (vis?.interests_segments?.length ?? 0) > 0;
+        !!company?.city?.trim();
       const ready = wizardCompleted || profileFilled;
       console.info("[visitor-ready] computed", {
         profile_id: profile.id,
