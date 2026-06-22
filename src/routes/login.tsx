@@ -75,31 +75,67 @@ function LoginPage() {
       return;
     }
     setResending(true);
-    const { error } = await supabase.auth.resend({
+    const redirectTo = `${window.location.origin}/onboarding`;
+    console.info("[auth.resend] request", { email: target, redirectTo });
+    const startedAt = Date.now();
+    const { data, error } = await supabase.auth.resend({
       type: "signup",
       email: target,
-      options: { emailRedirectTo: `${window.location.origin}/onboarding` },
+      options: { emailRedirectTo: redirectTo },
     });
+    const elapsed = Date.now() - startedAt;
     setResending(false);
     if (error) {
+      console.error("[auth.resend] rejected", {
+        email: target,
+        elapsed_ms: elapsed,
+        status: (error as { status?: number }).status,
+        code: (error as { code?: string }).code,
+        message: error.message,
+      });
       const msg = error.message?.toLowerCase() ?? "";
-      if (msg.includes("rate") || msg.includes("limit") || msg.includes("seconds")) {
+      const status = (error as { status?: number }).status;
+      if (
+        msg.includes("rate") ||
+        msg.includes("limit") ||
+        msg.includes("seconds") ||
+        status === 429
+      ) {
         toast.error("Aguarde alguns segundos antes de pedir outro reenvio.", {
           id: "auth-resend",
         });
+        setCooldown(45);
       } else if (msg.includes("already") || msg.includes("confirmed")) {
-        toast.info("Este e-mail já está confirmado. Tente entrar normalmente.", {
-          id: "auth-resend",
-        });
+        toast.info(
+          "Este e-mail já está confirmado. Entre normalmente com sua senha abaixo.",
+          { id: "auth-resend" },
+        );
+      } else if (msg.includes("not found") || msg.includes("invalid")) {
+        toast.error(
+          "Não encontramos esse e-mail. Confira o endereço ou cadastre-se novamente.",
+          { id: "auth-resend" },
+        );
       } else {
-        toast.error("Não foi possível reenviar agora. Tente novamente em instantes.", {
+        toast.error("Não foi possível reenviar agora.", {
           id: "auth-resend",
+          description: error.message,
         });
+        setCooldown(30);
       }
-      setCooldown(30);
       return;
     }
-    toast.success(t("auth.resendSuccess"), { id: "auth-resend" });
+    console.info("[auth.resend] accepted", {
+      email: target,
+      elapsed_ms: elapsed,
+      data,
+    });
+    // Supabase, por segurança, devolve sucesso mesmo se o e-mail já estiver
+    // confirmado ou não existir (evita enumeração). Mensagem neutra para o
+    // usuário não esperar um e-mail que não virá.
+    toast.success(
+      "Se houver cadastro pendente para este e-mail, enviamos um novo link de confirmação. Confira sua caixa de entrada e a pasta de spam.",
+      { id: "auth-resend", duration: 8000 },
+    );
     setCooldown(60);
   };
 
