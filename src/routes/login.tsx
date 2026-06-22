@@ -129,12 +129,12 @@ function LoginPage() {
       elapsed_ms: elapsed,
       data,
     });
-    // Supabase, por segurança, devolve sucesso mesmo se o e-mail já estiver
-    // confirmado ou não existir (evita enumeração). Mensagem neutra para o
-    // usuário não esperar um e-mail que não virá.
-    toast.success(
-      "Se houver cadastro pendente para este e-mail, enviamos um novo link de confirmação. Confira sua caixa de entrada e a pasta de spam.",
-      { id: "auth-resend", duration: 8000 },
+    // IMPORTANTE: Supabase devolve 200 mesmo quando a conta já está
+    // confirmada ou o e-mail não existe (anti-enumeração). NÃO tratar como
+    // prova de envio. Mensagem neutra + CTAs para entrar / recuperar senha.
+    toast.info(
+      "Pedido registrado. Se houver cadastro pendente para este e-mail, um novo link será enviado em instantes. Se já confirmou antes, basta entrar com sua senha.",
+      { id: "auth-resend", duration: 9000 },
     );
     setCooldown(60);
   };
@@ -195,6 +195,23 @@ function LoginPage() {
             <p className="mt-4 text-xs text-muted-foreground">
               {t("auth.linkExpiredAlreadyConfirmed")}
             </p>
+            <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                onClick={() => {
+                  const el = document.getElementById("email");
+                  el?.scrollIntoView({ behavior: "smooth", block: "center" });
+                  (el as HTMLInputElement | null)?.focus();
+                }}
+              >
+                Entrar com minha senha
+              </Button>
+              <Button asChild type="button" variant="ghost" className="w-full">
+                <Link to="/forgot-password">Esqueci minha senha</Link>
+              </Button>
+            </div>
           </div>
         )}
         <form onSubmit={onSubmit} className="mt-8 space-y-4">
