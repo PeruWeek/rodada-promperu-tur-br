@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { FileSpreadsheet, FileText, Files, Pencil, Search } from "lucide-react";
 
-import { listAdminCompanies } from "@/lib/admin.functions";
+import { listAdminCompanies, setVisitorLunchParticipation } from "@/lib/admin.functions";
 import { downloadBlob, toCsv } from "@/lib/exports/csv";
 import { downloadXlsx } from "@/lib/exports/xlsx";
 import jsPDF from "jspdf";
@@ -33,6 +33,7 @@ type LunchFilter = "all" | "yes" | "no";
 export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) {
   const { t, i18n } = useTranslation();
   const listFn = useServerFn(listAdminCompanies);
+  const setLunchFn = useServerFn(setVisitorLunchParticipation);
   const [search, setSearch] = useState("");
   const [role, setRole] = useState<RoleFilter>(readOnly ? "visitor" : "all");
   const [confirmed, setConfirmed] = useState<ConfirmedFilter>(readOnly ? "yes" : "all");
@@ -40,6 +41,7 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
   const [page, setPage] = useState(1);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [exporting, setExporting] = useState<null | "xlsx" | "csv" | "pdf">(null);
+  const [savingLunchId, setSavingLunchId] = useState<string | null>(null);
 
   const effectiveRole: RoleFilter = readOnly ? "visitor" : role;
   const effectiveConfirmed: ConfirmedFilter = readOnly ? "yes" : confirmed;
@@ -297,10 +299,51 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
                   {c.primary_contact?.whatsapp || c.whatsapp
                     ? ` · WhatsApp: ${c.primary_contact?.whatsapp ?? c.whatsapp}`
                     : ""}
-                  {c.role === "visitor"
-                    ? ` · Almoço de networking: ${c.networking_lunch_participation === true ? "Sim" : c.networking_lunch_participation === false ? "Não" : "Não informado"}`
-                    : ""}
                 </p>
+                {c.role === "visitor" && c.primary_contact?.id && (
+                  <div className="mt-2 flex items-center gap-2 text-xs">
+                    <span className="text-muted-foreground">Almoço de networking:</span>
+                    <Select
+                      value={
+                        c.networking_lunch_participation === true
+                          ? "yes"
+                          : c.networking_lunch_participation === false
+                            ? "no"
+                            : "unset"
+                      }
+                      disabled={savingLunchId === c.primary_contact.id}
+                      onValueChange={async (v) => {
+                        if (v === "unset" || !c.primary_contact?.id) return;
+                        setSavingLunchId(c.primary_contact.id);
+                        try {
+                          await setLunchFn({
+                            data: {
+                              profileId: c.primary_contact.id,
+                              value: v === "yes",
+                            },
+                          });
+                          toast.success("Participação no almoço atualizada");
+                          await refetch();
+                        } catch (e) {
+                          toast.error((e as Error).message);
+                        } finally {
+                          setSavingLunchId(null);
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="h-7 w-40 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="unset" disabled>
+                          Não informado
+                        </SelectItem>
+                        <SelectItem value="yes">Sim</SelectItem>
+                        <SelectItem value="no">Não</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
               </div>
               {!readOnly && (
                 <Button size="sm" variant="outline" onClick={() => setEditingId(c.id)}>
