@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useServerFn } from "@tanstack/react-start";
 import { useQueryClient } from "@tanstack/react-query";
@@ -37,8 +37,12 @@ function OnboardingPage() {
   const [city, setCity] = useState("");
   const [saving, setSaving] = useState(false);
   const [autoFinishing, setAutoFinishing] = useState(false);
+  const autoRan = useRef(false);
 
-  if (!authLoading && !user) { navigate({ to: "/login" }); return null; }
+  useEffect(() => {
+    if (!authLoading && !user) navigate({ to: "/login", replace: true });
+  }, [authLoading, user, navigate]);
+  if (!authLoading && !user) return null;
 
   const primaryRole = profile ? getPrimaryRole(profile.roles) : null;
   const lockedKind: Kind | null =
@@ -71,7 +75,17 @@ function OnboardingPage() {
 
   // If the buyer wizard left a pending payload, finalize automatically and skip the kind picker.
   useEffect(() => {
-    if (!user || !profile || autoFinishing) return;
+    if (!user || !profile) return;
+    if (autoRan.current) return;
+    const clearPayloads = async () => {
+      try { sessionStorage.removeItem(BUYER_SIGNUP_STORAGE_KEY); } catch { /* ignore */ }
+      try { sessionStorage.removeItem(EXHIBITOR_SIGNUP_STORAGE_KEY); } catch { /* ignore */ }
+      try {
+        await supabase.auth.updateUser({
+          data: { buyer_signup_payload: null, exhibitor_signup_payload: null },
+        });
+      } catch { /* ignore */ }
+    };
     // Exhibitor quick-signup payload takes priority over buyer payload.
     let exhRaw: string | null = null;
     try { exhRaw = sessionStorage.getItem(EXHIBITOR_SIGNUP_STORAGE_KEY); } catch { /* ignore */ }
@@ -83,6 +97,7 @@ function OnboardingPage() {
       if (fromMeta && typeof fromMeta === "object") exhPayload = fromMeta as Record<string, unknown>;
     }
     if (exhPayload) {
+      autoRan.current = true;
       setAutoFinishing(true);
       (async () => {
         try {
@@ -93,8 +108,10 @@ function OnboardingPage() {
           toast.success(t("onboarding.requestedExhibitor"));
           navigate({ to: "/pending-exhibitor" });
         } catch (err) {
+          console.error("[onboarding.auto-exhibitor] failed", err);
+          await clearPayloads();
           setAutoFinishing(false);
-          toast.error(err instanceof Error ? err.message : "erro");
+          toast.error(err instanceof Error ? err.message : "erro", { id: "onboarding-auto-error" });
         }
       })();
       return;
@@ -114,6 +131,7 @@ function OnboardingPage() {
       }
     }
     if (!payload) return;
+    autoRan.current = true;
     setAutoFinishing(true);
     (async () => {
       try {
@@ -145,11 +163,14 @@ function OnboardingPage() {
         toast.success(t("onboarding.savedVisitor"));
         navigate({ to: "/agenda" });
       } catch (err) {
+        console.error("[onboarding.auto-buyer] failed", err);
+        // Clear corrupted/invalid payload so we don't retry the same failure.
+        await clearPayloads();
         setAutoFinishing(false);
-        toast.error(err instanceof Error ? err.message : "erro");
+        toast.error(err instanceof Error ? err.message : "erro", { id: "onboarding-auto-error" });
       }
     })();
-  }, [user, profile, autoFinishing, qc, navigate, t, completeExhibitorFn]);
+  }, [user, profile, qc, navigate, t, completeExhibitorFn]);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
