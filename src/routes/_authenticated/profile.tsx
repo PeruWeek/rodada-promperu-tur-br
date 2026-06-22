@@ -68,6 +68,7 @@ function ProfilePage() {
   const [vDestinations, setVDestinations] = useState<string[]>([]);
   const [vPortPt, setVPortPt] = useState("");
   const [vNotes, setVNotes] = useState("");
+  const [vLunch, setVLunch] = useState<"yes" | "no" | "">("");
   // Exhibitor
   const [eSegments, setESegments] = useState<string[]>([]);
   const [eServices, setEServices] = useState<string[]>([]);
@@ -112,6 +113,13 @@ function ProfilePage() {
       setVDestinations(extra.vis.interests_destinations ?? []);
       setVPortPt(extra.vis.portfolio_pt ?? "");
       setVNotes(extra.vis.notes ?? "");
+      setVLunch(
+        extra.vis.networking_lunch_participation === true
+          ? "yes"
+          : extra.vis.networking_lunch_participation === false
+            ? "no"
+            : "",
+      );
     }
     if (extra.exh) {
       setESegments(extra.exh.segments ?? []);
@@ -184,6 +192,9 @@ function ProfilePage() {
           portfolio_pt: vPortPt || null,
           notes: vNotes || null,
         };
+        if (vLunch === "yes" || vLunch === "no") {
+          upsertPayload.networking_lunch_participation = vLunch === "yes";
+        }
         if (!previouslyCompleted && meetsMinimum) {
           upsertPayload.signup_completed_at = new Date().toISOString();
         }
@@ -336,6 +347,22 @@ function ProfilePage() {
           <ChipsField label={t("profile.interestsDestinations")} value={vDestinations} onChange={setVDestinations} taxonomyKey="destinations" />
           <div><Label>{t("profile.portfolioPt")}</Label><Textarea value={vPortPt} onChange={(e) => setVPortPt(e.target.value)} rows={4} className="mt-1.5" /></div>
           <div><Label>{t("profile.notes")}</Label><Textarea value={vNotes} onChange={(e) => setVNotes(e.target.value)} rows={3} className="mt-1.5" /></div>
+          <div className="space-y-2 rounded-md border p-3">
+            <Label>{t("signup.networkingLunch.label")}</Label>
+            <p className="text-xs text-muted-foreground">{t("signup.networkingLunch.help")}</p>
+            <div className="mt-1 space-y-2">
+              <label className="flex items-start gap-2 text-sm leading-snug">
+                <input type="radio" name="profile_networking_lunch" value="yes"
+                  checked={vLunch === "yes"} onChange={() => setVLunch("yes")} className="mt-0.5" />
+                <span>{t("signup.networkingLunch.yes")}</span>
+              </label>
+              <label className="flex items-start gap-2 text-sm leading-snug">
+                <input type="radio" name="profile_networking_lunch" value="no"
+                  checked={vLunch === "no"} onChange={() => setVLunch("no")} className="mt-0.5" />
+                <span>{t("signup.networkingLunch.no")}</span>
+              </label>
+            </div>
+          </div>
         </Card>
       )}
 
