@@ -702,6 +702,8 @@ function CheckinTab() {
 }
 
 const ROLE_OPTIONS: AppRole[] = ["admin", "staff", "cliente", "exhibitor", "visitor"];
+// Categorias editáveis pelo fluxo administrativo (admin é gerenciado fora deste fluxo).
+const EDITABLE_ROLE_OPTIONS: AppRole[] = ["staff", "cliente", "exhibitor", "visitor"];
 
 type AdminUser = {
   id: string;
