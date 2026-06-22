@@ -66,6 +66,7 @@ const emptyData: BuyerSignupData = {
   preferred_language: "pt-BR",
   buyer_types: [],
   interests_segments: [],
+  networking_lunch_participation: "",
   consent_data_sharing: false,
   phone: "",
   additional_contacts: [],
@@ -332,6 +333,7 @@ function SignupPage() {
         interests_services: [],
         portfolio_pt: "",
         notes: "",
+        networking_lunch_participation: data.networking_lunch_participation === "yes",
         consent_data_sharing: data.consent_data_sharing,
         consent_marketing: false,
       };
