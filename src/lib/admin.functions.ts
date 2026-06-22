@@ -238,7 +238,7 @@ export const listAdminCompanies = createServerFn({ method: "POST" })
 
     let filtered = rows;
     if (data.activeOnly) filtered = filtered.filter((r) => r.hasActiveOwner);
-    if (data.role !== "all") filtered = rows.filter((r) => r.role === data.role);
+    if (data.role !== "all") filtered = filtered.filter((r) => r.role === data.role);
     if (data.confirmed === "yes") filtered = filtered.filter((r) => r.confirmed);
     else if (data.confirmed === "no") filtered = filtered.filter((r) => !r.confirmed);
     const total = filtered.length;
