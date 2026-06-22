@@ -33,8 +33,8 @@ export const exhibitorContactProfileQuickSchema = z.object({
   job_title: z.string().trim().min(2).max(120),
   whatsapp: intlPhone,
   preferred_language: z.enum(["pt-BR", "es"]),
-  segments: z.array(z.string()).min(1, { message: "signup.errors.required" }),
-  services: z.array(z.string()).min(1, { message: "signup.errors.required" }),
+  segments: z.array(z.string()).optional().default([]),
+  services: z.array(z.string()).optional().default([]),
   consent_data_sharing: z.literal(true, {
     errorMap: () => ({ message: "consentRequired" }),
   }),
