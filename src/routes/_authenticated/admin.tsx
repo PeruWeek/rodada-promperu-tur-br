@@ -893,8 +893,6 @@ function UsersTab({ currentAuthUserId, canDelete }: { currentAuthUserId: string 
                         ))}
                       </SelectContent>
                     </Select>
-                      </SelectContent>
-                    </Select>
                     <Button
                       size="sm"
                       variant="outline"
