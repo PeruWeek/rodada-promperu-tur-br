@@ -265,6 +265,40 @@ export const listAdminCompanies = createServerFn({ method: "POST" })
   });
 
 export const getCompanyForEdit = createServerFn({ method: "POST" })
+
+export const setVisitorLunchParticipation = createServerFn({ method: "POST" })
+  .inputValidator((input) =>
+    z
+      .object({
+        profileId: z.string().uuid(),
+        value: z.boolean(),
+      })
+      .parse(input),
+  )
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    await assertAdminOrStaffRead(context.userId);
+    const { data: existing } = await supabaseAdmin
+      .from("visitor_profiles")
+      .select("id")
+      .eq("profile_id", data.profileId)
+      .maybeSingle();
+    if (existing) {
+      const { error } = await supabaseAdmin
+        .from("visitor_profiles")
+        .update({ networking_lunch_participation: data.value })
+        .eq("profile_id", data.profileId);
+      if (error) throw new Error(error.message);
+    } else {
+      const { error } = await supabaseAdmin
+        .from("visitor_profiles")
+        .insert({ profile_id: data.profileId, networking_lunch_participation: data.value });
+      if (error) throw new Error(error.message);
+    }
+    return { ok: true };
+  });
+
+const _getCompanyForEdit = createServerFn({ method: "POST" })
   .inputValidator((input) => z.object({ companyId: z.string().uuid() }).parse(input))
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
