@@ -859,6 +859,7 @@ function UsersTab({ currentAuthUserId, canDelete }: { currentAuthUserId: string 
           filteredList.map((u) => {
             const primary = getPrimaryRole(u.roles);
             const isSelf = !!currentAuthUserId && u.auth_user_id === currentAuthUserId;
+            const isAdminUser = u.roles.includes("admin");
             return (
               <div key={u.id} className="rounded-md border border-border p-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -873,20 +874,25 @@ function UsersTab({ currentAuthUserId, canDelete }: { currentAuthUserId: string 
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     <Select
-                      value={primary ?? "visitor"}
+                      value={isAdminUser ? "admin" : (primary ?? "visitor")}
                       onValueChange={(v) =>
                         u.auth_user_id &&
                         roleMut.mutate({ userId: u.auth_user_id, role: v as AppRole })
                       }
-                      disabled={roleMut.isPending || !u.auth_user_id || (isSelf && primary === "admin")}
+                      disabled={roleMut.isPending || !u.auth_user_id || isAdminUser}
                     >
                       <SelectTrigger className="w-36">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {ROLE_OPTIONS.map((r) => (
+                        {isAdminUser && (
+                          <SelectItem value="admin" disabled>{t("roles.admin")}</SelectItem>
+                        )}
+                        {EDITABLE_ROLE_OPTIONS.map((r) => (
                           <SelectItem key={r} value={r}>{t(`roles.${r}`)}</SelectItem>
                         ))}
+                      </SelectContent>
+                    </Select>
                       </SelectContent>
                     </Select>
                     <Button
