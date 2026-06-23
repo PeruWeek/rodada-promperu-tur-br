@@ -359,7 +359,9 @@ function SignupPage() {
         },
       });
       if (error) {
-        toast.error(error.message);
+        const friendlyKey = friendlyAuthErrorKey(error.message);
+        const friendly = t(friendlyKey, { defaultValue: error.message });
+        toast.error(friendly);
         // Mautic: classificar a falha do signUp.
         const msg = (error.message || "").toLowerCase();
         const emailKey = data.email.toLowerCase();
