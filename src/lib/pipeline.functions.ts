@@ -278,7 +278,7 @@ export const getPipelineAlerts = createServerFn({ method: "POST" })
     }
 
     const baseSelect =
-      "id, company_trade_name, primary_contact_name, registration_status, scheduling_status, next_action, next_action_due_at, owner_name, created_at, region_label";
+      "id, company_trade_name, primary_contact_name, primary_profile_id, registration_status, scheduling_status, next_action, next_action_due_at, owner_name, created_at, region_label";
     const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
     const base = () => {
       let q = supabaseAdmin
@@ -294,10 +294,16 @@ export const getPipelineAlerts = createServerFn({ method: "POST" })
       base().in("next_action", ["ligar_para_confirmar", "aguardar_retorno", "cobrar_documentos"]).limit(5),
       base().eq("registration_status", "aguardando_aprovacao").limit(5),
     ]);
-    const withoutScheduling = a.data ?? [];
-    const incompleteStale = b.data ?? [];
-    const awaitingContact = c.data ?? [];
-    const awaitingApproval = d.data ?? [];
+    const allRowsForElig = [...(a.data ?? []), ...(b.data ?? []), ...(c.data ?? []), ...(d.data ?? [])];
+    const ineligible = await getIneligibleProfileIds(
+      allRowsForElig.map((r) => r.primary_profile_id as string | null).filter(Boolean) as string[],
+    );
+    const drop = <T extends { primary_profile_id?: unknown }>(arr: T[]) =>
+      arr.filter((r) => !ineligible.has(r.primary_profile_id as string));
+    const withoutScheduling = drop(a.data ?? []);
+    const incompleteStale = drop(b.data ?? []);
+    const awaitingContact = drop(c.data ?? []);
+    const awaitingApproval = drop(d.data ?? []);
 
     return { withoutScheduling, incompleteStale, awaitingContact, awaitingApproval };
   });
@@ -336,11 +342,18 @@ export const listFollowUps = createServerFn({ method: "POST" })
       .limit(500);
     if (error) throw new Error(error.message);
 
+    const ineligibleFu = await getIneligibleProfileIds(
+      ((rows ?? []).map((r) => r.primary_profile_id as string | null).filter(Boolean) as string[]),
+    );
+    const filteredFu = (rows ?? []).filter(
+      (r) => !ineligibleFu.has(r.primary_profile_id as string),
+    );
+
     if (data.sort === "priority") {
       const order: Record<string, number> = { alta: 0, media: 1, baixa: 2 };
-      (rows ?? []).sort((a, b) => (order[a.priority as string] ?? 3) - (order[b.priority as string] ?? 3));
+      filteredFu.sort((a, b) => (order[a.priority as string] ?? 3) - (order[b.priority as string] ?? 3));
     }
-    return { rows: rows ?? [] };
+    return { rows: filteredFu };
   });
 
 const patchSchema = z.object({
