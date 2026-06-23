@@ -8,7 +8,7 @@ import { Check, Copy, FileArchive, Files, Mail, Pencil, Plus, Power, RefreshCw, 
 
 import { supabase } from "@/integrations/supabase/client";
 import { useProfile, hasRole, getPrimaryRole, type AppRole } from "@/hooks/use-profile";
-import { adminSearchProfiles, assignExhibitorToTable, rebuildSlots } from "@/lib/admin.functions";
+import { assignExhibitorToTable, rebuildSlots } from "@/lib/admin.functions";
 import { createEventTable, deleteEventTable, updateEventTable } from "@/lib/admin.functions";
 import {
   adminConfirmEmail,
