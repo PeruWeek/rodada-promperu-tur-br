@@ -8,7 +8,7 @@ import { Check, Copy, FileArchive, Files, Mail, Pencil, Plus, Power, RefreshCw, 
 
 import { supabase } from "@/integrations/supabase/client";
 import { useProfile, hasRole, getPrimaryRole, type AppRole } from "@/hooks/use-profile";
-import { adminSearchProfiles, assignExhibitorToTable, rebuildSlots } from "@/lib/admin.functions";
+import { assignExhibitorToTable, rebuildSlots } from "@/lib/admin.functions";
 import { createEventTable, deleteEventTable, updateEventTable } from "@/lib/admin.functions";
 import {
   adminConfirmEmail,
@@ -27,7 +27,7 @@ import {
   listStaffAssignments,
   setStaffTableAssignment,
 } from "@/lib/staff.functions";
-import { generalCheckIn } from "@/lib/checkin.functions";
+import { generalCheckIn, listCheckinEligible } from "@/lib/checkin.functions";
 import { listExhibitorRequests, reviewExhibitorRequest } from "@/lib/exhibitor-requests.functions";
 import { listBulkAgendas } from "@/lib/staff-exports.functions";
 import { buildConsolidatedAgendaPdf, downloadAgendaZip } from "@/lib/exports/bulk-agenda";
@@ -584,33 +584,27 @@ function CheckinTab() {
   const qc = useQueryClient();
   const [q, setQ] = useState("");
   const checkInFn = useServerFn(generalCheckIn);
-  const searchFn = useServerFn(adminSearchProfiles);
+  const listEligibleFn = useServerFn(listCheckinEligible);
 
   const { data, isLoading } = useQuery({
     queryKey: ["admin-checkin", q],
     queryFn: async () => {
       const { data: event } = await supabase
-        .from("events").select("id, name").order("created_at").limit(1).maybeSingle();
+        .from("events").select("id, name").order("created_at", { ascending: false }).limit(1).maybeSingle();
       if (!event) return { event: null, profiles: [], checks: new Map<string, { at: string; byName: string | null }>() };
       const [{ profiles: profs }, { data: checks }] = await Promise.all([
-        searchFn({ data: { q, activeOnly: true } }),
+        listEligibleFn({ data: { eventId: event.id, q } }),
         supabase
           .from("general_checkins")
           .select("profile_id, checkin_at, checked_in_by_profile_id")
           .eq("event_id", event.id),
       ]);
-      const compIds = (profs ?? []).map((p) => p.company_id).filter(Boolean) as string[];
       const byIds = Array.from(
         new Set((checks ?? []).map((c) => c.checked_in_by_profile_id).filter(Boolean) as string[]),
       );
-      const [{ data: comps }, { data: byProfs }] = await Promise.all([
-        compIds.length
-          ? supabase.from("companies").select("id, trade_name").in("id", compIds)
-          : Promise.resolve({ data: [] as Array<{ id: string; trade_name: string }> }),
-        byIds.length
-          ? supabase.from("profiles").select("id, full_name").in("id", byIds)
-          : Promise.resolve({ data: [] as Array<{ id: string; full_name: string }> }),
-      ]);
+      const { data: byProfs } = byIds.length
+        ? await supabase.from("profiles").select("id, full_name").in("id", byIds)
+        : { data: [] as Array<{ id: string; full_name: string }> };
       const checkMap = new Map<string, { at: string; byName: string | null }>();
       for (const c of checks ?? []) {
         checkMap.set(c.profile_id, {
@@ -621,10 +615,7 @@ function CheckinTab() {
       }
       return {
         event,
-        profiles: (profs ?? []).map((p) => ({
-          ...p,
-          company: comps?.find((c) => c.id === p.company_id)?.trade_name ?? null,
-        })),
+        profiles: profs ?? [],
         checks: checkMap,
       };
     },
