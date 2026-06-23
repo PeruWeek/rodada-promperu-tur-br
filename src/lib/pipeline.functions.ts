@@ -148,7 +148,14 @@ export const listPipeline = createServerFn({ method: "POST" })
 
     const { data: rows, count, error } = await q;
     if (error) throw new Error(error.message);
-    return { rows: rows ?? [], total: count ?? 0, eventId };
+    const ineligible = await getIneligibleProfileIds(
+      ((rows ?? []).map((r) => r.primary_profile_id as string | null).filter(Boolean) as string[]),
+    );
+    const filtered = (rows ?? []).filter(
+      (r) => !ineligible.has(r.primary_profile_id as string),
+    );
+    const removed = (rows?.length ?? 0) - filtered.length;
+    return { rows: filtered, total: Math.max(0, (count ?? 0) - removed), eventId };
   });
 
 export const getPipelineKpis = createServerFn({ method: "POST" })
@@ -183,9 +190,16 @@ export const getPipelineKpis = createServerFn({ method: "POST" })
     const { data: rows, error } = await q;
     if (error) throw new Error(error.message);
 
+    const ineligibleKpi = await getIneligibleProfileIds(
+      ((rows ?? []).map((r) => r.primary_profile_id as string | null).filter(Boolean) as string[]),
+    );
+    const rowsFiltered = (rows ?? []).filter(
+      (r) => !ineligibleKpi.has(r.primary_profile_id as string),
+    );
+
     // Determine which primary contacts have actually created an account.
     const primaryIds = Array.from(
-      new Set((rows ?? []).map((r) => r.primary_profile_id as string | null).filter(Boolean) as string[]),
+      new Set(rowsFiltered.map((r) => r.primary_profile_id as string | null).filter(Boolean) as string[]),
     );
     const { data: confirmedProfs } = primaryIds.length
       ? await supabaseAdmin
@@ -207,7 +221,7 @@ export const getPipelineKpis = createServerFn({ method: "POST" })
       return Array.from(m, ([key, count]) => ({ key, count })).sort((a, b) => b.count - a.count);
     };
 
-    const all = rows ?? [];
+    const all = rowsFiltered;
     const recent = all.filter((r) => new Date(r.created_at as string).getTime() >= sinceMs);
 
     // Daily series for the period
