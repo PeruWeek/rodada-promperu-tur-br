@@ -93,12 +93,10 @@ function OverviewTab({ isAdmin }: Props) {
             <SelectItem value="365">Último ano</SelectItem>
           </SelectContent>
         </Select>
-        {isAdmin && (
-          <div className="flex items-center gap-2">
-            <Switch checked={mine} onCheckedChange={setMine} id="mine-overview" />
-            <Label htmlFor="mine-overview" className="text-sm">Apenas minha carteira</Label>
-          </div>
-        )}
+        <div className="flex items-center gap-2">
+          <Switch checked={mine} onCheckedChange={setMine} id="mine-overview" />
+          <Label htmlFor="mine-overview" className="text-sm">Apenas minha carteira</Label>
+        </div>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -266,12 +264,10 @@ function RegistrationsTab({ isAdmin }: Props) {
         {chips.map((c) => (
           <Button key={c.label} size="sm" variant="outline" onClick={() => { c.apply(); setPage(1); }}>{c.label}</Button>
         ))}
-        {isAdmin && (
-          <div className="ml-auto flex items-center gap-2">
-            <Switch checked={mine} onCheckedChange={setMine} id="mine-reg" />
-            <Label htmlFor="mine-reg" className="text-sm">Apenas meus</Label>
-          </div>
-        )}
+        <div className="ml-auto flex items-center gap-2">
+          <Switch checked={mine} onCheckedChange={setMine} id="mine-reg" />
+          <Label htmlFor="mine-reg" className="text-sm">Apenas meus</Label>
+        </div>
       </div>
 
       <div className="mb-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-6">
@@ -369,12 +365,10 @@ function SchedulingTab({ isAdmin }: Props) {
     <Card className="p-4">
       <div className="mb-3 flex flex-wrap items-center gap-3">
         <EnumSelect value={status} onChange={setStatus} placeholder="Status agend." options={[...SCHEDULING_STATUSES]} />
-        {isAdmin && (
-          <div className="flex items-center gap-2">
-            <Switch checked={mine} onCheckedChange={setMine} id="mine-sch" />
-            <Label htmlFor="mine-sch" className="text-sm">Apenas meus</Label>
-          </div>
-        )}
+        <div className="flex items-center gap-2">
+          <Switch checked={mine} onCheckedChange={setMine} id="mine-sch" />
+          <Label htmlFor="mine-sch" className="text-sm">Apenas meus</Label>
+        </div>
       </div>
       {isLoading ? <Skeleton className="h-60 w-full" /> : (
         <div className="overflow-x-auto">
@@ -463,12 +457,10 @@ function FollowUpTab({ isAdmin }: Props) {
             <SelectItem value="due">Ordenar por vencimento</SelectItem>
           </SelectContent>
         </Select>
-        {isAdmin && (
-          <div className="flex items-center gap-2">
-            <Switch checked={mine} onCheckedChange={setMine} id="mine-fu" />
-            <Label htmlFor="mine-fu" className="text-sm">Apenas meus</Label>
-          </div>
-        )}
+        <div className="flex items-center gap-2">
+          <Switch checked={mine} onCheckedChange={setMine} id="mine-fu" />
+          <Label htmlFor="mine-fu" className="text-sm">Apenas meus</Label>
+        </div>
       </div>
       {isLoading ? <Skeleton className="h-60 w-full" /> : (data?.rows ?? []).length === 0 ? (
         <p className="py-6 text-center text-sm text-muted-foreground">Nenhum follow-up pendente.</p>
