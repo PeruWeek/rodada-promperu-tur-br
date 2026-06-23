@@ -89,7 +89,29 @@
     "passwordUpdated": "Senha atualizada com sucesso. Faça login com a nova senha.",
     "savePassword": "Salvar nova senha",
     "backToLogin": "Voltar para o login",
-    "invalidOrExpiredLink": "Link inválido ou expirado. Solicite um novo link de recuperação."
+    "invalidOrExpiredLink": "Link inválido ou expirado. Solicite um novo link de recuperação.",
+    "passwordGuidelines": "Crie uma senha com pelo menos 8 caracteres, misturando letras maiúsculas, minúsculas, número e símbolo. Evite sequências óbvias e senhas comuns.",
+    "passwordStrength": {
+      "label": "Força da senha",
+      "weak": "fraca",
+      "medium": "média",
+      "strong": "forte"
+    },
+    "passwordCriteria": {
+      "minLength": "Pelo menos 8 caracteres",
+      "hasLower": "Uma letra minúscula",
+      "hasUpper": "Uma letra maiúscula",
+      "hasNumber": "Um número",
+      "hasSymbol": "Um símbolo (ex.: ! @ # $)",
+      "notCommon": "Não é uma senha óbvia ou comum"
+    },
+    "errors": {
+      "generic": "Não foi possível concluir. Tente novamente em instantes.",
+      "passwordWeak": "Essa senha é muito fácil de adivinhar. Tente combinar palavras menos óbvias com números e símbolos.",
+      "passwordLeaked": "Essa senha já apareceu em vazamentos de dados conhecidos. Escolha outra que você nunca usou em outros sites.",
+      "passwordTooShort": "Sua senha precisa ter pelo menos 8 caracteres.",
+      "passwordSameAsOld": "A nova senha precisa ser diferente da anterior."
+    }
   },
   "onboarding": {
     "title": "Conte-nos quem você é",
