@@ -45,6 +45,39 @@ async function getActiveEventId(): Promise<string | null> {
   return data?.id ?? null;
 }
 
+// Returns the set of primary_profile_ids whose owner has a non-participant
+// role (`cliente`, `admin`, `staff`). These rows must be excluded from the
+// participant pipeline so that, for example, a company registered with a
+// `cliente` primary contact never appears as a "visitor" lead.
+async function getIneligibleProfileIds(profileIds: string[]): Promise<Set<string>> {
+  const ids = Array.from(new Set(profileIds.filter(Boolean)));
+  if (ids.length === 0) return new Set();
+  const { data: profs } = await supabaseAdmin
+    .from("profiles")
+    .select("id, auth_user_id")
+    .in("id", ids);
+  const authIds = Array.from(
+    new Set((profs ?? []).map((p) => p.auth_user_id).filter(Boolean) as string[]),
+  );
+  if (authIds.length === 0) return new Set();
+  const { data: roles } = await supabaseAdmin
+    .from("user_roles")
+    .select("user_id, role")
+    .in("user_id", authIds);
+  const badAuth = new Set<string>();
+  for (const r of roles ?? []) {
+    const role = String(r.role);
+    if (role === "cliente" || role === "admin" || role === "staff") {
+      badAuth.add(r.user_id as string);
+    }
+  }
+  const out = new Set<string>();
+  for (const p of profs ?? []) {
+    if (p.auth_user_id && badAuth.has(p.auth_user_id)) out.add(p.id as string);
+  }
+  return out;
+}
+
 const filtersSchema = z.object({
   eventId: z.string().uuid().optional(),
   search: z.string().trim().optional(),
@@ -115,7 +148,14 @@ export const listPipeline = createServerFn({ method: "POST" })
 
     const { data: rows, count, error } = await q;
     if (error) throw new Error(error.message);
-    return { rows: rows ?? [], total: count ?? 0, eventId };
+    const ineligible = await getIneligibleProfileIds(
+      ((rows ?? []).map((r) => r.primary_profile_id as string | null).filter(Boolean) as string[]),
+    );
+    const filtered = (rows ?? []).filter(
+      (r) => !ineligible.has(r.primary_profile_id as string),
+    );
+    const removed = (rows?.length ?? 0) - filtered.length;
+    return { rows: filtered, total: Math.max(0, (count ?? 0) - removed), eventId };
   });
 
 export const getPipelineKpis = createServerFn({ method: "POST" })
@@ -150,9 +190,16 @@ export const getPipelineKpis = createServerFn({ method: "POST" })
     const { data: rows, error } = await q;
     if (error) throw new Error(error.message);
 
+    const ineligibleKpi = await getIneligibleProfileIds(
+      ((rows ?? []).map((r) => r.primary_profile_id as string | null).filter(Boolean) as string[]),
+    );
+    const rowsFiltered = (rows ?? []).filter(
+      (r) => !ineligibleKpi.has(r.primary_profile_id as string),
+    );
+
     // Determine which primary contacts have actually created an account.
     const primaryIds = Array.from(
-      new Set((rows ?? []).map((r) => r.primary_profile_id as string | null).filter(Boolean) as string[]),
+      new Set(rowsFiltered.map((r) => r.primary_profile_id as string | null).filter(Boolean) as string[]),
     );
     const { data: confirmedProfs } = primaryIds.length
       ? await supabaseAdmin
@@ -174,7 +221,7 @@ export const getPipelineKpis = createServerFn({ method: "POST" })
       return Array.from(m, ([key, count]) => ({ key, count })).sort((a, b) => b.count - a.count);
     };
 
-    const all = rows ?? [];
+    const all = rowsFiltered;
     const recent = all.filter((r) => new Date(r.created_at as string).getTime() >= sinceMs);
 
     // Daily series for the period
@@ -231,7 +278,7 @@ export const getPipelineAlerts = createServerFn({ method: "POST" })
     }
 
     const baseSelect =
-      "id, company_trade_name, primary_contact_name, registration_status, scheduling_status, next_action, next_action_due_at, owner_name, created_at, region_label";
+      "id, company_trade_name, primary_contact_name, primary_profile_id, registration_status, scheduling_status, next_action, next_action_due_at, owner_name, created_at, region_label";
     const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
     const base = () => {
       let q = supabaseAdmin
@@ -247,10 +294,16 @@ export const getPipelineAlerts = createServerFn({ method: "POST" })
       base().in("next_action", ["ligar_para_confirmar", "aguardar_retorno", "cobrar_documentos"]).limit(5),
       base().eq("registration_status", "aguardando_aprovacao").limit(5),
     ]);
-    const withoutScheduling = a.data ?? [];
-    const incompleteStale = b.data ?? [];
-    const awaitingContact = c.data ?? [];
-    const awaitingApproval = d.data ?? [];
+    const allRowsForElig = [...(a.data ?? []), ...(b.data ?? []), ...(c.data ?? []), ...(d.data ?? [])];
+    const ineligible = await getIneligibleProfileIds(
+      allRowsForElig.map((r) => r.primary_profile_id as string | null).filter(Boolean) as string[],
+    );
+    const drop = <T extends { primary_profile_id?: unknown }>(arr: T[]) =>
+      arr.filter((r) => !ineligible.has(r.primary_profile_id as string));
+    const withoutScheduling = drop(a.data ?? []);
+    const incompleteStale = drop(b.data ?? []);
+    const awaitingContact = drop(c.data ?? []);
+    const awaitingApproval = drop(d.data ?? []);
 
     return { withoutScheduling, incompleteStale, awaitingContact, awaitingApproval };
   });
@@ -289,11 +342,18 @@ export const listFollowUps = createServerFn({ method: "POST" })
       .limit(500);
     if (error) throw new Error(error.message);
 
+    const ineligibleFu = await getIneligibleProfileIds(
+      ((rows ?? []).map((r) => r.primary_profile_id as string | null).filter(Boolean) as string[]),
+    );
+    const filteredFu = (rows ?? []).filter(
+      (r) => !ineligibleFu.has(r.primary_profile_id as string),
+    );
+
     if (data.sort === "priority") {
       const order: Record<string, number> = { alta: 0, media: 1, baixa: 2 };
-      (rows ?? []).sort((a, b) => (order[a.priority as string] ?? 3) - (order[b.priority as string] ?? 3));
+      filteredFu.sort((a, b) => (order[a.priority as string] ?? 3) - (order[b.priority as string] ?? 3));
     }
-    return { rows: rows ?? [] };
+    return { rows: filteredFu };
   });
 
 const patchSchema = z.object({
