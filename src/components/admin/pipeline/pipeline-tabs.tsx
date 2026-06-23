@@ -221,7 +221,7 @@ function useStaffOwners() {
 function RegistrationsTab({ isAdmin }: Props) {
   const listFn = useServerFn(listPipeline);
   const [search, setSearch] = useState("");
-  const [role, setRole] = useState<string>("any");
+  const [role, setRole] = useState<string>(isAdmin ? "any" : "visitor");
   const [type, setType] = useState<string>("any");
   const [category, setCategory] = useState<string>("any");
   const [country, setCountry] = useState<string>("");
