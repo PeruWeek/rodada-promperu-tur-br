@@ -70,12 +70,8 @@ const ROLE_PRIORITY: AppRole[] = ["admin", "staff", "cliente", "exhibitor", "vis
 
 export function getPrimaryRole(roles: AppRole[] | undefined): AppRole | null {
   if (!roles || roles.length === 0) return null;
-  // Defensive normalization: legacy `cliente` rows in the database are
-  // surfaced to the UI as `exhibitor` so dashboards/guards remain consistent
-  // without requiring a backfill of every legacy account.
-  const normalized: AppRole[] = roles.map((r) => (r === "cliente" ? "exhibitor" : r));
   for (const r of ROLE_PRIORITY) {
-    if (normalized.includes(r)) return r;
+    if (roles.includes(r)) return r;
   }
   return null;
 }

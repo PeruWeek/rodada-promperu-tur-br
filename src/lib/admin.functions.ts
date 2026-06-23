@@ -71,10 +71,11 @@ export const setUserRole = createServerFn({ method: "POST" })
     z
       .object({
         userId: z.string().uuid(),
-        // `cliente` is a legacy label — primary roles must go through
-        // `transitionUserPrimaryRole`. This endpoint only manages additive
-        // operational roles.
-        role: z.enum(["admin", "staff", "exhibitor", "visitor"]),
+        // `cliente` is a real business role (kept alongside `visitor`/`exhibitor`).
+        // Primary participant transitions should go through
+        // `transitionUserPrimaryRole` / `adminSetPrimaryRole`, but this endpoint
+        // still accepts the full set so additive ops don't reject legacy roles.
+        role: z.enum(["admin", "staff", "exhibitor", "visitor", "cliente"]),
         action: z.enum(["add", "remove"]),
       })
       .parse(input),
@@ -114,7 +115,7 @@ export const transitionUserPrimaryRole = createServerFn({ method: "POST" })
     z
       .object({
         userId: z.string().uuid(),
-        role: z.enum(["visitor", "exhibitor"]),
+        role: z.enum(["visitor", "exhibitor", "cliente"]),
       })
       .parse(input),
   )
