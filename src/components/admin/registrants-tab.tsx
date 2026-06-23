@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { Ban, Download, FileArchive, FileSpreadsheet, FileText, Files, Search, UserCog, UserCheck } from "lucide-react";
+import { AlertCircle, Ban, ClipboardCheck, Download, FileArchive, FileSpreadsheet, FileText, Files, Search, UserCog, UserCheck } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -45,6 +45,8 @@ import {
   adminUpdateUserEmail,
   adminUpdateUserProfile,
 } from "@/lib/admin-auth.functions";
+import { staffListRegistrationCompletion } from "@/lib/staff-registration.functions";
+import { CompleteRegistrationDialog } from "@/components/admin/complete-registration-dialog";
 import { hasRole, useProfile } from "@/hooks/use-profile";
 import { downloadBlob, toCsv } from "@/lib/exports/csv";
 import { downloadXlsx } from "@/lib/exports/xlsx";
@@ -110,11 +112,13 @@ export function RegistrantsTab({
   const qc = useQueryClient();
   const { data: me } = useProfile();
   const isAdmin = hasRole(me?.roles, "admin") && !readOnly;
+  const isStaffOrAdmin = hasRole(me?.roles, "admin", "staff") && !readOnly;
   const listFn = useServerFn(listEventRegistrants);
   const agendaFn = useServerFn(getParticipantAgenda);
   const bulkFn = useServerFn(listBulkAgendas);
   const updateProfileFn = useServerFn(adminUpdateUserProfile);
   const updateEmailFn = useServerFn(adminUpdateUserEmail);
+  const completionFn = useServerFn(staffListRegistrationCompletion);
   const [role, setRole] = useState<RoleFilter>("all");
   const [search, setSearch] = useState("");
   const [agendaLoadingId, setAgendaLoadingId] = useState<string | null>(null);
@@ -122,6 +126,7 @@ export function RegistrantsTab({
   const [cancelTarget, setCancelTarget] = useState<RegistrantRow | null>(null);
   const [reactivateTarget, setReactivateTarget] = useState<RegistrantRow | null>(null);
   const [replaceTarget, setReplaceTarget] = useState<RegistrantRow | null>(null);
+  const [completeTargetId, setCompleteTargetId] = useState<string | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ["registrants", role, search],
@@ -139,6 +144,15 @@ export function RegistrantsTab({
     }
     return filtered;
   }, [data, onlyWithMeetings, readOnly]);
+
+  const profileIds = useMemo(() => rows.map((r) => r.profile_id), [rows]);
+
+  const completionQ = useQuery({
+    queryKey: ["registrants-completion", profileIds],
+    queryFn: () => completionFn({ data: { profileIds } }),
+    enabled: isStaffOrAdmin && profileIds.length > 0,
+  });
+  const completionById = completionQ.data?.byId ?? {};
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["registrants"] });
@@ -367,6 +381,18 @@ export function RegistrantsTab({
                       })}
                     </Badge>
                   )}
+                  {isStaffOrAdmin && completionById[r.profile_id] && (
+                    completionById[r.profile_id].status === "incompleto" ? (
+                      <Badge variant="outline" className="border-amber-500 text-amber-700 dark:text-amber-400">
+                        <AlertCircle size={12} className="mr-1" />
+                        Cadastro incompleto · {completionById[r.profile_id].missing} pendente(s)
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="border-emerald-500 text-emerald-700 dark:text-emerald-400">
+                        Cadastro completo
+                      </Badge>
+                    )
+                  )}
                 </div>
                 <p className="truncate text-xs text-muted-foreground">
                   {r.full_name}
@@ -388,6 +414,18 @@ export function RegistrantsTab({
                     ? t("common.loading")
                     : t("admin.registrants.downloadAgenda")}
                 </Button>
+                {isStaffOrAdmin && r.auth_user_id && (
+                  <Button
+                    size="sm"
+                    variant={
+                      completionById[r.profile_id]?.status === "incompleto" ? "default" : "outline"
+                    }
+                    onClick={() => setCompleteTargetId(r.profile_id)}
+                    title="Completar cadastro"
+                  >
+                    <ClipboardCheck size={14} /> Completar cadastro
+                  </Button>
+                )}
                 {isAdmin && r.auth_user_id && (
                   <>
                     <Button
@@ -503,6 +541,15 @@ export function RegistrantsTab({
             newEmail: v.email,
           })
         }
+      />
+
+      <CompleteRegistrationDialog
+        profileId={completeTargetId}
+        open={!!completeTargetId}
+        onOpenChange={(o) => {
+          if (!o) setCompleteTargetId(null);
+          qc.invalidateQueries({ queryKey: ["registrants-completion"] });
+        }}
       />
     </Card>
   );
