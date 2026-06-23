@@ -27,7 +27,7 @@ import {
   listStaffAssignments,
   setStaffTableAssignment,
 } from "@/lib/staff.functions";
-import { generalCheckIn } from "@/lib/checkin.functions";
+import { generalCheckIn, listCheckinEligible } from "@/lib/checkin.functions";
 import { listExhibitorRequests, reviewExhibitorRequest } from "@/lib/exhibitor-requests.functions";
 import { listBulkAgendas } from "@/lib/staff-exports.functions";
 import { buildConsolidatedAgendaPdf, downloadAgendaZip } from "@/lib/exports/bulk-agenda";
