@@ -89,7 +89,29 @@
     "passwordUpdated": "Contraseña actualizada con éxito. Inicia sesión con la nueva contraseña.",
     "savePassword": "Guardar nueva contraseña",
     "backToLogin": "Volver al inicio de sesión",
-    "invalidOrExpiredLink": "Enlace inválido o expirado. Solicita un nuevo enlace de recuperación."
+    "invalidOrExpiredLink": "Enlace inválido o expirado. Solicita un nuevo enlace de recuperación.",
+    "passwordGuidelines": "Crea una contraseña con al menos 8 caracteres, combinando mayúsculas, minúsculas, un número y un símbolo. Evita secuencias obvias y contraseñas comunes.",
+    "passwordStrength": {
+      "label": "Fuerza de la contraseña",
+      "weak": "débil",
+      "medium": "media",
+      "strong": "fuerte"
+    },
+    "passwordCriteria": {
+      "minLength": "Al menos 8 caracteres",
+      "hasLower": "Una letra minúscula",
+      "hasUpper": "Una letra mayúscula",
+      "hasNumber": "Un número",
+      "hasSymbol": "Un símbolo (ej.: ! @ # $)",
+      "notCommon": "No es una contraseña obvia o común"
+    },
+    "errors": {
+      "generic": "No fue posible completar. Inténtalo de nuevo en unos instantes.",
+      "passwordWeak": "Esa contraseña es muy fácil de adivinar. Combina palabras menos obvias con números y símbolos.",
+      "passwordLeaked": "Esa contraseña apareció en filtraciones de datos conocidas. Elige otra que nunca hayas usado en otros sitios.",
+      "passwordTooShort": "Tu contraseña debe tener al menos 8 caracteres.",
+      "passwordSameAsOld": "La nueva contraseña debe ser distinta de la anterior."
+    }
   },
   "onboarding": {
     "title": "Cuéntanos quién eres",
