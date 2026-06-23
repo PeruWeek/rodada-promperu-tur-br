@@ -203,7 +203,9 @@ export function EditCompanyDrawer({ companyId, onClose, onSaved }: Props) {
           <SheetDescription>
             {data?.role === "exhibitor"
               ? t("admin.companies.roleExhibitor")
-              : t("admin.companies.roleVisitor")}
+              : data?.role === "cliente"
+                ? t("admin.companies.roleCliente")
+                : t("admin.companies.roleVisitor")}
           </SheetDescription>
         </SheetHeader>
 
