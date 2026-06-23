@@ -8,6 +8,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/ui/password-input";
+import { PasswordStrength } from "@/components/ui/password-strength";
+import { friendlyAuthErrorKey, passwordStrength } from "@/lib/password-strength";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/reset-password")({
@@ -91,6 +93,10 @@ function ResetPasswordPage() {
       toast.error(t("auth.passwordTooShort"));
       return;
     }
+    if (passwordStrength(password) === "weak") {
+      toast.error(t("auth.errors.passwordWeak"));
+      return;
+    }
     if (password !== confirm) {
       toast.error(t("auth.passwordsDontMatch"));
       return;
@@ -103,10 +109,10 @@ function ResetPasswordPage() {
       // (we got here past PASSWORD_RECOVERY / SIGNED_IN). A failure on
       // updateUser is almost always a password-policy rejection (422):
       // "New password should be different from the old password",
-      // HIBP/leaked-password, or min-length. Surface the real reason so the
-      // user can try a different password instead of asking for a new link.
-      const msg = error.message || t("auth.invalidOrExpiredLink");
-      toast.error(msg);
+      // HIBP/leaked-password, or min-length. Map the technical message to a
+      // user-friendly one before showing.
+      const key = friendlyAuthErrorKey(error.message);
+      toast.error(t(key, { defaultValue: error.message || t("auth.invalidOrExpiredLink") }));
       return;
     }
     toast.success(t("auth.passwordUpdated"));
@@ -142,6 +148,8 @@ function ResetPasswordPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 className="mt-1.5"
               />
+              <p className="mt-1 text-xs text-muted-foreground">{t("auth.passwordGuidelines")}</p>
+              <PasswordStrength value={password} />
             </div>
             <div>
               <Label htmlFor="confirm">{t("auth.confirmPassword")}</Label>
