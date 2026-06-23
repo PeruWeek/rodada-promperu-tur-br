@@ -21,6 +21,9 @@ export function useProfile() {
   return useQuery({
     queryKey: ["profile", user?.id ?? "anon"],
     enabled: !!user && !authLoading,
+    staleTime: 0,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
     queryFn: async (): Promise<ProfileWithRoles | null> => {
       if (!user) return null;
       const [{ data: profile, error: profErr }, { data: rolesData }] = await Promise.all([
@@ -67,8 +70,12 @@ const ROLE_PRIORITY: AppRole[] = ["admin", "staff", "cliente", "exhibitor", "vis
 
 export function getPrimaryRole(roles: AppRole[] | undefined): AppRole | null {
   if (!roles || roles.length === 0) return null;
+  // Defensive normalization: legacy `cliente` rows in the database are
+  // surfaced to the UI as `exhibitor` so dashboards/guards remain consistent
+  // without requiring a backfill of every legacy account.
+  const normalized: AppRole[] = roles.map((r) => (r === "cliente" ? "exhibitor" : r));
   for (const r of ROLE_PRIORITY) {
-    if (roles.includes(r)) return r;
+    if (normalized.includes(r)) return r;
   }
   return null;
 }
