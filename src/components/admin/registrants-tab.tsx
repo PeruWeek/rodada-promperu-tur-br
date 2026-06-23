@@ -542,6 +542,15 @@ export function RegistrantsTab({
           })
         }
       />
+
+      <CompleteRegistrationDialog
+        profileId={completeTargetId}
+        open={!!completeTargetId}
+        onOpenChange={(o) => {
+          if (!o) setCompleteTargetId(null);
+          qc.invalidateQueries({ queryKey: ["registrants-completion"] });
+        }}
+      />
     </Card>
   );
 }
