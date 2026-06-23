@@ -398,7 +398,23 @@ export const getCompanyForEdit = createServerFn({ method: "POST" })
       visitorProfile = (v.data as unknown as JsonObject | null) ?? null;
       exhibitorProfile = (e.data as unknown as JsonObject | null) ?? null;
     }
-    const role: "exhibitor" | "visitor" = exhibitorProfile ? "exhibitor" : "visitor";
+    // Source of truth for the primary role is `user_roles`. Visitor/exhibitor
+    // profile rows may coexist after a role transition and must not be used
+    // to infer the primary role.
+    let role: "cliente" | "exhibitor" | "visitor" = "visitor";
+    if (primary?.auth_user_id) {
+      const { data: roleRows } = await supabaseAdmin
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", primary.auth_user_id);
+      const set = new Set((roleRows ?? []).map((r) => r.role as string));
+      if (set.has("cliente")) role = "cliente";
+      else if (set.has("exhibitor")) role = "exhibitor";
+      else if (set.has("visitor")) role = "visitor";
+      else role = exhibitorProfile ? "exhibitor" : "visitor";
+    } else {
+      role = exhibitorProfile ? "exhibitor" : "visitor";
+    }
     return {
       company: company as unknown as JsonObject,
       primaryProfile: (primary as unknown as JsonObject | null) ?? null,
