@@ -107,7 +107,8 @@ function buildExportArrays(rows: RegistrantRow[], t: (k: string) => string) {
 export function RegistrantsTab({
   readOnly = false,
   onlyWithMeetings = false,
-}: { readOnly?: boolean; onlyWithMeetings?: boolean } = {}) {
+  defaultRole,
+}: { readOnly?: boolean; onlyWithMeetings?: boolean; defaultRole?: RoleFilter } = {}) {
   const { t, i18n } = useTranslation();
   const qc = useQueryClient();
   const { data: me } = useProfile();
@@ -120,7 +121,8 @@ export function RegistrantsTab({
   const updateEmailFn = useServerFn(adminUpdateUserEmail);
   const completionFn = useServerFn(staffListRegistrationCompletion);
   const isStaffOnly = hasRole(me?.roles, "staff") && !hasRole(me?.roles, "admin");
-  const [role, setRole] = useState<RoleFilter>(isStaffOnly ? "visitor" : "all");
+  const initialRole: RoleFilter = defaultRole ?? (isStaffOnly ? "visitor" : "all");
+  const [role, setRole] = useState<RoleFilter>(initialRole);
   const [search, setSearch] = useState("");
   const [agendaLoadingId, setAgendaLoadingId] = useState<string | null>(null);
   const [bulkLoading, setBulkLoading] = useState<null | "pdf" | "zip">(null);
