@@ -344,6 +344,7 @@
       "roleAll": "Todos",
       "roleVisitor": "Visitantes",
       "roleExhibitor": "Expositores",
+      "roleCliente": "Clientes",
       "tabVisitor": "Perfil de la empresa"
     },
     "orphans": {
