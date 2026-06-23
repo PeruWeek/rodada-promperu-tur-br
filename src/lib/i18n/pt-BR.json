@@ -50,8 +50,8 @@
   "auth": {
     "loginTitle": "Entrar",
     "loginSubtitle": "Acesse sua conta para gerenciar reuniões.",
-    "signupTitle": "Cadastro",
-    "signupSubtitle": "Dados obrigatórios",
+    "signupTitle": "Inscrição para a Rodada de Negócios",
+    "signupSubtitle": "Inscrição obrigatória para iniciar com o agendamento das reuniões.",
     "email": "E-mail",
     "password": "Senha",
     "fullName": "Nome completo",
@@ -636,8 +636,8 @@
       "no": "Não participarei do almoço"
     },
     "exhibitor": {
-      "quickTitle": "Cadastro — Expositor",
-      "quickSubtitle": "Dados obrigatórios",
+      "quickTitle": "Inscrição para a Rodada de Negócios — Expositor",
+      "quickSubtitle": "Inscrição obrigatória para iniciar com o agendamento das reuniões.",
       "cityRegion": "Cidade / Região",
       "segments": "Segmentos",
       "services": "Serviços principais",
