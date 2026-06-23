@@ -192,6 +192,9 @@ function SignupPage() {
     const r = schemas[s - 1].safeParse(data);
     if (r.success) { setErrors({}); return true; }
     const flat = flattenZodErrors(r.error);
+    if (s === 1 && !flat.password && data.password && passwordStrength(data.password) === "weak") {
+      flat.password = "auth.errors.passwordWeak";
+    }
     setErrors(flat);
     // Mautic: signup_validation_error. Dedupe por (step + chaves de erro)
     // para não inflar a timeline em cliques repetidos com os mesmos erros,
