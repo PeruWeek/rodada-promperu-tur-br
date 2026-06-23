@@ -193,6 +193,12 @@ function RequestsTab() {
     onSuccess: () => {
       toast.success(t("admin.requests.reviewed"));
       qc.invalidateQueries({ queryKey: ["admin-exh-requests"] });
+      // Approve changes the user's primary role: refresh any cache that
+      // surfaces role-derived data so admin lists and the user's own UI
+      // reflect the promotion without a relogin.
+      qc.invalidateQueries({ queryKey: ["profile"] });
+      qc.invalidateQueries({ queryKey: ["admin-companies"] });
+      qc.invalidateQueries({ queryKey: ["pipeline-list"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });

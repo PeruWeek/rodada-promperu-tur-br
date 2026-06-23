@@ -71,7 +71,10 @@ export const setUserRole = createServerFn({ method: "POST" })
     z
       .object({
         userId: z.string().uuid(),
-        role: z.enum(["admin", "staff", "exhibitor", "visitor", "cliente"]),
+        // `cliente` is a legacy label — primary roles must go through
+        // `transitionUserPrimaryRole`. This endpoint only manages additive
+        // operational roles.
+        role: z.enum(["admin", "staff", "exhibitor", "visitor"]),
         action: z.enum(["add", "remove"]),
       })
       .parse(input),
@@ -97,6 +100,33 @@ export const setUserRole = createServerFn({ method: "POST" })
         .eq("role", data.role);
     }
     return { ok: true };
+  });
+
+// Transactional swap of a user's primary participant role (visitor ⇄ exhibitor).
+// Wraps the SQL RPC `transition_primary_role`, which atomically:
+//   - removes legacy/conflicting primary roles (including the legacy `cliente`)
+//   - inserts the target role
+//   - materializes `visitor_profiles` / `exhibitor_profiles` as needed
+//   - preserves `admin` / `staff` if present (they are additive)
+//   - writes an audit_logs entry with before/after snapshot
+export const transitionUserPrimaryRole = createServerFn({ method: "POST" })
+  .inputValidator((input) =>
+    z
+      .object({
+        userId: z.string().uuid(),
+        role: z.enum(["visitor", "exhibitor"]),
+      })
+      .parse(input),
+  )
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.userId);
+    const { data: result, error } = await supabaseAdmin.rpc("transition_primary_role", {
+      p_auth_user_id: data.userId,
+      p_target_role: data.role,
+    });
+    if (error) throw new Error(error.message);
+    return { ok: true, result };
   });
 
 export const rebuildSlots = createServerFn({ method: "POST" })
