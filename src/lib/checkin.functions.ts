@@ -20,6 +20,114 @@ async function isAdminOrStaff(userId: string) {
   return (data ?? []).some((r) => r.role === "admin" || r.role === "staff");
 }
 
+// List of profiles eligible for general check-in at an event.
+// Eligibility rules (enforced server-side):
+//  - registration completed for the participant's company at this event
+//    (company_event_pipeline.registration_status in cadastro_concluido / aprovado)
+//  - at least one meeting in the event with status scheduled / done / no_show
+//    (the participant is either the visitor or the table's exhibitor)
+// `is_active` alone is NOT sufficient.
+export const listCheckinEligible = createServerFn({ method: "POST" })
+  .inputValidator((input) =>
+    z
+      .object({
+        eventId: z.string().uuid().optional(),
+        q: z.string().trim().optional(),
+        limit: z.number().int().min(1).max(500).optional(),
+      })
+      .parse(input),
+  )
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    if (!(await isAdminOrStaff(context.userId)))
+      throw new Error("Forbidden: admin/staff only");
+
+    let eventId = data.eventId ?? null;
+    if (!eventId) {
+      const { data: ev } = await supabaseAdmin
+        .from("events")
+        .select("id")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      eventId = ev?.id ?? null;
+    }
+    if (!eventId) return { eventId: null, profiles: [] as Array<{ id: string; auth_user_id: string | null; full_name: string | null; email: string | null; company_id: string | null; company: string | null }> };
+
+    // 1) Meetings of the event with relevant statuses → eligible profile ids.
+    const { data: meetings } = await supabaseAdmin
+      .from("meetings")
+      .select("visitor_profile_id, table_id, status")
+      .eq("event_id", eventId)
+      .in("status", ["scheduled", "done", "no_show"]);
+    const visitorIds = new Set<string>();
+    const tableIds = new Set<string>();
+    for (const m of meetings ?? []) {
+      if (m.visitor_profile_id) visitorIds.add(m.visitor_profile_id as string);
+      if (m.table_id) tableIds.add(m.table_id as string);
+    }
+    const exhibitorIds = new Set<string>();
+    if (tableIds.size > 0) {
+      const { data: tables } = await supabaseAdmin
+        .from("event_tables")
+        .select("id, exhibitor_profile_id")
+        .in("id", Array.from(tableIds));
+      for (const t of tables ?? []) {
+        if (t.exhibitor_profile_id) exhibitorIds.add(t.exhibitor_profile_id as string);
+      }
+    }
+    const candidateIds = new Set<string>([...visitorIds, ...exhibitorIds]);
+    if (candidateIds.size === 0) return { eventId, profiles: [] };
+
+    // 2) Restrict to companies with completed registration in this event.
+    const { data: pipeRows } = await supabaseAdmin
+      .from("company_event_pipeline")
+      .select("company_id, registration_status")
+      .eq("event_id", eventId)
+      .in("registration_status", ["cadastro_concluido", "aprovado"]);
+    const eligibleCompanies = new Set<string>(
+      (pipeRows ?? []).map((r) => r.company_id as string),
+    );
+
+    // 3) Load candidate profiles, filter by eligible company and search term.
+    let pq = supabaseAdmin
+      .from("profiles")
+      .select("id, auth_user_id, full_name, email, company_id")
+      .in("id", Array.from(candidateIds))
+      .order("full_name")
+      .limit(data.limit ?? 200);
+    if (data.q?.trim()) {
+      const term = `%${data.q.trim()}%`;
+      pq = pq.or(`full_name.ilike.${term},email.ilike.${term}`);
+    }
+    const { data: profs, error } = await pq;
+    if (error) throw new Error(error.message);
+    const eligibleProfiles = (profs ?? []).filter(
+      (p) => p.company_id && eligibleCompanies.has(p.company_id as string),
+    );
+
+    // 4) Resolve company names.
+    const compIds = Array.from(
+      new Set(eligibleProfiles.map((p) => p.company_id).filter(Boolean) as string[]),
+    );
+    const { data: comps } = compIds.length
+      ? await supabaseAdmin.from("companies").select("id, trade_name").in("id", compIds)
+      : { data: [] as Array<{ id: string; trade_name: string }> };
+    const compMap = new Map((comps ?? []).map((c) => [c.id as string, c.trade_name as string]));
+
+    return {
+      eventId,
+      profiles: eligibleProfiles.map((p) => ({
+        id: p.id as string,
+        auth_user_id: (p.auth_user_id as string) ?? null,
+        full_name: (p.full_name as string) ?? null,
+        email: (p.email as string) ?? null,
+        company_id: (p.company_id as string) ?? null,
+        company: p.company_id ? compMap.get(p.company_id as string) ?? null : null,
+      })),
+    };
+  });
+
 // General event check-in (admin/staff scans/marks a profile as present)
 export const generalCheckIn = createServerFn({ method: "POST" })
   .inputValidator((input) =>
