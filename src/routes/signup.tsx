@@ -528,7 +528,7 @@ type StepProps = {
 function FieldError({ msg, t }: { msg?: string; t: StepProps["t"] }) {
   if (!msg) return null;
   let text: string;
-  if (msg.startsWith("signup.")) {
+  if (msg.startsWith("signup.") || msg.startsWith("auth.")) {
     text = t(msg);
   } else {
     const known = ["cnpjInvalid", "phoneInvalid", "urlInvalid", "passwordMismatch", "consentRequired"];
