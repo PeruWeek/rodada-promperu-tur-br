@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/ui/password-input";
+import { PasswordStrength } from "@/components/ui/password-strength";
+import { friendlyAuthErrorKey, passwordStrength } from "@/lib/password-strength";
 import { Checkbox } from "@/components/ui/checkbox";
 import { MultiSelectChips } from "@/components/multi-select-chips";
 import { supabase } from "@/integrations/supabase/client";
@@ -77,7 +79,11 @@ function SignupExhibitorPage() {
     const schemas = [exhibitorAccountSchema, exhibitorCompanyQuickSchema, exhibitorContactProfileQuickSchema];
     const r = schemas[s - 1].safeParse(data);
     if (r.success) { setErrors({}); return true; }
-    setErrors(flattenZodErrors(r.error));
+    const flat = flattenZodErrors(r.error);
+    if (s === 1 && !flat.password && data.password && passwordStrength(data.password) === "weak") {
+      flat.password = "auth.errors.passwordWeak";
+    }
+    setErrors(flat);
     return false;
   };
 
@@ -113,7 +119,11 @@ function SignupExhibitorPage() {
           },
         },
       });
-      if (error) { toast.error(error.message); return; }
+      if (error) {
+        const friendlyKey = friendlyAuthErrorKey(error.message);
+        toast.error(t(friendlyKey, { defaultValue: error.message }));
+        return;
+      }
       setSent(true);
     } finally { setLoading(false); }
   };
@@ -190,7 +200,7 @@ type StepProps = {
 function FieldError({ msg, t }: { msg?: string; t: StepProps["t"] }) {
   if (!msg) return null;
   let text: string;
-  if (msg.startsWith("signup.")) text = t(msg);
+  if (msg.startsWith("signup.") || msg.startsWith("auth.")) text = t(msg);
   else {
     const known = ["phoneInvalid", "passwordMismatch", "consentRequired"];
     text = known.includes(msg) ? t(`signup.errors.${msg}`) : t("signup.errors.required");
@@ -211,7 +221,8 @@ function Step1({ data, set, errors, t }: StepProps) {
         <Label htmlFor="password">{t("auth.password")} *</Label>
         <PasswordInput id="password" autoComplete="new-password" value={data.password}
           onChange={(e) => set("password", e.target.value)} className="mt-1.5" />
-        <p className="mt-1 text-xs text-muted-foreground">{t("signup.passwordHint")}</p>
+        <p className="mt-1 text-xs text-muted-foreground">{t("auth.passwordGuidelines")}</p>
+        <PasswordStrength value={data.password} />
         <FieldError msg={errors.password} t={t} />
       </div>
       <div>
