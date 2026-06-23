@@ -381,6 +381,18 @@ export function RegistrantsTab({
                       })}
                     </Badge>
                   )}
+                  {isStaffOrAdmin && completionById[r.profile_id] && (
+                    completionById[r.profile_id].status === "incompleto" ? (
+                      <Badge variant="outline" className="border-amber-500 text-amber-700 dark:text-amber-400">
+                        <AlertCircle size={12} className="mr-1" />
+                        Cadastro incompleto · {completionById[r.profile_id].missing} pendente(s)
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="border-emerald-500 text-emerald-700 dark:text-emerald-400">
+                        Cadastro completo
+                      </Badge>
+                    )
+                  )}
                 </div>
                 <p className="truncate text-xs text-muted-foreground">
                   {r.full_name}
@@ -402,6 +414,18 @@ export function RegistrantsTab({
                     ? t("common.loading")
                     : t("admin.registrants.downloadAgenda")}
                 </Button>
+                {isStaffOrAdmin && r.auth_user_id && (
+                  <Button
+                    size="sm"
+                    variant={
+                      completionById[r.profile_id]?.status === "incompleto" ? "default" : "outline"
+                    }
+                    onClick={() => setCompleteTargetId(r.profile_id)}
+                    title="Completar cadastro"
+                  >
+                    <ClipboardCheck size={14} /> Completar cadastro
+                  </Button>
+                )}
                 {isAdmin && r.auth_user_id && (
                   <>
                     <Button
