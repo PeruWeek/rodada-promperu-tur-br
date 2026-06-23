@@ -266,6 +266,37 @@ export const reviewExhibitorRequest = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     await assertAdmin(context.userId);
     const reviewerProfileId = await getOwnProfileId(context.userId);
+
+    // On approve: first promote the user to `exhibitor` through the transactional
+    // RPC (removes legacy `cliente`/`visitor` role, inserts `exhibitor`, seeds
+    // `exhibitor_profiles`). Only mark the request as approved when promotion
+    // succeeds — otherwise the admin can retry safely.
+    if (data.action === "approve") {
+      const { data: req, error: reqErr } = await supabaseAdmin
+        .from("exhibitor_requests")
+        .select("profile_id")
+        .eq("id", data.id)
+        .maybeSingle();
+      if (reqErr) throw new Error(reqErr.message);
+      if (!req) throw new Error("Solicitação não encontrada");
+
+      const { data: prof, error: profErr } = await supabaseAdmin
+        .from("profiles")
+        .select("auth_user_id")
+        .eq("id", req.profile_id)
+        .maybeSingle();
+      if (profErr) throw new Error(profErr.message);
+      if (!prof?.auth_user_id) {
+        throw new Error("Não é possível aprovar: o usuário ainda não confirmou o cadastro.");
+      }
+
+      const { error: rpcErr } = await supabaseAdmin.rpc("transition_primary_role", {
+        p_auth_user_id: prof.auth_user_id,
+        p_target_role: "exhibitor",
+      });
+      if (rpcErr) throw new Error(rpcErr.message);
+    }
+
     const { error } = await supabaseAdmin
       .from("exhibitor_requests")
       .update({
