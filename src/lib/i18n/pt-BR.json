@@ -355,6 +355,7 @@
       "roleAll": "Todos",
       "roleVisitor": "Visitantes",
       "roleExhibitor": "Expositores",
+      "roleCliente": "Clientes",
       "empty": "Nenhuma empresa encontrada.",
       "edit": "Editar",
       "saved": "Dados atualizados.",
