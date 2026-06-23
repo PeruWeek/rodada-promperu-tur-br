@@ -567,7 +567,8 @@ function Step1({ data, set, errors, t, onEmailBlur }: StepProps & { onEmailBlur?
         <Label htmlFor="password">{t("auth.password")} *</Label>
         <PasswordInput id="password" autoComplete="new-password" value={data.password}
           onChange={(e) => set("password", e.target.value)} className="mt-1.5" />
-        <p className="mt-1 text-xs text-muted-foreground">{t("signup.passwordHint")}</p>
+        <p className="mt-1 text-xs text-muted-foreground">{t("auth.passwordGuidelines")}</p>
+        <PasswordStrength value={data.password} />
         <FieldError msg={errors.password} t={t} />
       </div>
       <div>
