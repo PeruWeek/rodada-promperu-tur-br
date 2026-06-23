@@ -1861,6 +1861,13 @@ export type Database = {
       }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
+      transition_primary_role: {
+        Args: {
+          p_auth_user_id: string
+          p_target_role: Database["public"]["Enums"]["app_role"]
+        }
+        Returns: Json
+      }
     }
     Enums: {
       agent_base_url_mode: "api" | "free"
