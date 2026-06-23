@@ -100,11 +100,39 @@ export const listEventRegistrants = createServerFn({ method: "POST" })
       : { data: [] as Array<{ id: string; job_title: string | null; phone: string | null; whatsapp: string | null; auth_user_id: string | null; is_active: boolean | null }> };
     const profById = new Map((profs ?? []).map((p) => [p.id, p]));
 
+    // Exclude profiles whose owner is not actually a participant role
+    // (exhibitor/visitor). `cliente`, `admin`, and `staff` are internal /
+    // business profiles and must not appear in the "Inscritos" list even
+    // when the underlying company is tagged as visitor in the pipeline.
+    const authUserIds = Array.from(
+      new Set((profs ?? []).map((p) => p.auth_user_id).filter(Boolean) as string[]),
+    );
+    const { data: rolesData } = authUserIds.length
+      ? await supabaseAdmin
+          .from("user_roles")
+          .select("user_id, role")
+          .in("user_id", authUserIds)
+      : { data: [] as Array<{ user_id: string; role: string }> };
+    const rolesByUser = new Map<string, Set<string>>();
+    for (const r of rolesData ?? []) {
+      const key = r.user_id as string;
+      if (!rolesByUser.has(key)) rolesByUser.set(key, new Set());
+      rolesByUser.get(key)!.add(String(r.role));
+    }
+    const ineligibleAuthIds = new Set<string>();
+    for (const [uid, roles] of rolesByUser) {
+      if (roles.has("cliente") || roles.has("admin") || roles.has("staff")) {
+        ineligibleAuthIds.add(uid);
+      }
+    }
+
     const out: RegistrantRow[] = (rows ?? [])
       .filter((r) => r.company_id && r.primary_profile_id)
       .filter((r) => {
         const p = profById.get(r.primary_profile_id as string);
-        return !!p?.auth_user_id && p?.is_active !== false;
+        if (!p?.auth_user_id || p?.is_active === false) return false;
+        if (ineligibleAuthIds.has(p.auth_user_id)) return false;
+        return true;
       })
       .map((r) => {
         const p = profById.get(r.primary_profile_id as string);
