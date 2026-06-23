@@ -45,6 +45,39 @@ async function getActiveEventId(): Promise<string | null> {
   return data?.id ?? null;
 }
 
+// Returns the set of primary_profile_ids whose owner has a non-participant
+// role (`cliente`, `admin`, `staff`). These rows must be excluded from the
+// participant pipeline so that, for example, a company registered with a
+// `cliente` primary contact never appears as a "visitor" lead.
+async function getIneligibleProfileIds(profileIds: string[]): Promise<Set<string>> {
+  const ids = Array.from(new Set(profileIds.filter(Boolean)));
+  if (ids.length === 0) return new Set();
+  const { data: profs } = await supabaseAdmin
+    .from("profiles")
+    .select("id, auth_user_id")
+    .in("id", ids);
+  const authIds = Array.from(
+    new Set((profs ?? []).map((p) => p.auth_user_id).filter(Boolean) as string[]),
+  );
+  if (authIds.length === 0) return new Set();
+  const { data: roles } = await supabaseAdmin
+    .from("user_roles")
+    .select("user_id, role")
+    .in("user_id", authIds);
+  const badAuth = new Set<string>();
+  for (const r of roles ?? []) {
+    const role = String(r.role);
+    if (role === "cliente" || role === "admin" || role === "staff") {
+      badAuth.add(r.user_id as string);
+    }
+  }
+  const out = new Set<string>();
+  for (const p of profs ?? []) {
+    if (p.auth_user_id && badAuth.has(p.auth_user_id)) out.add(p.id as string);
+  }
+  return out;
+}
+
 const filtersSchema = z.object({
   eventId: z.string().uuid().optional(),
   search: z.string().trim().optional(),
