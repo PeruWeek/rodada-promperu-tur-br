@@ -179,7 +179,7 @@ export const listAdminCompanies = createServerFn({ method: "POST" })
     z
       .object({
         search: z.string().trim().optional(),
-        role: z.enum(["all", "visitor", "exhibitor"]).default("all"),
+        role: z.enum(["all", "visitor", "exhibitor", "cliente"]).default("all"),
         confirmed: z.enum(["all", "yes", "no"]).default("all"),
         page: z.number().int().min(1).default(1),
         pageSize: z.number().int().min(1).max(5000).default(25),
@@ -248,14 +248,55 @@ export const listAdminCompanies = createServerFn({ method: "POST" })
       lunchByProfile.set(v.profile_id, v.networking_lunch_participation ?? null),
     );
 
-    // Determine company role by checking if any profile of the company is an exhibitor.
+    // Determine company role from user_roles (source of truth). Owners may
+    // hold leftover visitor_profiles/exhibitor_profiles rows after a role
+    // transition, so we never infer the primary role from those tables.
+    const authIds = (profs ?? [])
+      .map((p) => p.auth_user_id)
+      .filter((x): x is string => !!x);
+    const { data: roleRows } = authIds.length
+      ? await supabaseAdmin
+          .from("user_roles")
+          .select("user_id, role")
+          .in("user_id", authIds)
+      : { data: [] as { user_id: string; role: string }[] };
+    const rolesByAuth = new Map<string, Set<string>>();
+    for (const r of roleRows ?? []) {
+      const set = rolesByAuth.get(r.user_id) ?? new Set<string>();
+      set.add(r.role);
+      rolesByAuth.set(r.user_id, set);
+    }
+    // Priority: cliente > exhibitor > visitor (admin/staff are operational
+    // and never used as a company badge).
+    const pickPrimary = (
+      owners: { id: string; auth_user_id: string | null }[],
+    ): "cliente" | "exhibitor" | "visitor" => {
+      let hasCliente = false;
+      let hasExhRole = false;
+      let hasVisRole = false;
+      for (const o of owners) {
+        const set = o.auth_user_id ? rolesByAuth.get(o.auth_user_id) : null;
+        if (!set) continue;
+        if (set.has("cliente")) hasCliente = true;
+        if (set.has("exhibitor")) hasExhRole = true;
+        if (set.has("visitor")) hasVisRole = true;
+      }
+      if (hasCliente) return "cliente";
+      if (hasExhRole) return "exhibitor";
+      if (hasVisRole) return "visitor";
+      // Pre-confirmed accounts (no auth_user_id yet): fall back to the
+      // legacy heuristic so unconfirmed expositor pre-registrations still
+      // show up correctly.
+      if (owners.some((p) => exhProfileIds.has(p.id))) return "exhibitor";
+      return "visitor";
+    };
+
     const rows = companies.map((c) => {
       const allOwners = (profs ?? []).filter((p) => p.company_id === c.id);
       const activeOwners = allOwners.filter((p) => p.is_active !== false);
       const owners = data.activeOnly ? activeOwners : allOwners;
       const primary = owners[0] ?? null;
-      const isExh = owners.some((p) => exhProfileIds.has(p.id));
-      const role: "exhibitor" | "visitor" = isExh ? "exhibitor" : "visitor";
+      const role: "cliente" | "exhibitor" | "visitor" = pickPrimary(owners);
       const confirmed = owners.some((p) => !!p.auth_user_id);
       const lunch = primary ? lunchByProfile.get(primary.id) ?? null : null;
       return {
@@ -357,7 +398,23 @@ export const getCompanyForEdit = createServerFn({ method: "POST" })
       visitorProfile = (v.data as unknown as JsonObject | null) ?? null;
       exhibitorProfile = (e.data as unknown as JsonObject | null) ?? null;
     }
-    const role: "exhibitor" | "visitor" = exhibitorProfile ? "exhibitor" : "visitor";
+    // Source of truth for the primary role is `user_roles`. Visitor/exhibitor
+    // profile rows may coexist after a role transition and must not be used
+    // to infer the primary role.
+    let role: "cliente" | "exhibitor" | "visitor" = "visitor";
+    if (primary?.auth_user_id) {
+      const { data: roleRows } = await supabaseAdmin
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", primary.auth_user_id);
+      const set = new Set((roleRows ?? []).map((r) => r.role as string));
+      if (set.has("cliente")) role = "cliente";
+      else if (set.has("exhibitor")) role = "exhibitor";
+      else if (set.has("visitor")) role = "visitor";
+      else role = exhibitorProfile ? "exhibitor" : "visitor";
+    } else {
+      role = exhibitorProfile ? "exhibitor" : "visitor";
+    }
     return {
       company: company as unknown as JsonObject,
       primaryProfile: (primary as unknown as JsonObject | null) ?? null,

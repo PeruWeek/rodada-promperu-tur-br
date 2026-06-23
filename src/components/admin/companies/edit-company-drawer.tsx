@@ -134,7 +134,7 @@ export function EditCompanyDrawer({ companyId, onClose, onSaved }: Props) {
         preferred_language: langVal === "es" ? "es" : "pt-BR",
       });
     }
-    if (data.role === "visitor") {
+    if (data.role !== "exhibitor") {
       const v = (data.visitorProfile ?? {}) as Record<string, unknown>;
       setVisitor({
         buyer_types: strArr(v.buyer_types).length > 0
@@ -183,7 +183,7 @@ export function EditCompanyDrawer({ companyId, onClose, onSaved }: Props) {
           profileId: (data?.primaryProfile as { id?: string } | null)?.id ?? null,
           company,
           profile: profile ?? null,
-          visitor: data?.role === "visitor" ? visitor : null,
+          visitor: data?.role !== "exhibitor" ? visitor : null,
           exhibitor: data?.role === "exhibitor" ? exhibitor : null,
         },
       });
@@ -203,7 +203,9 @@ export function EditCompanyDrawer({ companyId, onClose, onSaved }: Props) {
           <SheetDescription>
             {data?.role === "exhibitor"
               ? t("admin.companies.roleExhibitor")
-              : t("admin.companies.roleVisitor")}
+              : data?.role === "cliente"
+                ? t("admin.companies.roleCliente")
+                : t("admin.companies.roleVisitor")}
           </SheetDescription>
         </SheetHeader>
 
@@ -219,7 +221,7 @@ export function EditCompanyDrawer({ companyId, onClose, onSaved }: Props) {
               <TabsTrigger value="contact" disabled={!profile}>
                 {t("admin.companies.tabContact")}
               </TabsTrigger>
-              {data?.role === "visitor" ? (
+              {data?.role !== "exhibitor" ? (
                 <TabsTrigger value="visitor" disabled={!visitor}>
                   {t("admin.companies.tabVisitor")}
                 </TabsTrigger>

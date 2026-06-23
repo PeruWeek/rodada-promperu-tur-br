@@ -26,7 +26,7 @@ import { EditCompanyDrawer } from "./edit-company-drawer";
 import { OrphanExhibitorsPanel } from "./orphan-exhibitors-panel";
 import { UnpublishedExhibitorsPanel } from "./unpublished-exhibitors-panel";
 
-type RoleFilter = "all" | "visitor" | "exhibitor";
+type RoleFilter = "all" | "visitor" | "exhibitor" | "cliente";
 type ConfirmedFilter = "all" | "yes" | "no";
 type LunchFilter = "all" | "yes" | "no";
 
@@ -97,7 +97,9 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
       c.legal_name ?? "",
       c.role === "exhibitor"
         ? t("admin.companies.roleExhibitor")
-        : t("admin.companies.roleVisitor"),
+        : c.role === "cliente"
+          ? t("admin.companies.roleCliente")
+          : t("admin.companies.roleVisitor"),
       c.confirmed ? "Confirmado" : "Pré-cadastro",
       c.city ?? "",
       c.state_code ?? "",
@@ -220,6 +222,7 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
             <SelectItem value="all">{t("admin.companies.roleAll")}</SelectItem>
             <SelectItem value="visitor">{t("admin.companies.roleVisitor")}</SelectItem>
             <SelectItem value="exhibitor">{t("admin.companies.roleExhibitor")}</SelectItem>
+            <SelectItem value="cliente">{t("admin.companies.roleCliente")}</SelectItem>
           </SelectContent>
         </Select>}
         {!readOnly && (
@@ -281,10 +284,12 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-medium">{c.trade_name}</span>
-                  <Badge variant={c.role === "exhibitor" ? "default" : "secondary"}>
+                  <Badge variant={c.role === "exhibitor" ? "default" : c.role === "cliente" ? "outline" : "secondary"}>
                     {c.role === "exhibitor"
                       ? t("admin.companies.roleExhibitor")
-                      : t("admin.companies.roleVisitor")}
+                      : c.role === "cliente"
+                        ? t("admin.companies.roleCliente")
+                        : t("admin.companies.roleVisitor")}
                   </Badge>
                   {!c.confirmed && (
                     <Badge variant="outline" className="text-muted-foreground">
