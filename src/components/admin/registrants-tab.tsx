@@ -119,7 +119,8 @@ export function RegistrantsTab({
   const updateProfileFn = useServerFn(adminUpdateUserProfile);
   const updateEmailFn = useServerFn(adminUpdateUserEmail);
   const completionFn = useServerFn(staffListRegistrationCompletion);
-  const [role, setRole] = useState<RoleFilter>("all");
+  const isStaffOnly = hasRole(me?.roles, "staff") && !hasRole(me?.roles, "admin");
+  const [role, setRole] = useState<RoleFilter>(isStaffOnly ? "visitor" : "all");
   const [search, setSearch] = useState("");
   const [agendaLoadingId, setAgendaLoadingId] = useState<string | null>(null);
   const [bulkLoading, setBulkLoading] = useState<null | "pdf" | "zip">(null);
