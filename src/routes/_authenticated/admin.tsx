@@ -132,6 +132,7 @@ function AdminPage() {
           <TabsContent value="staffAgenda" className="mt-4"><StaffAgendaTab isAdmin={false} /></TabsContent>
           <TabsContent value="checkin" className="mt-4"><CheckinTab /></TabsContent>
           <TabsContent value="companies" className="mt-4"><CompaniesTab readOnly /></TabsContent>
+          <TabsContent value="registrants" className="mt-4"><RegistrantsTab defaultRole="visitor" /></TabsContent>
         </Tabs>
       ) : (
         <Tabs defaultValue="dashboard" className="mt-6">
@@ -159,6 +160,7 @@ function AdminPage() {
           <TabsContent value="staff" className="mt-4"><StaffAssignmentsTab /></TabsContent>
           <TabsContent value="users" className="mt-4"><UsersTab currentAuthUserId={me?.auth_user_id ?? null} canDelete={isAdmin} /></TabsContent>
           <TabsContent value="companies" className="mt-4"><CompaniesTab /></TabsContent>
+          <TabsContent value="registrants" className="mt-4"><RegistrantsTab defaultRole="all" /></TabsContent>
           <TabsContent value="requests" className="mt-4"><RequestsTab /></TabsContent>
           <TabsContent value="review" className="mt-4"><ReviewQueueTab /></TabsContent>
           <TabsContent value="preRegistration" className="mt-4"><PreRegistrationsTab /></TabsContent>
