@@ -89,7 +89,12 @@ export const listPipeline = createServerFn({ method: "POST" })
     if (data.ownerProfileId === null) q = q.is("owner_staff_profile_id", null);
     else if (data.ownerProfileId) q = q.eq("owner_staff_profile_id", data.ownerProfileId);
 
-    if (data.mine || (roles.includes("staff") && !roles.includes("admin") && data.mine !== false)) {
+    // Scope to "minha carteira" when caller asks, OR by default for staff-only
+    // users when they don't pass `mine` explicitly. Passing `mine: false`
+    // always wins so Staff can opt out and ver todos os dados.
+    const isStaffOnly = roles.includes("staff") && !roles.includes("admin");
+    const scopeMine = data.mine === true || (isStaffOnly && data.mine === undefined);
+    if (scopeMine) {
       const myProfileId = await getCurrentProfileId(context.userId);
       if (!myProfileId) return { rows: [], total: 0, eventId };
       q = q.eq("owner_staff_profile_id", myProfileId);
@@ -127,8 +132,10 @@ export const getPipelineKpis = createServerFn({ method: "POST" })
     const eventId = data.eventId ?? (await getActiveEventId());
     if (!eventId) return null;
 
+    // Same opt-out rule as listPipeline.
+    const isStaffOnlyKpis = roles.includes("staff") && !roles.includes("admin");
     let scopeOwner: string | null = null;
-    if (data.mine || (roles.includes("staff") && !roles.includes("admin"))) {
+    if (data.mine === true || (isStaffOnlyKpis && data.mine === undefined)) {
       scopeOwner = await getCurrentProfileId(context.userId);
     }
 
@@ -217,8 +224,9 @@ export const getPipelineAlerts = createServerFn({ method: "POST" })
     const eventId = data.eventId ?? (await getActiveEventId());
     if (!eventId) return null;
 
+    const isStaffOnlyAlerts = roles.includes("staff") && !roles.includes("admin");
     let scopeOwner: string | null = null;
-    if (data.mine || (roles.includes("staff") && !roles.includes("admin"))) {
+    if (data.mine === true || (isStaffOnlyAlerts && data.mine === undefined)) {
       scopeOwner = await getCurrentProfileId(context.userId);
     }
 
@@ -269,7 +277,8 @@ export const listFollowUps = createServerFn({ method: "POST" })
       .eq("event_id", eventId)
       .neq("next_action", "nenhuma");
 
-    if (data.mine || (roles.includes("staff") && !roles.includes("admin"))) {
+    const isStaffOnlyFu = roles.includes("staff") && !roles.includes("admin");
+    if (data.mine === true || (isStaffOnlyFu && data.mine === undefined)) {
       const myProfileId = await getCurrentProfileId(context.userId);
       if (!myProfileId) return { rows: [] };
       q = q.eq("owner_staff_profile_id", myProfileId);
