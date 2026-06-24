@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
@@ -68,9 +68,11 @@ function ForgotPasswordPage() {
   };
 
   // Cooldown countdown for rate-limit retries.
-  if (cooldown > 0) {
-    setTimeout(() => setCooldown((c) => Math.max(0, c - 1)), 1000);
-  }
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const id = window.setTimeout(() => setCooldown((c) => c - 1), 1000);
+    return () => window.clearTimeout(id);
+  }, [cooldown]);
 
   return (
     <div className="min-h-screen bg-background">
