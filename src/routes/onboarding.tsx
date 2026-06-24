@@ -38,6 +38,25 @@ function OnboardingPage() {
   const [saving, setSaving] = useState(false);
   const [autoFinishing, setAutoFinishing] = useState(false);
   const autoRan = useRef(false);
+  const [buyerSuccess, setBuyerSuccess] = useState(false);
+  const redirectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const redirectedRef = useRef(false);
+
+  useEffect(() => {
+    if (!buyerSuccess) return;
+    if (redirectedRef.current) return;
+    redirectTimerRef.current = setTimeout(() => {
+      if (redirectedRef.current) return;
+      redirectedRef.current = true;
+      navigate({ to: "/agenda", replace: true });
+    }, 8000);
+    return () => {
+      if (redirectTimerRef.current) {
+        clearTimeout(redirectTimerRef.current);
+        redirectTimerRef.current = null;
+      }
+    };
+  }, [buyerSuccess, navigate]);
 
   useEffect(() => {
     if (!authLoading && !user) navigate({ to: "/login", replace: true });
@@ -160,8 +179,8 @@ function OnboardingPage() {
           );
         } catch { /* analytics never breaks the flow */ }
         await qc.invalidateQueries();
-        toast.success(t("onboarding.savedVisitor"));
-        navigate({ to: "/agenda" });
+        setAutoFinishing(false);
+        setBuyerSuccess(true);
       } catch (err) {
         console.error("[onboarding.auto-buyer] failed", err);
         // Clear corrupted/invalid payload so we don't retry the same failure.
@@ -201,8 +220,7 @@ function OnboardingPage() {
       if (submitKind === "visitor") {
         await supabase.from("visitor_profiles").upsert({ profile_id: profile.id });
         await qc.invalidateQueries();
-        toast.success(t("onboarding.savedVisitor"));
-        navigate({ to: "/agenda" });
+        setBuyerSuccess(true);
       } else {
         await requestExhibitorFn();
         await qc.invalidateQueries();
@@ -220,6 +238,18 @@ function OnboardingPage() {
         <SiteHeader />
         <div className="mx-auto max-w-md px-4 py-16 text-center">
           <p className="text-muted-foreground">{t("common.loading")}</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (buyerSuccess) {
+    return (
+      <div className="min-h-screen bg-background">
+        <SiteHeader />
+        <div className="mx-auto max-w-md space-y-3 px-4 py-16 text-center">
+          <h1 className="text-2xl font-bold">{t("onboarding.buyerSuccessTitle")}</h1>
+          <p className="text-muted-foreground">{t("onboarding.buyerSuccessBody")}</p>
         </div>
       </div>
     );
