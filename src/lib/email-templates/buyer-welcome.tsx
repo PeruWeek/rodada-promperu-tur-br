@@ -26,13 +26,13 @@ const BuyerWelcomeEmail = ({
   return (
     <Html lang="pt-BR" dir="ltr">
       <Head />
-      <Preview>Seu cadastro no PERU MICE Networking Event foi concluído</Preview>
+      <Preview>Seu cadastro no PERU MICE Networking evento foi concluído</Preview>
       <Body style={main}>
         <Container style={container}>
           <Heading style={h1}>Cadastro confirmado</Heading>
           <Text style={text}>{greeting}</Text>
           <Text style={text}>
-            Seu cadastro no PERU MICE Networking Event foi concluído com sucesso.
+            Seu cadastro no PERU MICE Networking evento foi concluído com sucesso.
           </Text>
           <Text style={text}>
             Sua agenda já está disponível na plataforma. Acesse pelo link abaixo:
@@ -47,14 +47,19 @@ const BuyerWelcomeEmail = ({
           <Text style={small}>• acompanhar atualizações do evento</Text>
           <Text style={small}>• revisar seus dados cadastrais</Text>
           <Text style={small}>• visualizar suas próximas interações</Text>
+          <Text style={small}>• baixar sua agenda em PDF</Text>
           <Text style={text}>
             Recomendamos acessar a plataforma regularmente para acompanhar
             novidades e garantir que todas as suas informações estejam corretas.
           </Text>
+          <Text style={text}>
+            Caso não se recorde da sua senha, utilize a opção de recuperação de
+            senha disponível na plataforma para redefinir seu acesso.
+          </Text>
           <Text style={small}>
             Em caso de dúvidas, entre em contato com a organização.
           </Text>
-          <Text style={footer}>Atenciosamente,<br />Equipe PERU MICE Networking Event</Text>
+          <Text style={footer}>Atenciosamente,<br />Equipe PERU MICE Networking evento</Text>
         </Container>
       </Body>
     </Html>
@@ -63,7 +68,7 @@ const BuyerWelcomeEmail = ({
 
 export const template = {
   component: BuyerWelcomeEmail,
-  subject: "Cadastro confirmado | PERU MICE Networking Event",
+  subject: "Cadastro confirmado | PERU MICE Networking evento",
   displayName: "Buyer welcome",
   previewData: {
     visitorName: "Maria",
