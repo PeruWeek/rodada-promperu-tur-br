@@ -1390,6 +1390,8 @@ function EmailsTab() {
   const confirmFn = useServerFn(adminConfirmEmail);
   const createFn = useServerFn(adminCreateConfirmedUser);
   const setPwdFn = useServerFn(adminSetPassword);
+  const diagnosticsFn = useServerFn(getAuthDiagnostics);
+  const sendRecoveryFn = useServerFn(adminSendRecoveryEmail);
 
   const [email, setEmail] = useState("");
   const [result, setResult] = useState<
@@ -1411,6 +1413,27 @@ function EmailsTab() {
     onSuccess: (r) => {
       setResult(r);
       setCreatedPassword(null);
+      if (r?.user) diagnosticsMut.mutate();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const diagnosticsMut = useMutation({
+    mutationFn: async () => diagnosticsFn({ data: { email: normalizedEmail } }),
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const recoveryMut = useMutation({
+    mutationFn: async () =>
+      sendRecoveryFn({
+        data: {
+          email: normalizedEmail,
+          redirectTo: `${window.location.origin}/reset-password`,
+        },
+      }),
+    onSuccess: () => {
+      toast.success(t("admin.emails.recoverySent", "Link de recuperação enviado."));
+      diagnosticsMut.mutate();
     },
     onError: (e: Error) => toast.error(e.message),
   });
