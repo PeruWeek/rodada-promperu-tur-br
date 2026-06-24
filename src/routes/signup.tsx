@@ -1,4 +1,4 @@
-import { createFileRoute, Link, redirect } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
@@ -100,6 +100,7 @@ function flattenZodErrors(err: z.ZodError): Errors {
 
 function SignupPage() {
   const { t, i18n } = useTranslation();
+  const navigate = useNavigate();
   const lang = (i18n.language === "es" ? "es" : "pt") as "pt" | "es";
   const [step, setStep] = useState(1);
   const [data, setData] = useState<BuyerSignupData>({
@@ -346,7 +347,7 @@ function SignupPage() {
         sessionStorage.setItem(BUYER_SIGNUP_STORAGE_KEY, JSON.stringify(payload));
       } catch { /* ignore */ }
 
-      const { error } = await supabase.auth.signUp({
+      const { data: signUpData, error } = await supabase.auth.signUp({
         email: data.email,
         password: data.password,
         options: {
@@ -424,6 +425,15 @@ function SignupPage() {
           { dedupeKey: data.email.toLowerCase() },
         );
       } catch { /* analytics never breaks the flow */ }
+      // Se o Supabase já devolveu uma sessão (auto-confirm/sessão imediata),
+      // o usuário está autenticado e deve seguir direto para /onboarding,
+      // que auto-finaliza o payload do buyer e mostra a tela de sucesso com
+      // o redirect de 8s para /agenda. Sem sessão, mantemos o fallback
+      // atual de "verifique seu e-mail".
+      if (signUpData?.session) {
+        navigate({ to: "/onboarding", replace: true });
+        return;
+      }
       setSent(true);
     } finally {
       setLoading(false);
