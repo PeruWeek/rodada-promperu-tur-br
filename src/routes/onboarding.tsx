@@ -51,7 +51,7 @@ function OnboardingPage() {
       redirectedRef.current = true;
       try { sessionStorage.removeItem("buyer_success_pending"); } catch { /* ignore */ }
       navigate({ to: "/agenda", replace: true });
-    }, 8000);
+    }, 3000);
     return () => {
       if (redirectTimerRef.current) {
         clearTimeout(redirectTimerRef.current);
