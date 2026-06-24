@@ -366,7 +366,18 @@
       "tabVisitor": "Perfil da empresa",
       "tabExhibitor": "Perfil de expositor",
       "noPrimary": "Sem perfil de contato associado a esta empresa.",
-      "primaryContact": "Contato principal"
+      "primaryContact": "Contato principal",
+      "statusActive": "Ativas",
+      "statusInactive": "Órfãs",
+      "statusAll": "Todas",
+      "orphanBadge": "Sem usuário ativo",
+      "reactivate": "Reativar",
+      "reactivateSuccess": "Empresa reativada.",
+      "hardDelete": "Excluir definitivamente",
+      "hardDeleteConfirmTitle": "Excluir empresa definitivamente?",
+      "hardDeleteConfirmBody": "Esta ação remove a empresa \"{{name}}\" do banco. Esta operação não pode ser desfeita.",
+      "hardDeleteTypeName": "Digite o nome da empresa (\"{{name}}\") para confirmar:",
+      "hardDeleteSuccess": "Empresa excluída."
     },
     "orphans": {
       "title": "Expositores sem empresa vinculada",
