@@ -35,6 +35,13 @@ function AuthenticatedLayout() {
   useEffect(() => {
     if (profileLoading || reqLoading || !profile) return;
 
+    // While the buyer success screen is showing on /onboarding, do not let
+    // any gating decision pull the user away before the 8s redirect runs.
+    const buyerSuccessPending =
+      typeof window !== "undefined" &&
+      window.sessionStorage.getItem("buyer_success_pending") === "1";
+    if (buyerSuccessPending && pathname === "/onboarding") return;
+
     // Route gating by primary role
     const adminStaffForbidden = ["/explore", "/agenda", "/table-agenda", "/dashboard", "/onboarding", "/pending-exhibitor"];
     // Cliente has read-only access to /explore and /exhibitor/* — keep the rest blocked.

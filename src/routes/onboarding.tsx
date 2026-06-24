@@ -45,15 +45,20 @@ function OnboardingPage() {
   useEffect(() => {
     if (!buyerSuccess) return;
     if (redirectedRef.current) return;
+    try { sessionStorage.setItem("buyer_success_pending", "1"); } catch { /* ignore */ }
     redirectTimerRef.current = setTimeout(() => {
       if (redirectedRef.current) return;
       redirectedRef.current = true;
+      try { sessionStorage.removeItem("buyer_success_pending"); } catch { /* ignore */ }
       navigate({ to: "/agenda", replace: true });
     }, 8000);
     return () => {
       if (redirectTimerRef.current) {
         clearTimeout(redirectTimerRef.current);
         redirectTimerRef.current = null;
+      }
+      if (!redirectedRef.current) {
+        try { sessionStorage.removeItem("buyer_success_pending"); } catch { /* ignore */ }
       }
     };
   }, [buyerSuccess, navigate]);
