@@ -145,6 +145,107 @@ export type Database = {
           },
         ]
       }
+      booking_reminder_log: {
+        Row: {
+          created_at: string
+          event_id: string
+          id: string
+          idempotency_key: string
+          metadata: Json
+          profile_id: string
+          recipient_email: string
+          reminder_type: string
+          sent_at: string
+        }
+        Insert: {
+          created_at?: string
+          event_id: string
+          id?: string
+          idempotency_key: string
+          metadata?: Json
+          profile_id: string
+          recipient_email: string
+          reminder_type?: string
+          sent_at?: string
+        }
+        Update: {
+          created_at?: string
+          event_id?: string
+          id?: string
+          idempotency_key?: string
+          metadata?: Json
+          profile_id?: string
+          recipient_email?: string
+          reminder_type?: string
+          sent_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_reminder_log_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "booking_reminder_log_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      booking_reminder_settings: {
+        Row: {
+          enabled: boolean
+          event_scope: string | null
+          id: number
+          last_run_at: string | null
+          last_run_summary: Json | null
+          max_reminders_per_event: number
+          min_interval_hours: number
+          run_hour: number
+          timezone: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          enabled?: boolean
+          event_scope?: string | null
+          id?: number
+          last_run_at?: string | null
+          last_run_summary?: Json | null
+          max_reminders_per_event?: number
+          min_interval_hours?: number
+          run_hour?: number
+          timezone?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          enabled?: boolean
+          event_scope?: string | null
+          id?: number
+          last_run_at?: string | null
+          last_run_summary?: Json | null
+          max_reminders_per_event?: number
+          min_interval_hours?: number
+          run_hour?: number
+          timezone?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_reminder_settings_event_scope_fkey"
+            columns: ["event_scope"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       companies: {
         Row: {
           address: string | null
