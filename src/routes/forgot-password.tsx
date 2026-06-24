@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
@@ -20,24 +20,59 @@ function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
+  const [technicalError, setTechnicalError] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const target = email.trim().toLowerCase();
     if (!target) return;
     setLoading(true);
+    setTechnicalError(false);
     const { error } = await supabase.auth.resetPasswordForEmail(target, {
       redirectTo: `${window.location.origin}/reset-password`,
     });
     setLoading(false);
     if (error) {
-      // Do not leak whether the email exists — show same success state.
-      // eslint-disable-next-line no-console
-      console.warn("resetPasswordForEmail error", error.message);
+      const status = (error as { status?: number }).status;
+      const message = error.message ?? "";
+      // Keep anti-enumeration: do NOT show user-existence info. But
+      // differentiate REAL technical failures from the (silent) success.
+      // Supabase returns 200 for unknown emails; if we got here it is a
+      // genuine failure (rate-limit, network, 5xx, config error).
+      console.error("[forgot-password] resetPasswordForEmail failed", {
+        email: target,
+        status,
+        code: (error as { code?: string }).code,
+        message,
+      });
+      const isRate =
+        status === 429 ||
+        /rate|limit|seconds/i.test(message);
+      if (isRate) {
+        setCooldown(45);
+        toast.error(t("auth.forgotRateLimited", "Aguarde alguns segundos e tente novamente."));
+      } else {
+        setTechnicalError(true);
+        toast.error(
+          t(
+            "auth.forgotTechnicalError",
+            "Não foi possível processar agora. Tente novamente em instantes.",
+          ),
+        );
+      }
+      return;
     }
     setSent(true);
     toast.success(t("auth.resetEmailSent"));
   };
+
+  // Cooldown countdown for rate-limit retries.
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const id = window.setTimeout(() => setCooldown((c) => c - 1), 1000);
+    return () => window.clearTimeout(id);
+  }, [cooldown]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -52,6 +87,16 @@ function ForgotPasswordPage() {
           </Alert>
         ) : (
           <form onSubmit={onSubmit} className="mt-8 space-y-4">
+            {technicalError && (
+              <Alert variant="destructive">
+                <AlertDescription>
+                  {t(
+                    "auth.forgotTechnicalError",
+                    "Não foi possível processar agora. Tente novamente em instantes.",
+                  )}
+                </AlertDescription>
+              </Alert>
+            )}
             <div>
               <Label htmlFor="email">{t("auth.email")}</Label>
               <Input
@@ -64,8 +109,12 @@ function ForgotPasswordPage() {
                 className="mt-1.5"
               />
             </div>
-            <Button type="submit" className="w-full" size="lg" disabled={loading}>
-              {loading ? "…" : t("auth.sendResetLink")}
+            <Button type="submit" className="w-full" size="lg" disabled={loading || cooldown > 0}>
+              {loading
+                ? "…"
+                : cooldown > 0
+                  ? `${t("auth.sendResetLink")} (${cooldown}s)`
+                  : t("auth.sendResetLink")}
             </Button>
           </form>
         )}

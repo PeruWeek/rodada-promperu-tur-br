@@ -580,7 +580,13 @@
       "resetPasswordTitle": "Definir/Resetar senha",
       "newPasswordPlaceholder": "Nova senha (mínimo 8 caracteres)",
       "setPassword": "Definir senha",
-      "passwordSet": "Senha atualizada."
+      "passwordSet": "Senha atualizada.",
+      "diagnosticsTitle": "Diagnóstico de envio",
+      "refresh": "Atualizar",
+      "sendRecovery": "Enviar link de recuperação",
+      "recoverySent": "Link de recuperação enviado.",
+      "suppressed": "E-mail suprimido",
+      "noLogs": "Nenhum envio registrado para este e-mail."
     },
     "staff": {
       "help": "Atribua membros do staff a cada mesa.",
