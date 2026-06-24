@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { AlertCircle, Ban, ClipboardCheck, Download, FileArchive, FileSpreadsheet, FileText, Files, Search, UserCog, UserCheck } from "lucide-react";
+import { AlertCircle, Ban, ClipboardCheck, Download, FileArchive, FileSpreadsheet, FileText, Files, Mail, Search, UserCog, UserCheck } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -45,6 +45,7 @@ import {
   adminUpdateUserEmail,
   adminUpdateUserProfile,
 } from "@/lib/admin-auth.functions";
+import { resendBuyerWelcome } from "@/lib/email-admin.functions";
 import { staffListRegistrationCompletion } from "@/lib/staff-registration.functions";
 import { CompleteRegistrationDialog } from "@/components/admin/complete-registration-dialog";
 import { hasRole, useProfile } from "@/hooks/use-profile";
@@ -120,6 +121,7 @@ export function RegistrantsTab({
   const updateProfileFn = useServerFn(adminUpdateUserProfile);
   const updateEmailFn = useServerFn(adminUpdateUserEmail);
   const completionFn = useServerFn(staffListRegistrationCompletion);
+  const resendWelcomeFn = useServerFn(resendBuyerWelcome);
   const isStaffOnly = hasRole(me?.roles, "staff") && !hasRole(me?.roles, "admin");
   const initialRole: RoleFilter = defaultRole ?? (isStaffOnly ? "visitor" : "all");
   const [role, setRole] = useState<RoleFilter>(initialRole);
@@ -130,6 +132,9 @@ export function RegistrantsTab({
   const [reactivateTarget, setReactivateTarget] = useState<RegistrantRow | null>(null);
   const [replaceTarget, setReplaceTarget] = useState<RegistrantRow | null>(null);
   const [completeTargetId, setCompleteTargetId] = useState<string | null>(null);
+  const [welcomeTarget, setWelcomeTarget] = useState<RegistrantRow | null>(null);
+  const [welcomeForce, setWelcomeForce] = useState(false);
+  const [welcomeSending, setWelcomeSending] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ["registrants", role, search],
