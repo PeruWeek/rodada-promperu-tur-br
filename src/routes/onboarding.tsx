@@ -89,6 +89,10 @@ function OnboardingPage() {
     // Don't short-circuit while the buyer success screen is showing
     // (auto-finalize just ran and we need the 3s redirect to play).
     if (buyerSuccess || autoFinishing) return;
+    // Reforço: se o flag de success ainda está no sessionStorage (foi setado
+    // pelo auto-finalizer antes do setBuyerSuccess), não redirecionar para
+    // /agenda agora — deixar o useEffect de buyerSuccess controlar o timer.
+    if (typeof window !== "undefined" && window.sessionStorage.getItem("buyer_success_pending") === "1") return;
     const primary = getPrimaryRole(profile.roles);
     if (primary === "admin" || primary === "staff") {
       navigate({ to: "/admin" });
@@ -187,6 +191,10 @@ function OnboardingPage() {
           );
         } catch { /* analytics never breaks the flow */ }
         await qc.invalidateQueries();
+        // Setar o flag ANTES do setState para que qualquer re-render
+        // imediato (com profile já atualizado: visitor + company_id) não
+        // dispare o redirect concorrente para /agenda.
+        try { sessionStorage.setItem("buyer_success_pending", "1"); } catch { /* ignore */ }
         setAutoFinishing(false);
         setBuyerSuccess(true);
       } catch (err) {
