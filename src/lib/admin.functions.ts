@@ -786,6 +786,7 @@ export const searchCompaniesForLink = createServerFn({ method: "POST" })
       .from("companies")
       .select("id, trade_name, country_code, state_code, city")
       .or(`trade_name.ilike.%${s}%,legal_name.ilike.%${s}%`)
+      .eq("is_active", true)
       .order("trade_name", { ascending: true })
       .limit(data.limit);
     if (error) throw new Error(error.message);
