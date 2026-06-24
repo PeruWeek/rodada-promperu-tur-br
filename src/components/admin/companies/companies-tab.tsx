@@ -483,6 +483,63 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
           }}
         />
       )}
+      <AlertDialog
+        open={deleteTarget !== null}
+        onOpenChange={(o) => {
+          if (!o) {
+            setDeleteTarget(null);
+            setDeleteConfirmText("");
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("admin.companies.hardDeleteConfirmTitle")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("admin.companies.hardDeleteConfirmBody", { name: deleteTarget?.name ?? "" })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-2">
+            <p className="text-xs text-muted-foreground">
+              {t("admin.companies.hardDeleteTypeName", { name: deleteTarget?.name ?? "" })}
+            </p>
+            <Input
+              value={deleteConfirmText}
+              onChange={(e) => setDeleteConfirmText(e.target.value)}
+              placeholder={deleteTarget?.name ?? ""}
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>{t("common.cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={
+                deleting ||
+                !deleteTarget ||
+                deleteConfirmText.trim() !== deleteTarget.name.trim()
+              }
+              onClick={async () => {
+                if (!deleteTarget) return;
+                setDeleting(true);
+                try {
+                  await hardDeleteFn({
+                    data: { companyId: deleteTarget.id, confirm: true },
+                  });
+                  toast.success(t("admin.companies.hardDeleteSuccess"));
+                  setDeleteTarget(null);
+                  setDeleteConfirmText("");
+                  await refetch();
+                } catch (e) {
+                  toast.error((e as Error).message);
+                } finally {
+                  setDeleting(false);
+                }
+              }}
+            >
+              {t("admin.companies.hardDelete")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       </Card>
     </div>
   );
