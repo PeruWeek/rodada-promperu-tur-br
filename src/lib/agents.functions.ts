@@ -28,7 +28,8 @@ const agentInput = z.object({
 export const listAgents = createServerFn({ method: "POST" })
   .inputValidator((i) => z.object({ event_id: z.string().uuid() }).parse(i))
   .middleware([requireSupabaseAuth])
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
+    await assertStaff(context.userId);
     const { data: agents, error } = await supabaseAdmin
       .from("agents")
       .select("*, agent_skills(skill_id)")

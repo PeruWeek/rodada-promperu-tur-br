@@ -37,6 +37,16 @@ async function assertAdminOrStaffRead(userId: string) {
   if (!ok) throw new Error("Forbidden");
 }
 
+// Admin or staff only (excludes cliente). Use for writes that staff may perform.
+async function assertAdminOrStaff(userId: string) {
+  const { data } = await supabaseAdmin
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", userId);
+  const ok = (data ?? []).some((r) => r.role === "admin" || r.role === "staff");
+  if (!ok) throw new Error("Forbidden");
+}
+
 async function getActorProfileId(userId: string): Promise<string | null> {
   const { data } = await supabaseAdmin
     .from("profiles")
@@ -347,7 +357,7 @@ export const setVisitorLunchParticipation = createServerFn({ method: "POST" })
   )
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
-    await assertAdminOrStaffRead(context.userId);
+    await assertAdminOrStaff(context.userId);
     const { data: existing } = await supabaseAdmin
       .from("visitor_profiles")
       .select("id")
