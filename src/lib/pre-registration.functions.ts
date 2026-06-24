@@ -375,8 +375,6 @@ export type PreRegPrefill = {
   linkedin?: string;
   address?: string;
   general_phone?: string;
-  specialty?: string;
-  import_profile?: string;
   full_name?: string;
   job_title?: string;
   phone?: string;
@@ -442,15 +440,13 @@ export const lookupPreRegistration = createServerFn({ method: "POST" })
             linkedin: string | null;
             address: string | null;
             general_phone: string | null;
-            specialty: string | null;
-            import_profile: string | null;
           }
         | null = null;
       if (profile.company_id) {
         const { data: c } = await supabaseAdmin
           .from("companies")
           .select(
-            "trade_name, legal_name, tax_id, city, state_code, website, instagram, linkedin, address, general_phone, specialty, import_profile",
+            "trade_name, legal_name, tax_id, city, state_code, website, instagram, linkedin, address, general_phone",
           )
           .eq("id", profile.company_id)
           .maybeSingle();
@@ -468,8 +464,6 @@ export const lookupPreRegistration = createServerFn({ method: "POST" })
         linkedin: strOrUndef(company?.linkedin),
         address: strOrUndef(company?.address),
         general_phone: maskBR(company?.general_phone),
-        specialty: strOrUndef(company?.specialty),
-        import_profile: strOrUndef(company?.import_profile),
         full_name: strOrUndef(profile.full_name),
         job_title: strOrUndef(profile.job_title),
         phone: maskBR(profile.phone),
