@@ -37,6 +37,7 @@ import { Route as LovableEmailTransactionalPreviewRouteImport } from './routes/l
 import { Route as LovableEmailQueueProcessRouteImport } from './routes/lovable/email/queue/process'
 import { Route as LovableEmailAuthWebhookRouteImport } from './routes/lovable/email/auth/webhook'
 import { Route as LovableEmailAuthPreviewRouteImport } from './routes/lovable/email/auth/preview'
+import { Route as ApiPublicHooksBookingRemindersRouteImport } from './routes/api/public/hooks/booking-reminders'
 
 const UnsubscribeRoute = UnsubscribeRouteImport.update({
   id: '/unsubscribe',
@@ -185,6 +186,12 @@ const LovableEmailAuthPreviewRoute = LovableEmailAuthPreviewRouteImport.update({
   path: '/lovable/email/auth/preview',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicHooksBookingRemindersRoute =
+  ApiPublicHooksBookingRemindersRouteImport.update({
+    id: '/api/public/hooks/booking-reminders',
+    path: '/api/public/hooks/booking-reminders',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -209,6 +216,7 @@ export interface FileRoutesByFullPath {
   '/exhibitor/$id': typeof AuthenticatedExhibitorIdRoute
   '/api/public/sendgrid-webhook': typeof ApiPublicSendgridWebhookRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
+  '/api/public/hooks/booking-reminders': typeof ApiPublicHooksBookingRemindersRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
@@ -238,6 +246,7 @@ export interface FileRoutesByTo {
   '/exhibitor/$id': typeof AuthenticatedExhibitorIdRoute
   '/api/public/sendgrid-webhook': typeof ApiPublicSendgridWebhookRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
+  '/api/public/hooks/booking-reminders': typeof ApiPublicHooksBookingRemindersRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
@@ -269,6 +278,7 @@ export interface FileRoutesById {
   '/_authenticated/exhibitor/$id': typeof AuthenticatedExhibitorIdRoute
   '/api/public/sendgrid-webhook': typeof ApiPublicSendgridWebhookRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
+  '/api/public/hooks/booking-reminders': typeof ApiPublicHooksBookingRemindersRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
@@ -300,6 +310,7 @@ export interface FileRouteTypes {
     | '/exhibitor/$id'
     | '/api/public/sendgrid-webhook'
     | '/lovable/email/suppression'
+    | '/api/public/hooks/booking-reminders'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
     | '/lovable/email/queue/process'
@@ -329,6 +340,7 @@ export interface FileRouteTypes {
     | '/exhibitor/$id'
     | '/api/public/sendgrid-webhook'
     | '/lovable/email/suppression'
+    | '/api/public/hooks/booking-reminders'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
     | '/lovable/email/queue/process'
@@ -359,6 +371,7 @@ export interface FileRouteTypes {
     | '/_authenticated/exhibitor/$id'
     | '/api/public/sendgrid-webhook'
     | '/lovable/email/suppression'
+    | '/api/public/hooks/booking-reminders'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
     | '/lovable/email/queue/process'
@@ -380,6 +393,7 @@ export interface RootRouteChildren {
   EmailUnsubscribeRoute: typeof EmailUnsubscribeRoute
   ApiPublicSendgridWebhookRoute: typeof ApiPublicSendgridWebhookRoute
   LovableEmailSuppressionRoute: typeof LovableEmailSuppressionRoute
+  ApiPublicHooksBookingRemindersRoute: typeof ApiPublicHooksBookingRemindersRoute
   LovableEmailAuthPreviewRoute: typeof LovableEmailAuthPreviewRoute
   LovableEmailAuthWebhookRoute: typeof LovableEmailAuthWebhookRoute
   LovableEmailQueueProcessRoute: typeof LovableEmailQueueProcessRoute
@@ -585,6 +599,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LovableEmailAuthPreviewRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/hooks/booking-reminders': {
+      id: '/api/public/hooks/booking-reminders'
+      path: '/api/public/hooks/booking-reminders'
+      fullPath: '/api/public/hooks/booking-reminders'
+      preLoaderRoute: typeof ApiPublicHooksBookingRemindersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -632,6 +653,7 @@ const rootRouteChildren: RootRouteChildren = {
   EmailUnsubscribeRoute: EmailUnsubscribeRoute,
   ApiPublicSendgridWebhookRoute: ApiPublicSendgridWebhookRoute,
   LovableEmailSuppressionRoute: LovableEmailSuppressionRoute,
+  ApiPublicHooksBookingRemindersRoute: ApiPublicHooksBookingRemindersRoute,
   LovableEmailAuthPreviewRoute: LovableEmailAuthPreviewRoute,
   LovableEmailAuthWebhookRoute: LovableEmailAuthWebhookRoute,
   LovableEmailQueueProcessRoute: LovableEmailQueueProcessRoute,
