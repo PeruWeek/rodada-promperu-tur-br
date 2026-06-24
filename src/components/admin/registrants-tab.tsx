@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { AlertCircle, Ban, ClipboardCheck, Download, FileArchive, FileSpreadsheet, FileText, Files, Search, UserCog, UserCheck } from "lucide-react";
+import { AlertCircle, Ban, ClipboardCheck, Download, FileArchive, FileSpreadsheet, FileText, Files, Mail, Search, UserCog, UserCheck } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -45,6 +45,7 @@ import {
   adminUpdateUserEmail,
   adminUpdateUserProfile,
 } from "@/lib/admin-auth.functions";
+import { resendBuyerWelcome } from "@/lib/email-admin.functions";
 import { staffListRegistrationCompletion } from "@/lib/staff-registration.functions";
 import { CompleteRegistrationDialog } from "@/components/admin/complete-registration-dialog";
 import { hasRole, useProfile } from "@/hooks/use-profile";
@@ -120,6 +121,7 @@ export function RegistrantsTab({
   const updateProfileFn = useServerFn(adminUpdateUserProfile);
   const updateEmailFn = useServerFn(adminUpdateUserEmail);
   const completionFn = useServerFn(staffListRegistrationCompletion);
+  const resendWelcomeFn = useServerFn(resendBuyerWelcome);
   const isStaffOnly = hasRole(me?.roles, "staff") && !hasRole(me?.roles, "admin");
   const initialRole: RoleFilter = defaultRole ?? (isStaffOnly ? "visitor" : "all");
   const [role, setRole] = useState<RoleFilter>(initialRole);
@@ -130,6 +132,9 @@ export function RegistrantsTab({
   const [reactivateTarget, setReactivateTarget] = useState<RegistrantRow | null>(null);
   const [replaceTarget, setReplaceTarget] = useState<RegistrantRow | null>(null);
   const [completeTargetId, setCompleteTargetId] = useState<string | null>(null);
+  const [welcomeTarget, setWelcomeTarget] = useState<RegistrantRow | null>(null);
+  const [welcomeForce, setWelcomeForce] = useState(false);
+  const [welcomeSending, setWelcomeSending] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ["registrants", role, search],
@@ -431,6 +436,19 @@ export function RegistrantsTab({
                 )}
                 {isAdmin && r.auth_user_id && (
                   <>
+                    {r.role === "visitor" && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setWelcomeTarget(r);
+                          setWelcomeForce(false);
+                        }}
+                        title="Reenviar e-mail de boas-vindas"
+                      >
+                        <Mail size={14} /> Reenviar boas-vindas
+                      </Button>
+                    )}
                     <Button
                       size="sm"
                       variant="outline"
@@ -554,6 +572,81 @@ export function RegistrantsTab({
           qc.invalidateQueries({ queryKey: ["registrants-completion"] });
         }}
       />
+
+      <Dialog
+        open={!!welcomeTarget}
+        onOpenChange={(o) => {
+          if (!o) {
+            setWelcomeTarget(null);
+            setWelcomeForce(false);
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reenviar e-mail de boas-vindas</DialogTitle>
+          </DialogHeader>
+          <p className="text-xs text-muted-foreground">
+            Envia o e-mail transacional de boas-vindas para o buyer com link da agenda.
+            Por padrão é idempotente: se já foi enviado antes (mesmo recipient + mesma chave),
+            o provedor não duplica.
+          </p>
+          {welcomeTarget && (
+            <div className="rounded-md bg-muted/40 p-2 text-xs">
+              <div className="font-medium">{welcomeTarget.full_name}</div>
+              <div className="text-muted-foreground">{welcomeTarget.email ?? "—"}</div>
+            </div>
+          )}
+          <label className="flex items-start gap-2 text-xs">
+            <input
+              type="checkbox"
+              className="mt-0.5"
+              checked={welcomeForce}
+              onChange={(e) => setWelcomeForce(e.target.checked)}
+            />
+            <span>
+              Forçar reenvio (ignora idempotência — use apenas se o usuário confirmou que
+              apagou o e-mail e quer recebê-lo de novo).
+            </span>
+          </label>
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setWelcomeTarget(null);
+                setWelcomeForce(false);
+              }}
+            >
+              {t("common.cancel")}
+            </Button>
+            <Button
+              disabled={welcomeSending || !welcomeTarget?.auth_user_id}
+              onClick={async () => {
+                if (!welcomeTarget?.auth_user_id) return;
+                setWelcomeSending(true);
+                try {
+                  const res = await resendWelcomeFn({
+                    data: { userId: welcomeTarget.auth_user_id, force: welcomeForce },
+                  });
+                  if (res.ok) {
+                    toast.success("E-mail de boas-vindas enviado");
+                    setWelcomeTarget(null);
+                    setWelcomeForce(false);
+                  } else {
+                    toast.error(`Falha ao enviar (status ${res.status})`);
+                  }
+                } catch (e) {
+                  toast.error((e as Error).message);
+                } finally {
+                  setWelcomeSending(false);
+                }
+              }}
+            >
+              {welcomeSending ? t("common.loading") : "Enviar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

@@ -1,77 +1,111 @@
+# Diagnóstico corrigido: `selukaw8995@aquas.live`
 
-## Diagnóstico — serviço de e-mail atual
+Erro na investigação anterior: fiz join em `user_roles.user_id = profiles.id` quando o correto é `= profiles.auth_user_id`. Refeito com o join certo.
 
-- **Provedor**: SendGrid (HTTP API), enviado de `rodada@promperu.tur.br`.
-- **Configuração**: secret `SENDGRID_API_KEY` no backend.
-- **Rota de envio**: `src/routes/lovable/email/transactional/send.ts` (TanStack server route) — autenticada por JWT do usuário, renderiza React Email, registra em `email_send_log`, respeita `suppressed_emails` e gera link de unsubscribe.
-- **Registry de templates**: `src/lib/email-templates/registry.ts` (hoje só `meeting-confirmation` e `meeting-cancelled`).
-- **E-mail nativo do Supabase Auth**: continua existindo (confirmação opcional) e fica separado deste fluxo.
+## Status real
 
-Conclusão: já existe infra própria de transacional via SendGrid. Basta adicionar 1 template novo + 1 disparo idempotente. Nada de tocar no fluxo principal (success 3s → /agenda).
+| Verificação | Resultado |
+|---|---|
+| `auth.users` | OK — `e7278995-a149-4281-b882-4ab79d33972f` |
+| `profiles` | OK — `94b07786…`, `full_name: "teste 8"`, `company_id: e84f58c6…` |
+| `visitor_profiles` | OK — `signup_completed_at: 2026-06-24 19:14:42.364Z` |
+| `user_roles` | OK — `visitor` |
+| **Cadastro buyer concluído** | **SIM, em 19:14:42** (2s após signup) |
+| `user_metadata.welcome_email_sent_at` | null |
+| `email_send_log` (qualquer template, qualquer status) | 0 linhas |
+| `suppressed_emails` | 0 linhas |
+| SendGrid | nada para inspecionar — request nunca saiu |
 
----
+`complete_buyer_signup` rodou com sucesso. O e-mail simplesmente nunca foi tentado.
 
-## O que vai ser feito
+## Causa raiz
 
-### 1. Novo template `buyer-welcome`
+O disparo do welcome está acoplado a **um único caminho**: o branch de sucesso do auto-finalizador em `src/routes/onboarding.tsx`, dentro do `useEffect` que consome `BUYER_SIGNUP_STORAGE_KEY` / `user_metadata.buyer_signup_payload`. Para esse código rodar e enviar o e-mail, todas as condições abaixo precisam ser verdadeiras na **mesma sessão de browser** logo após o signup:
 
-Arquivo novo: `src/lib/email-templates/buyer-welcome.tsx`
+1. O bundle publicado no momento já contém o código de dispatch (feature recente).
+2. O payload do buyer estava em `sessionStorage` ou em `user_metadata` quando o usuário aterrissou em `/onboarding`.
+3. `complete_buyer_signup` retornou OK na mesma execução do efeito.
+4. `supabase.auth.getSession()` devolveu um `access_token`.
+5. O `fetch('/lovable/email/transactional/send')` não falhou silenciosamente.
 
-- React Email (mesmos componentes/estilo de `_shared.tsx` que `meeting-confirmation` usa: `main`, `container`, `h1`, `text`, `button`, `card`, `small`, `footer`).
-- Props: `visitorName?: string`, `agendaUrl?: string` (default `https://rodada.promperu.tur.br/agenda`).
-- Conteúdo (pt-BR) conforme template aprovado:
-  - Saudação `Olá, {visitorName}!` (fallback `Olá!`)
-  - Confirmação de cadastro concluído no PERU MICE Networking Event
-  - Aviso que a agenda já está disponível
-  - Botão CTA "Acessar minha agenda" → `/agenda`
-  - Lista do que pode fazer na plataforma (agenda, atualizações, dados, próximas interações)
-  - Recomendação de acesso regular
-  - Suporte / encerramento "Equipe PERU MICE Networking Event"
-- `subject`: `Cadastro confirmado | PERU MICE Networking Event`
-- `displayName`: `Buyer welcome`
-- `previewData` para preview no dashboard de e-mails.
+Branches em que o welcome **nunca dispara hoje**, mesmo com cadastro completo:
 
-### 2. Registrar no registry
+- Submit manual via formulário (`onSubmit` em `onboarding.tsx`): chama `setBuyerSuccess(true)` e **não** invoca o dispatch.
+- Usuário concluiu o buyer numa sessão anterior (antes do deploy do dispatch, ou antes de ter `welcome_email_sent_at` como gate) e volta depois — efeito não roda porque `profile.company_id` já existe e a página redireciona para `/agenda`.
+- `complete_buyer_signup` retornou sucesso mas o `fetch` do welcome lançou exceção de rede ou non-2xx: vira `console.warn`, sem retry, sem persistência da intenção.
+- Bundle servido no momento do signup ainda não tinha o código do welcome (feature publicada depois) — caso provável deste usuário, dado que o signup é de 19:14:40 e o feature de welcome é recente.
 
-Editar `src/lib/email-templates/registry.ts`: import + entrada `'buyer-welcome': buyerWelcome`.
+Resultado: qualquer caminho que não seja "auto-finalizador, primeiro signup, mesma sessão, tudo no happy path" não envia o e-mail. Foi exatamente o que ocorreu com `selukaw8995@aquas.live`.
 
-### 3. Disparo único após cadastro do buyer
+## Correção
 
-Editar `src/routes/onboarding.tsx`, dentro do efeito de auto-finalização do buyer, **logo após** `complete_buyer_signup` retornar sucesso e ANTES de `setBuyerSuccess(true)` (não bloqueante — `void` + try/catch que nunca quebra o fluxo):
+### 1. Desacoplar o envio do welcome
+Criar um helper único e idempotente:
 
-- Idempotência: ler `user.user_metadata.welcome_email_sent_at`. Se já existir, pular.
-- Caso contrário:
-  1. `POST /lovable/email/transactional/send` com header `Authorization: Bearer ${session.access_token}` e body:
-     ```json
-     {
-       "templateName": "buyer-welcome",
-       "recipientEmail": "<user.email>",
-       "idempotencyKey": "buyer-welcome-<user.id>",
-       "templateData": { "visitorName": "<primeiro nome>", "agendaUrl": "https://rodada.promperu.tur.br/agenda" }
-     }
-     ```
-  2. Em caso de sucesso, `supabase.auth.updateUser({ data: { welcome_email_sent_at: new Date().toISOString() } })`.
-- Erros: apenas `console.warn`. Nunca tocam no `setBuyerSuccess`, nem no timer de 3s, nem no redirect `/agenda`.
+`src/lib/buyer-welcome-email.ts`
+```ts
+export async function ensureBuyerWelcomeEmail(opts: {
+  userId: string;
+  email: string;
+  fullName: string | null;
+  alreadySentAt?: string | null;
+}): Promise<void>
+```
+Responsabilidades:
+- short-circuit se `alreadySentAt` estiver presente.
+- buscar `access_token` via `supabase.auth.getSession()`.
+- POST `/lovable/email/transactional/send` com `templateName: 'buyer-welcome'`, `idempotencyKey: 'buyer-welcome-<userId>'`, `templateData: { visitorName, agendaUrl }`.
+- em `res.ok`, gravar `welcome_email_sent_at` em `user_metadata`.
+- nunca lançar — apenas `console.warn`.
 
-Idempotência tem 3 camadas: (a) flag em `user_metadata`, (b) `idempotencyKey` no log, (c) `suppressed_emails` já tratado pela rota.
+### 2. Acionar o helper em todos os pontos de "buyer completo"
+- `src/routes/onboarding.tsx` (auto-finalizador): substitui o bloco inline atual pela chamada ao helper.
+- `src/routes/onboarding.tsx` (`onSubmit` manual, branch `visitor`): chama o helper antes de `setBuyerSuccess(true)`. (Hoje não chama — esse é um dos branches faltantes.)
+- `src/routes/_authenticated/agenda.tsx`: no mount, se `profile?.roles` inclui `visitor`, `profile.company_id` está setado e `user.user_metadata.welcome_email_sent_at` está vazio, chama o helper. Cobre usuários legados como `selukaw8995@aquas.live` automaticamente na próxima visita à agenda.
 
-### 4. Fluxo principal — intocado
+Idempotência garantida em duas camadas: gate por `welcome_email_sent_at` no cliente + `idempotencyKey` único por usuário no servidor (deduplicado em `email_send_log`).
 
-- Tela de sucesso 3s, redirect `/agenda`, `/onboarding`, signup, `auth/callback`, expositor/admin/staff/cliente: nenhuma alteração.
+### 3. Reenvio manual seguro (admin-only)
+Em `src/lib/email-admin.functions.ts`, adicionar:
 
----
+```ts
+export const resendBuyerWelcome = createServerFn({ method: 'POST' })
+  .inputValidator(z.object({
+    userId: z.string().uuid(),
+    force: z.boolean().optional(),
+  }).parse)
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.userId);
+    // supabaseAdmin.auth.admin.getUserById(data.userId) → email + metadata
+    // profiles.full_name pelo auth_user_id
+    // POST interno para /lovable/email/transactional/send
+    // idempotencyKey: force ? `buyer-welcome-${userId}-${Date.now()}` : `buyer-welcome-${userId}`
+    // em sucesso: supabaseAdmin.auth.admin.updateUserById(userId, { user_metadata: { welcome_email_sent_at: now } })
+  });
+```
 
-## Arquivos alterados / criados
+Botão "Reenviar boas-vindas" em `src/components/admin/registrants-tab.tsx` na linha do buyer, com confirmação. `force` exposto como checkbox no diálogo.
 
-- **Novo**: `src/lib/email-templates/buyer-welcome.tsx`
-- **Editado**: `src/lib/email-templates/registry.ts` (registra template)
-- **Editado**: `src/routes/onboarding.tsx` (disparo idempotente após `complete_buyer_signup`)
+### 4. Ação imediata para `selukaw8995@aquas.live`
+Após implementar (2) e (3):
+- Opção A — automática: na próxima vez que ele abrir `/agenda` (autenticado), o helper detecta `welcome_email_sent_at` ausente e dispara. Nada a fazer manualmente. Usuário pode estar inativo, então não é garantido.
+- Opção B — manual: admin clica "Reenviar boas-vindas" no painel. Garante envio agora.
+
+Recomendo executar a opção B para esse usuário assim que o reenvio admin estiver pronto.
+
+## Arquivos alterados
+- novo: `src/lib/buyer-welcome-email.ts` (helper compartilhado)
+- editado: `src/routes/onboarding.tsx` (auto-finalizador chama helper; `onSubmit` visitor chama helper antes do success)
+- editado: `src/routes/_authenticated/agenda.tsx` (chamada idempotente no mount para visitors completos sem `welcome_email_sent_at`)
+- editado: `src/lib/email-admin.functions.ts` (server fn `resendBuyerWelcome`)
+- editado: `src/components/admin/registrants-tab.tsx` (botão de reenvio + diálogo com `force`)
+
+Sem mudanças em template, registry, rota `send.ts`, fluxos de expositor/admin/staff/cliente, copy da tela de sucesso, `/agenda` em si ou Supabase Auth.
 
 ## Critérios de aceite
-
-- Buyer conclui cadastro → recebe e-mail `Cadastro confirmado | PERU MICE Networking Event` com CTA para `/agenda`.
-- Reentrar em `/onboarding` ou re-disparar o efeito não envia segundo e-mail (flag `welcome_email_sent_at`).
-- Falha de envio não bloqueia tela de sucesso nem o redirect de 3s.
-- E-mail nativo do Supabase Auth permanece independente.
-
-Aprovado, mando ver.
+- Qualquer visitor com `signup_completed_at` preenchido e sem `welcome_email_sent_at` recebe o welcome no máximo no próximo acesso a `/agenda`.
+- Reabrir `/agenda` várias vezes não duplica envio (gate cliente + idempotency key servidor).
+- Submit manual (não-wizard) também dispara.
+- Admin consegue reenviar manualmente; com `force`, supera a idempotência para casos legítimos (recipient apagou e pediu de novo).
+- Nenhuma alteração observável para expositor/admin/staff/cliente.

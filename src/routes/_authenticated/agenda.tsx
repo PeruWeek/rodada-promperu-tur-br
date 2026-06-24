@@ -4,9 +4,12 @@ import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
 import { Calendar, Download, MapPin, Table2, X } from "lucide-react";
 import { toast } from "sonner";
+import { useEffect, useRef } from "react";
 
 import { supabase } from "@/integrations/supabase/client";
-import { useProfile } from "@/hooks/use-profile";
+import { hasRole, useProfile } from "@/hooks/use-profile";
+import { useAuth } from "@/hooks/use-auth";
+import { ensureBuyerWelcomeEmail } from "@/lib/buyer-welcome-email";
 import { cancelMeeting } from "@/lib/booking.functions";
 import { formatSlotFull } from "@/components/booking-dialog";
 import { buildAgendaPdf } from "@/lib/pdf";
@@ -22,8 +25,30 @@ export const Route = createFileRoute("/_authenticated/agenda")({
 function AgendaPage() {
   const { t, i18n } = useTranslation();
   const { data: profile } = useProfile();
+  const { user } = useAuth();
   const qc = useQueryClient();
   const cancelFn = useServerFn(cancelMeeting);
+  const welcomeFiredRef = useRef(false);
+
+  // Safety net: any visitor with completed signup but no welcome_email_sent_at
+  // gets the welcome email on next /agenda visit. Idempotent client-side
+  // (ref + metadata gate) and server-side (idempotencyKey).
+  useEffect(() => {
+    if (welcomeFiredRef.current) return;
+    if (!user || !profile) return;
+    if (!profile.company_id) return;
+    if (!hasRole(profile.roles, "visitor")) return;
+    if (!user.email) return;
+    const meta = (user.user_metadata ?? {}) as Record<string, unknown>;
+    if (meta.welcome_email_sent_at) return;
+    welcomeFiredRef.current = true;
+    void ensureBuyerWelcomeEmail({
+      userId: user.id,
+      email: user.email,
+      fullName: profile.full_name,
+      alreadySentAt: null,
+    });
+  }, [user, profile]);
 
   const { data: meetings, isLoading } = useQuery({
     queryKey: ["my-agenda", profile?.id],

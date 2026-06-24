@@ -3,9 +3,9 @@ import { getRequest } from "@tanstack/react-start/server";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
 async function assertAdmin(userId: string) {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data } = await supabaseAdmin
     .from("user_roles")
     .select("role")
@@ -61,5 +61,84 @@ export const sendTestTransactionalEmail = createServerFn({ method: "POST" })
     if (!res.ok) {
       return { ok: false as const, status: res.status, body };
     }
+    return { ok: true as const, status: res.status, body };
+  });
+
+export const resendBuyerWelcome = createServerFn({ method: "POST" })
+  .inputValidator((input) =>
+    z
+      .object({
+        userId: z.string().uuid(),
+        force: z.boolean().optional(),
+      })
+      .parse(input),
+  )
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    const { data: userRes, error: userErr } =
+      await supabaseAdmin.auth.admin.getUserById(data.userId);
+    if (userErr || !userRes?.user) {
+      throw new Error(userErr?.message ?? "User not found");
+    }
+    const targetUser = userRes.user;
+    const targetEmail = targetUser.email;
+    if (!targetEmail) throw new Error("Target user has no email");
+
+    const { data: prof } = await supabaseAdmin
+      .from("profiles")
+      .select("full_name")
+      .eq("auth_user_id", data.userId)
+      .maybeSingle();
+    const fullName = (prof?.full_name as string | undefined) ?? "";
+    const firstName = fullName.trim().split(/\s+/)[0] ?? "";
+
+    const request = getRequest();
+    const authHeader = request?.headers.get("authorization");
+    if (!authHeader || !request) {
+      throw new Error("Missing request context");
+    }
+    const origin = new URL(request.url).origin;
+
+    const idempotencyKey = data.force
+      ? `buyer-welcome-${data.userId}-${Date.now()}`
+      : `buyer-welcome-${data.userId}`;
+
+    const res = await fetch(`${origin}/lovable/email/transactional/send`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: authHeader,
+      },
+      body: JSON.stringify({
+        templateName: "buyer-welcome",
+        recipientEmail: targetEmail,
+        idempotencyKey,
+        templateData: {
+          visitorName: firstName,
+          agendaUrl: "https://rodada.promperu.tur.br/agenda",
+        },
+      }),
+    });
+
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return { ok: false as const, status: res.status, body };
+    }
+
+    try {
+      const meta = (targetUser.user_metadata ?? {}) as Record<string, unknown>;
+      await supabaseAdmin.auth.admin.updateUserById(data.userId, {
+        user_metadata: {
+          ...meta,
+          welcome_email_sent_at: new Date().toISOString(),
+        },
+      });
+    } catch {
+      /* best-effort */
+    }
+
     return { ok: true as const, status: res.status, body };
   });
