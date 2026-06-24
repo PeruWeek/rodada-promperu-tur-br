@@ -1,63 +1,52 @@
 ## Objetivo
 
-Garantir que, após confirmar o e-mail e voltar pelo `/auth/callback`, o buyer chegue ao `/onboarding`, veja a tela "Cadastro realizado com sucesso / Estamos redirecionando você para sua agenda." por 3 segundos completos, e só então caia em `/agenda`. Sem mexer em signup, fallback de e-mail, `emailRedirectTo`, ou fluxos de expositor/admin/staff/cliente.
+Eliminar a confirmação de e-mail como bloqueio do fluxo do Buyer. Após o cadastro o usuário entra autenticado, vai para `/onboarding`, vê a tela de sucesso por 3s e é redirecionado para `/agenda`. O e-mail continua sendo enviado como comunicação, mas não interrompe mais o fluxo principal.
 
-## Passo 1 — Investigar com Playwright
+## Passo 1 — Backend (Supabase Auth)
 
-Reproduzir em aba privada contra o preview local: signup → clicar no link de confirmação → observar cada etapa. Capturar URL final, console/network do callback, e o DOM/tempo do `/onboarding`.
+Chamar `supabase--configure_auth` com `auto_confirm_email: true`. Isso faz o `supabase.auth.signUp` retornar uma sessão imediata (sem exigir clique no link de confirmação). Demais flags ficam como estão (signup habilitado, anônimo desabilitado, HIBP no estado atual).
 
-Objetivo: confirmar qual dos pontos abaixo é o bloqueio real:
-- (a) `/auth/callback` não autenticando (poll de sessão expira / URL é `?code=` em vez de hash);
-- (b) payload do buyer não chegando ao `OnboardingPage` (sessionStorage vazio cross-tab + `user_metadata` ausente);
-- (c) success de 3s sendo cortado por redirect concorrente (`_authenticated.tsx` ou efeito interno de `onboarding.tsx`);
-- (d) outro ponto descoberto na execução.
+Impacto:
+- Novos cadastros entram autenticados imediatamente.
+- O e-mail de confirmação continua sendo enviado (a confirmação ainda existe no Supabase como ação opcional), mas não é mais pré-requisito para sessão.
+- Usuários antigos pendentes de confirmação continuam funcionando pelo fallback existente em `/auth/callback` (não removido).
 
-## Passo 2 — Ajustes (aplicar conforme o Passo 1)
+## Passo 2 — Frontend (`src/routes/signup.tsx`)
 
-Tudo em frontend.
+Com `auto_confirm_email: true`, `signUp` passa a retornar `session` no caminho de sucesso, então o ramo existente `if (signUpData?.session) navigate({ to: "/onboarding", replace: true })` já cobre o fluxo. Ajustes:
 
-**A. `src/routes/onboarding.tsx`** — fechar a race contra o success de 3s:
-- Setar `sessionStorage["buyer_success_pending"]="1"` no próprio bloco do auto-finalizer, **antes** do `setBuyerSuccess(true)`, não só no `useEffect` reativo. Assim qualquer re-render imediato com `profile` já atualizado (visitor + `company_id`) encontra o flag e não redireciona para `/agenda` cedo.
-- Reforçar o efeito "visitor + company_id → /agenda" para também respeitar o flag em sessionStorage além do `buyerSuccess` / `autoFinishing` que já existem.
+- Remover o `setSent(true)` como caminho esperado do buyer. Como contingência (caso o Supabase retorne sem sessão por algum motivo — ex.: rate limit ou re-signup de e-mail já existente), tentar `supabase.auth.signInWithPassword` com as credenciais recém-criadas e, em caso de sucesso, redirecionar para `/onboarding`. Só cair na tela `auth.signupSuccessTitle / checkEmailBody` se nem signUp nem signIn retornarem sessão (fallback legado preservado, não obrigatório).
+- Não mexer na copy da tela final de sucesso do buyer em `/onboarding` (já existe `onboarding.buyerSuccessTitle` / `onboarding.buyerSuccessBody` com timer de 3s → `/agenda`).
 
-**B. `src/routes/auth.callback.tsx`** — só se o Passo 1 mostrar problema de URL:
-- Se o link vier como PKCE (`?code=...`), trocar o poll por `supabase.auth.exchangeCodeForSession(window.location.href)` antes do poll. Sem alterar `emailRedirectTo`.
-- Manter `goOnce("/onboarding")` para usuários sem role (caminho atual já correto pós-confirmação).
+## Passo 3 — Frontend (`src/routes/onboarding.tsx`)
 
-**C. `src/routes/_authenticated.tsx`** — apenas reforço se necessário:
-- Manter a checagem `buyer_success_pending && pathname === "/onboarding"` no topo do effect, como já está. Não adicionar lógica nova para `visitor`.
+Já está correto após os ajustes anteriores: auto-finaliza o payload do buyer via `complete_buyer_signup`, mostra a tela de sucesso, seta `sessionStorage["buyer_success_pending"]="1"` antes do `setBuyerSuccess(true)`, e o `useEffect` dedicado dispara o redirect para `/agenda` após 3s. Não há mudança necessária aqui.
 
-**D. Payload cross-device** — só se o Passo 1 mostrar `user_metadata` vazio:
-- No auto-finalizer, tentar `supabase.auth.getUser()` (revalida com o servidor) antes de desistir do payload.
+## Passo 4 — Validar com Playwright
 
-## Passo 3 — Validar
+Reproduzir end-to-end: abrir `/signup`, completar os 3 passos, submeter. Conferir que:
+1. Não aparece a tela "verifique seu e-mail".
+2. Vai direto para `/onboarding`.
+3. Aparece "Cadastro realizado com sucesso / Estamos redirecionando você para sua agenda." por ~3s.
+4. Redireciona para `/agenda` autenticado.
 
-Re-executar o Playwright em aba privada:
-- signup → tela "Enviamos um link de confirmação" (intacta);
-- clicar no link → `/auth/callback` autentica → `/onboarding`;
-- tela "Cadastro realizado com sucesso / Estamos redirecionando você para sua agenda." visível por 3s;
-- redirect automático para `/agenda`.
+## Não alterar
 
-## O que NÃO muda
+- Fluxos de expositor, admin, staff, cliente.
+- Copy da tela final de sucesso do buyer.
+- Rota final `/agenda`.
+- `/auth/callback` (mantido como fallback para usuários legados ou contingência).
+- E-mail de confirmação continua sendo enviado pelo Supabase.
 
-- `src/routes/signup.tsx` (tela e textos do fallback de e-mail).
-- `emailRedirectTo` (`/auth/callback`).
-- Texto/UI da tela "Enviamos um link de confirmação".
-- Fluxos de expositor / admin / staff / cliente.
-- Nada de `signInWithPassword` forçado após `signUp`.
+## Entregáveis ao final
 
-## Arquivos prováveis de edição
+- Config do Supabase Auth alterada: `auto_confirm_email: true`.
+- Arquivos do frontend alterados: `src/routes/signup.tsx` (contingência de signIn pós-signUp; tela "verifique e-mail" vira fallback raro).
+- Fluxo final: signup → sessão imediata → `/onboarding` → auto-finalize → tela de sucesso 3s → `/agenda`.
 
-- `src/routes/onboarding.tsx` (race do flag + setBuyerSuccess) — certo.
-- `src/routes/auth.callback.tsx` — só se Passo 1 indicar PKCE.
-- `src/routes/_authenticated.tsx` — só reforço, se necessário.
-- `.lovable/plan.md` — atualizar.
+## Impactos operacionais
 
-## Critérios de aceite
-
-- Cadastro inicial mostra a tela atual de confirmação de e-mail (intacta).
-- Link do e-mail leva a `/auth/callback`, autentica e segue para `/onboarding`.
-- `OnboardingPage` auto-finaliza o buyer e mostra "Cadastro realizado com sucesso / Estamos redirecionando você para sua agenda." por **3 segundos completos**.
-- Após 3s, vai para `/agenda`.
-- Nenhum redirect concorrente corta o success.
-- Fallback de e-mail permanece intacto.
+- **Risco de typo no e-mail**: usuário pode se cadastrar com e-mail errado e mesmo assim acessar a plataforma. Comunicação por e-mail (confirmações de reunião, lembretes) pode não chegar. Mitigar com validação de formato (já existe) e telas que reforcem revisão do e-mail no `/profile`.
+- **Risco de spam/abuse**: sem confirmação obrigatória, contas falsas entram direto. Mitigar com rate-limit do Supabase Auth (já ativo) e moderação via admin se necessário.
+- **Conformidade**: se houver requisito legal de double opt-in para marketing, manter o consentimento `consent_marketing` desacoplado do acesso (já é o caso).
+- **Usuários legados pendentes**: os que ainda não confirmaram conseguem entrar normalmente pelo `/auth/callback` (link do e-mail antigo continua funcionando).
