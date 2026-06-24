@@ -42,10 +42,9 @@ export const updateBookingReminderSettings = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     await assertAdmin(context.userId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const patch: Record<string, unknown> = { ...data, updated_by: context.userId };
     const { data: updated, error } = await supabaseAdmin
       .from("booking_reminder_settings")
-      .update(patch)
+      .update({ ...data, updated_by: context.userId })
       .eq("id", 1)
       .select("*")
       .single();
