@@ -349,6 +349,11 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
                       Pré-cadastro
                     </Badge>
                   )}
+                  {c.is_active === false && (
+                    <Badge variant="destructive" title={c.inactivated_at ?? undefined}>
+                      {t("admin.companies.orphanBadge")}
+                    </Badge>
+                  )}
                 </div>
                 <p className="truncate text-xs text-muted-foreground">
                   {[c.city, c.state_code, c.country_code].filter(Boolean).join(" / ")}
@@ -404,9 +409,44 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
                 )}
               </div>
               {!readOnly && (
-                <Button size="sm" variant="outline" onClick={() => setEditingId(c.id)}>
-                  <Pencil size={14} /> {t("admin.companies.edit")}
-                </Button>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button size="sm" variant="outline" onClick={() => setEditingId(c.id)}>
+                    <Pencil size={14} /> {t("admin.companies.edit")}
+                  </Button>
+                  {c.is_active === false && (
+                    <>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={reactivatingId === c.id}
+                        onClick={async () => {
+                          setReactivatingId(c.id);
+                          try {
+                            await reactivateFn({ data: { companyId: c.id, confirm: true } });
+                            toast.success(t("admin.companies.reactivateSuccess"));
+                            await refetch();
+                          } catch (e) {
+                            toast.error((e as Error).message);
+                          } finally {
+                            setReactivatingId(null);
+                          }
+                        }}
+                      >
+                        <RotateCcw size={14} /> {t("admin.companies.reactivate")}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => {
+                          setDeleteTarget({ id: c.id, name: c.trade_name });
+                          setDeleteConfirmText("");
+                        }}
+                      >
+                        <Trash2 size={14} /> {t("admin.companies.hardDelete")}
+                      </Button>
+                    </>
+                  )}
+                </div>
               )}
             </div>
           ))}
