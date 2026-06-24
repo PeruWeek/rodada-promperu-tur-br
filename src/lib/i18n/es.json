@@ -347,7 +347,18 @@
       "roleVisitor": "Visitantes",
       "roleExhibitor": "Expositores",
       "roleCliente": "Clientes",
-      "tabVisitor": "Perfil de la empresa"
+      "tabVisitor": "Perfil de la empresa",
+      "statusActive": "Activas",
+      "statusInactive": "Huérfanas",
+      "statusAll": "Todas",
+      "orphanBadge": "Sin usuario activo",
+      "reactivate": "Reactivar",
+      "reactivateSuccess": "Empresa reactivada.",
+      "hardDelete": "Eliminar definitivamente",
+      "hardDeleteConfirmTitle": "¿Eliminar empresa definitivamente?",
+      "hardDeleteConfirmBody": "Esta acción elimina la empresa \"{{name}}\" de la base. Esta operación no se puede deshacer.",
+      "hardDeleteTypeName": "Escribe el nombre de la empresa (\"{{name}}\") para confirmar:",
+      "hardDeleteSuccess": "Empresa eliminada."
     },
     "orphans": {
       "title": "Expositores sin empresa vinculada",
