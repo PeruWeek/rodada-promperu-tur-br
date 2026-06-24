@@ -126,7 +126,9 @@
     "continue": "Continuar al perfil",
     "requiresApproval": "Requiere aprobación",
     "savedVisitor": "¡Registro completado!",
-    "requestedExhibitor": "Solicitud enviada para revisión."
+    "requestedExhibitor": "Solicitud enviada para revisión.",
+    "buyerSuccessTitle": "Registro completado con éxito",
+    "buyerSuccessBody": "Te estamos redirigiendo a tu agenda."
   },
   "dashboard": {
     "welcome": "Bienvenido, {{name}}",
