@@ -87,7 +87,7 @@ function OnboardingPage() {
   useEffect(() => {
     if (!profile) return;
     // Don't short-circuit while the buyer success screen is showing
-    // (auto-finalize just ran and we need the 8s redirect to play).
+    // (auto-finalize just ran and we need the 3s redirect to play).
     if (buyerSuccess || autoFinishing) return;
     const primary = getPrimaryRole(profile.roles);
     if (primary === "admin" || primary === "staff") {
