@@ -36,7 +36,7 @@ function AuthenticatedLayout() {
     if (profileLoading || reqLoading || !profile) return;
 
     // While the buyer success screen is showing on /onboarding, do not let
-    // any gating decision pull the user away before the 8s redirect runs.
+    // any gating decision pull the user away before the 3s redirect runs.
     const buyerSuccessPending =
       typeof window !== "undefined" &&
       window.sessionStorage.getItem("buyer_success_pending") === "1";
