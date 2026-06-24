@@ -896,14 +896,14 @@ export const createCompanyForOrphan = createServerFn({ method: "POST" })
 async function logCompanyAudit(
   action: string,
   userId: string,
-  payload: Record<string, unknown>,
+  payload: JsonObject,
 ) {
   const actorProfileId = await getActorProfileId(userId);
   await supabaseAdmin.from("audit_logs").insert({
     event_id: null,
     actor_profile_id: actorProfileId,
     action,
-    payload: payload as unknown as JsonValue,
+    payload,
   });
 }
 
