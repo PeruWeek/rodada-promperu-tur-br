@@ -53,9 +53,13 @@ const BuyerWelcomeEmail = ({
             novidades e garantir que todas as suas informações estejam corretas.
           </Text>
           <Text style={text}>
-            Caso não se recorde da sua senha, utilize a opção de recuperação de
-            senha disponível na plataforma para redefinir seu acesso.
+            Caso não se recorde da sua senha, utilize o botão abaixo para redefinir seu acesso:
           </Text>
+          <Section style={{ textAlign: "center", margin: "8px 0 24px" }}>
+            <Button href="https://rodada.promperu.tur.br/forgot-password" style={button}>
+              Recuperar minha senha
+            </Button>
+          </Section>
           <Text style={small}>
             Em caso de dúvidas, entre em contato com a organização.
           </Text>
