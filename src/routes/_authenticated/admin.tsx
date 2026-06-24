@@ -1570,6 +1570,74 @@ function EmailsTab() {
                 </Button>
               </div>
             </div>
+
+            <div className="mt-4 border-t border-border pt-3">
+              <div className="mb-2 flex items-center justify-between">
+                <p className="text-xs font-medium">{t("admin.emails.diagnosticsTitle", "Diagnóstico de envio")}</p>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => diagnosticsMut.mutate()}
+                    disabled={diagnosticsMut.isPending}
+                  >
+                    <RefreshCw size={12} /> {t("admin.emails.refresh", "Atualizar")}
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => recoveryMut.mutate()}
+                    disabled={recoveryMut.isPending}
+                  >
+                    {t("admin.emails.sendRecovery", "Enviar link de recuperação")}
+                  </Button>
+                </div>
+              </div>
+              {diagnosticsMut.data?.suppression && diagnosticsMut.data.suppression.length > 0 && (
+                <div className="mb-2 rounded border border-destructive/40 bg-destructive/5 p-2 text-xs">
+                  <p className="font-medium text-destructive">
+                    {t("admin.emails.suppressed", "E-mail suprimido")}
+                  </p>
+                  {diagnosticsMut.data.suppression.map((s) => (
+                    <p key={s.id} className="text-muted-foreground">
+                      {s.reason} — {new Date(s.created_at).toLocaleString()}
+                    </p>
+                  ))}
+                </div>
+              )}
+              {diagnosticsMut.data?.sendLog && diagnosticsMut.data.sendLog.length > 0 ? (
+                <div className="space-y-1 text-xs">
+                  {diagnosticsMut.data.sendLog.slice(0, 10).map((log) => (
+                    <div key={log.id} className="flex items-start justify-between gap-2 border-b border-border/40 pb-1">
+                      <div className="min-w-0">
+                        <p className="truncate font-mono">{log.template_name}</p>
+                        {log.error_message && (
+                          <p className="truncate text-destructive">{log.error_message}</p>
+                        )}
+                        <p className="text-muted-foreground">{new Date(log.created_at).toLocaleString()}</p>
+                      </div>
+                      <Badge
+                        variant={
+                          log.status === "sent"
+                            ? "default"
+                            : log.status === "pending"
+                              ? "secondary"
+                              : "destructive"
+                        }
+                        className="shrink-0"
+                      >
+                        {log.status}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  {diagnosticsMut.isPending
+                    ? "…"
+                    : t("admin.emails.noLogs", "Nenhum envio registrado para este e-mail.")}
+                </p>
+              )}
+            </div>
           </div>
         )}
 
