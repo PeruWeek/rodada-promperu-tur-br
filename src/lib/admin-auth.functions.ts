@@ -418,3 +418,67 @@ export const adminListUsers = createServerFn({ method: "POST" })
       }),
     };
   });
+
+export const getAuthDiagnostics = createServerFn({ method: "POST" })
+  .inputValidator((input) => z.object({ email: emailSchema }).parse(input))
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.userId);
+    const user = await findUserByEmailExact(data.email);
+    const profile = user
+      ? await supabaseAdmin
+          .from("profiles")
+          .select("id, full_name, is_active")
+          .eq("auth_user_id", user.id)
+          .maybeSingle()
+          .then((r) => r.data)
+      : null;
+    const { data: logs } = await supabaseAdmin
+      .from("email_send_log")
+      .select("id, message_id, template_name, status, error_message, created_at")
+      .eq("recipient_email", data.email)
+      .order("created_at", { ascending: false })
+      .limit(20);
+    const { data: suppression } = await supabaseAdmin
+      .from("suppressed_emails")
+      .select("id, reason, created_at")
+      .eq("email", data.email)
+      .order("created_at", { ascending: false })
+      .limit(5);
+    return {
+      user: user
+        ? {
+            id: user.id,
+            email: user.email ?? data.email,
+            email_confirmed_at: user.email_confirmed_at ?? null,
+            created_at: user.created_at,
+            last_sign_in_at: user.last_sign_in_at ?? null,
+          }
+        : null,
+      profile,
+      sendLog: logs ?? [],
+      suppression: suppression ?? [],
+    };
+  });
+
+export const adminSendRecoveryEmail = createServerFn({ method: "POST" })
+  .inputValidator((input) =>
+    z.object({ email: emailSchema, redirectTo: z.string().url() }).parse(input),
+  )
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.userId);
+    // Generate a recovery link via Admin API so we get a real link even if
+    // outbound delivery is failing; the auth hook will also enqueue the email.
+    const { data: linkData, error } = await supabaseAdmin.auth.admin.generateLink({
+      type: "recovery",
+      email: data.email,
+      options: { redirectTo: data.redirectTo },
+    });
+    if (error) throw new Error(error.message);
+    await audit("admin.send_recovery", context.userId, { target_email: data.email });
+    return {
+      ok: true,
+      actionLink: linkData.properties?.action_link ?? null,
+    };
+  });
