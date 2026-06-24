@@ -70,11 +70,37 @@ export const TEMPLATE_COPY_DEFAULTS: Record<string, TemplateCopyDefaults> = {
       },
     },
   },
+  "booking-reminder": {
+    fromName: DEFAULT_FROM_NAME,
+    subject: {
+      "pt-BR": "Você ainda não agendou suas reuniões na plataforma",
+      es: "Aún no agendaste tus reuniones en la plataforma",
+    },
+    copy: {
+      "pt-BR": {
+        greeting: "Olá, {{visitorName}}!",
+        intro:
+          "Seu cadastro no PERU MICE Networking evento foi concluído com sucesso, mas identificamos que você ainda não agendou suas reuniões na plataforma.",
+        outro: "",
+        ctaLabel: "Agendar reuniões",
+        signature: "Atenciosamente, Equipe PERU MICE Networking evento",
+      },
+      es: {
+        greeting: "¡Hola, {{visitorName}}!",
+        intro:
+          "Tu registro en el PERU MICE Networking evento fue completado con éxito, pero identificamos que todavía no agendaste tus reuniones en la plataforma.",
+        outro: "",
+        ctaLabel: "Agendar reuniones",
+        signature: "Atentamente, Equipo PERU MICE Networking evento",
+      },
+    },
+  },
 };
 
 export const TEMPLATE_DISPLAY_NAMES: Record<string, string> = {
   "meeting-confirmation": "Confirmação de reunião",
   "meeting-cancelled": "Cancelamento de reunião",
+  "booking-reminder": "Lembrete de agendamento",
 };
 
 // Placeholders available per template (shown in the admin UI).
@@ -93,6 +119,7 @@ export const TEMPLATE_PLACEHOLDERS: Record<string, string[]> = {
     "slotStart",
     "slotEnd",
   ],
+  "booking-reminder": ["visitorName", "agendaUrl", "forgotPasswordUrl"],
 };
 
 // Sanitize + interpolate {{var}} placeholders into a template string.
