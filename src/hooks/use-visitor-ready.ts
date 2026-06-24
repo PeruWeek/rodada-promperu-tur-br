@@ -11,9 +11,10 @@ import { hasRole, useProfile } from "./use-profile";
  * Critério (alinhado com a RPC `complete_buyer_signup` do banco):
  *   - `visitor_profiles.signup_completed_at IS NOT NULL`   (caminho wizard)
  *     OU
- *   - empresa com trade_name + city
- *     E visitor_profiles com `buyer_types >= 1`
- *     E visitor_profiles com `interests_segments >= 1`     (caminho /profile)
+ *   - empresa com trade_name + city                        (caminho /profile)
+ *
+ * `buyer_types` é opcional e NÃO entra no critério — o usuário pode
+ * concluir o cadastro sem preencher esse campo.
  *
  * Observação: o wizard de signup NÃO coleta `interests_destinations` —
  * por isso esse campo não entra no critério. A RPC marca
