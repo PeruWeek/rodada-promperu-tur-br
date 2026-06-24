@@ -95,37 +95,25 @@ export const resendBuyerWelcome = createServerFn({ method: "POST" })
     const fullName = (prof?.full_name as string | undefined) ?? "";
     const firstName = fullName.trim().split(/\s+/)[0] ?? "";
 
-    const request = getRequest();
-    const authHeader = request?.headers.get("authorization");
-    if (!authHeader || !request) {
-      throw new Error("Missing request context");
-    }
-    const origin = new URL(request.url).origin;
-
     const idempotencyKey = data.force
       ? `buyer-welcome-${data.userId}-${Date.now()}`
       : `buyer-welcome-${data.userId}`;
 
-    const res = await fetch(`${origin}/lovable/email/transactional/send`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: authHeader,
+    // Call the send pipeline directly (avoids worker loopback HTTP fetch,
+    // which can drop the Authorization header and yield spurious 401s).
+    const { processTransactionalSend } = await import("@/lib/email-send.server");
+    const result = await processTransactionalSend(supabaseAdmin, {
+      templateName: "buyer-welcome",
+      recipientEmail: targetEmail,
+      idempotencyKey,
+      templateData: {
+        visitorName: firstName,
+        agendaUrl: "https://rodada.promperu.tur.br/agenda",
       },
-      body: JSON.stringify({
-        templateName: "buyer-welcome",
-        recipientEmail: targetEmail,
-        idempotencyKey,
-        templateData: {
-          visitorName: firstName,
-          agendaUrl: "https://rodada.promperu.tur.br/agenda",
-        },
-      }),
     });
 
-    const body = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      return { ok: false as const, status: res.status, body };
+    if (result.status < 200 || result.status >= 300) {
+      return { ok: false as const, status: result.status, body: result.body };
     }
 
     try {
@@ -140,5 +128,5 @@ export const resendBuyerWelcome = createServerFn({ method: "POST" })
       /* best-effort */
     }
 
-    return { ok: true as const, status: res.status, body };
+    return { ok: true as const, status: result.status, body: result.body };
   });
