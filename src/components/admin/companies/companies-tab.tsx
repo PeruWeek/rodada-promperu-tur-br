@@ -120,6 +120,7 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
         page: 1,
         pageSize: 5000,
         activeOnly: readOnly,
+        status: effectiveStatus,
       },
     });
     return res.rows;
