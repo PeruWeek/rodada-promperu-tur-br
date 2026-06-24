@@ -173,6 +173,48 @@ function OnboardingPage() {
         try { sessionStorage.removeItem(BUYER_SIGNUP_STORAGE_KEY); } catch { /* ignore */ }
         // Clear the metadata copy so we don't replay on subsequent visits.
         try { await supabase.auth.updateUser({ data: { buyer_signup_payload: null } }); } catch { /* ignore */ }
+        // Dispara e-mail transacional próprio de boas-vindas (1x por usuário).
+        // Não bloqueia o fluxo: erros apenas logam.
+        try {
+          const meta = (user.user_metadata ?? {}) as Record<string, unknown>;
+          if (!meta.welcome_email_sent_at && user.email) {
+            const { data: sess } = await supabase.auth.getSession();
+            const accessToken = sess.session?.access_token;
+            if (accessToken) {
+              const fullNameVal =
+                ((payload as Record<string, unknown>)["full_name"] as string | undefined) ??
+                profile.full_name ?? "";
+              const firstName = fullNameVal.trim().split(/\s+/)[0] ?? "";
+              const res = await fetch("/lovable/email/transactional/send", {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${accessToken}`,
+                },
+                body: JSON.stringify({
+                  templateName: "buyer-welcome",
+                  recipientEmail: user.email,
+                  idempotencyKey: `buyer-welcome-${user.id}`,
+                  templateData: {
+                    visitorName: firstName,
+                    agendaUrl: "https://rodada.promperu.tur.br/agenda",
+                  },
+                }),
+              });
+              if (res.ok) {
+                try {
+                  await supabase.auth.updateUser({
+                    data: { welcome_email_sent_at: new Date().toISOString() },
+                  });
+                } catch { /* ignore */ }
+              } else {
+                console.warn("[onboarding.welcome-email] non-ok", res.status);
+              }
+            }
+          }
+        } catch (e) {
+          console.warn("[onboarding.welcome-email] failed", e);
+        }
         // Mautic: inscrição concluída (RPC retornou sem erro = conversão real).
         // Dedupe por user.id para evitar duplicidade em reexecuções do efeito.
         try {
