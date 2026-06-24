@@ -434,6 +434,19 @@ function SignupPage() {
         navigate({ to: "/onboarding", replace: true });
         return;
       }
+      // Contingência: se o Supabase não devolveu sessão imediata (ex.: rate
+      // limit, config transitória), tentar signIn com as credenciais recém
+      // criadas para evitar parar o usuário na tela de "verifique seu e-mail".
+      try {
+        const { data: signInData } = await supabase.auth.signInWithPassword({
+          email: data.email,
+          password: data.password,
+        });
+        if (signInData?.session) {
+          navigate({ to: "/onboarding", replace: true });
+          return;
+        }
+      } catch { /* fallback abaixo */ }
       setSent(true);
     } finally {
       setLoading(false);
