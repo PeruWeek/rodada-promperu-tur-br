@@ -3,9 +3,14 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { FileSpreadsheet, FileText, Files, Pencil, Search } from "lucide-react";
+import { FileSpreadsheet, FileText, Files, Pencil, RotateCcw, Search, Trash2 } from "lucide-react";
 
-import { listAdminCompanies, setVisitorLunchParticipation } from "@/lib/admin.functions";
+import {
+  adminHardDeleteCompany,
+  adminReactivateCompany,
+  listAdminCompanies,
+  setVisitorLunchParticipation,
+} from "@/lib/admin.functions";
 import { downloadBlob, toCsv } from "@/lib/exports/csv";
 import { downloadXlsx } from "@/lib/exports/xlsx";
 import jsPDF from "jspdf";
@@ -25,29 +30,57 @@ import {
 import { EditCompanyDrawer } from "./edit-company-drawer";
 import { OrphanExhibitorsPanel } from "./orphan-exhibitors-panel";
 import { UnpublishedExhibitorsPanel } from "./unpublished-exhibitors-panel";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 type RoleFilter = "all" | "visitor" | "exhibitor" | "cliente";
 type ConfirmedFilter = "all" | "yes" | "no";
 type LunchFilter = "all" | "yes" | "no";
+type StatusFilter = "active" | "inactive" | "all";
 
 export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) {
   const { t, i18n } = useTranslation();
   const listFn = useServerFn(listAdminCompanies);
   const setLunchFn = useServerFn(setVisitorLunchParticipation);
+  const reactivateFn = useServerFn(adminReactivateCompany);
+  const hardDeleteFn = useServerFn(adminHardDeleteCompany);
   const [search, setSearch] = useState("");
   const [role, setRole] = useState<RoleFilter>(readOnly ? "visitor" : "all");
   const [confirmed, setConfirmed] = useState<ConfirmedFilter>(readOnly ? "yes" : "all");
   const [lunch, setLunch] = useState<LunchFilter>("all");
+  const [status, setStatus] = useState<StatusFilter>("active");
   const [page, setPage] = useState(1);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [exporting, setExporting] = useState<null | "xlsx" | "csv" | "pdf">(null);
   const [savingLunchId, setSavingLunchId] = useState<string | null>(null);
+  const [reactivatingId, setReactivatingId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [deleting, setDeleting] = useState(false);
 
   const effectiveRole: RoleFilter = readOnly ? "visitor" : role;
   const effectiveConfirmed: ConfirmedFilter = readOnly ? "yes" : confirmed;
+  const effectiveStatus: StatusFilter = readOnly ? "active" : status;
 
   const { data, isLoading, refetch } = useQuery({
-    queryKey: ["admin-companies", search, effectiveRole, effectiveConfirmed, lunch, page, readOnly],
+    queryKey: [
+      "admin-companies",
+      search,
+      effectiveRole,
+      effectiveConfirmed,
+      lunch,
+      effectiveStatus,
+      page,
+      readOnly,
+    ],
     queryFn: () =>
       listFn({
         data: {
@@ -58,6 +91,7 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
           page,
           pageSize: 25,
           activeOnly: readOnly,
+          status: effectiveStatus,
         },
       }),
   });
@@ -86,6 +120,7 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
         page: 1,
         pageSize: 5000,
         activeOnly: readOnly,
+        status: effectiveStatus,
       },
     });
     return res.rows;
@@ -259,6 +294,24 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
             <SelectItem value="no">Não participará do almoço</SelectItem>
           </SelectContent>
         </Select>
+        {!readOnly && (
+          <Select
+            value={status}
+            onValueChange={(v) => {
+              setPage(1);
+              setStatus(v as StatusFilter);
+            }}
+          >
+            <SelectTrigger className="w-full sm:w-44">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="active">{t("admin.companies.statusActive")}</SelectItem>
+              <SelectItem value="inactive">{t("admin.companies.statusInactive")}</SelectItem>
+              <SelectItem value="all">{t("admin.companies.statusAll")}</SelectItem>
+            </SelectContent>
+          </Select>
+        )}
         <Button variant="outline" size="sm" onClick={exportXlsx} disabled={exporting !== null}>
           <FileSpreadsheet size={14} /> {exporting === "xlsx" ? t("common.loading") : "XLSX"}
         </Button>
@@ -294,6 +347,11 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
                   {!c.confirmed && (
                     <Badge variant="outline" className="text-muted-foreground">
                       Pré-cadastro
+                    </Badge>
+                  )}
+                  {c.is_active === false && (
+                    <Badge variant="destructive" title={c.inactivated_at ?? undefined}>
+                      {t("admin.companies.orphanBadge")}
                     </Badge>
                   )}
                 </div>
@@ -351,9 +409,44 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
                 )}
               </div>
               {!readOnly && (
-                <Button size="sm" variant="outline" onClick={() => setEditingId(c.id)}>
-                  <Pencil size={14} /> {t("admin.companies.edit")}
-                </Button>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button size="sm" variant="outline" onClick={() => setEditingId(c.id)}>
+                    <Pencil size={14} /> {t("admin.companies.edit")}
+                  </Button>
+                  {c.is_active === false && (
+                    <>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={reactivatingId === c.id}
+                        onClick={async () => {
+                          setReactivatingId(c.id);
+                          try {
+                            await reactivateFn({ data: { companyId: c.id, confirm: true } });
+                            toast.success(t("admin.companies.reactivateSuccess"));
+                            await refetch();
+                          } catch (e) {
+                            toast.error((e as Error).message);
+                          } finally {
+                            setReactivatingId(null);
+                          }
+                        }}
+                      >
+                        <RotateCcw size={14} /> {t("admin.companies.reactivate")}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => {
+                          setDeleteTarget({ id: c.id, name: c.trade_name });
+                          setDeleteConfirmText("");
+                        }}
+                      >
+                        <Trash2 size={14} /> {t("admin.companies.hardDelete")}
+                      </Button>
+                    </>
+                  )}
+                </div>
               )}
             </div>
           ))}
@@ -390,6 +483,63 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
           }}
         />
       )}
+      <AlertDialog
+        open={deleteTarget !== null}
+        onOpenChange={(o) => {
+          if (!o) {
+            setDeleteTarget(null);
+            setDeleteConfirmText("");
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("admin.companies.hardDeleteConfirmTitle")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("admin.companies.hardDeleteConfirmBody", { name: deleteTarget?.name ?? "" })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-2">
+            <p className="text-xs text-muted-foreground">
+              {t("admin.companies.hardDeleteTypeName", { name: deleteTarget?.name ?? "" })}
+            </p>
+            <Input
+              value={deleteConfirmText}
+              onChange={(e) => setDeleteConfirmText(e.target.value)}
+              placeholder={deleteTarget?.name ?? ""}
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>{t("common.cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={
+                deleting ||
+                !deleteTarget ||
+                deleteConfirmText.trim() !== deleteTarget.name.trim()
+              }
+              onClick={async () => {
+                if (!deleteTarget) return;
+                setDeleting(true);
+                try {
+                  await hardDeleteFn({
+                    data: { companyId: deleteTarget.id, confirm: true },
+                  });
+                  toast.success(t("admin.companies.hardDeleteSuccess"));
+                  setDeleteTarget(null);
+                  setDeleteConfirmText("");
+                  await refetch();
+                } catch (e) {
+                  toast.error((e as Error).message);
+                } finally {
+                  setDeleting(false);
+                }
+              }}
+            >
+              {t("admin.companies.hardDelete")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       </Card>
     </div>
   );

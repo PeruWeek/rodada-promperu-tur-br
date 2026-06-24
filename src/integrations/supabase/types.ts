@@ -154,7 +154,10 @@ export type Database = {
           general_phone: string | null
           id: string
           import_profile: string | null
+          inactivated_at: string | null
+          inactivated_reason: string | null
           instagram: string | null
+          is_active: boolean
           legal_name: string | null
           linkedin: string | null
           phone: string | null
@@ -175,7 +178,10 @@ export type Database = {
           general_phone?: string | null
           id?: string
           import_profile?: string | null
+          inactivated_at?: string | null
+          inactivated_reason?: string | null
           instagram?: string | null
+          is_active?: boolean
           legal_name?: string | null
           linkedin?: string | null
           phone?: string | null
@@ -196,7 +202,10 @@ export type Database = {
           general_phone?: string | null
           id?: string
           import_profile?: string | null
+          inactivated_at?: string | null
+          inactivated_reason?: string | null
           instagram?: string | null
+          is_active?: boolean
           legal_name?: string | null
           linkedin?: string | null
           phone?: string | null
@@ -1858,6 +1867,10 @@ export type Database = {
       rebuild_event_time_slots: {
         Args: { p_deactivate_previous?: boolean; p_event_id: string }
         Returns: string
+      }
+      recalc_company_active: {
+        Args: { p_company_id: string }
+        Returns: undefined
       }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }

@@ -195,6 +195,7 @@ export const listAdminCompanies = createServerFn({ method: "POST" })
         pageSize: z.number().int().min(1).max(5000).default(25),
         activeOnly: z.boolean().optional(),
         lunch: z.enum(["all", "yes", "no"]).optional().default("all"),
+        status: z.enum(["active", "inactive", "all"]).optional().default("active"),
       })
       .parse(input),
   )
@@ -204,8 +205,10 @@ export const listAdminCompanies = createServerFn({ method: "POST" })
 
     let q = supabaseAdmin
       .from("companies")
-      .select("id, trade_name, legal_name, country_code, state_code, city, whatsapp, phone, general_phone, created_at")
+      .select("id, trade_name, legal_name, country_code, state_code, city, whatsapp, phone, general_phone, created_at, is_active, inactivated_at, inactivated_reason")
       .order("trade_name", { ascending: true });
+    if (data.status === "active") q = q.eq("is_active", true);
+    else if (data.status === "inactive") q = q.eq("is_active", false);
     if (data.search?.trim()) {
       const s = data.search.trim();
       // Also match by contact name/email by resolving company_ids from profiles first.
@@ -330,6 +333,10 @@ export const listAdminCompanies = createServerFn({ method: "POST" })
         confirmed,
         hasActiveOwner: activeOwners.length > 0,
         networking_lunch_participation: lunch,
+        is_active: (c as { is_active?: boolean }).is_active ?? true,
+        inactivated_at: (c as { inactivated_at?: string | null }).inactivated_at ?? null,
+        inactivated_reason:
+          (c as { inactivated_reason?: string | null }).inactivated_reason ?? null,
       };
     });
 
@@ -779,6 +786,7 @@ export const searchCompaniesForLink = createServerFn({ method: "POST" })
       .from("companies")
       .select("id, trade_name, country_code, state_code, city")
       .or(`trade_name.ilike.%${s}%,legal_name.ilike.%${s}%`)
+      .eq("is_active", true)
       .order("trade_name", { ascending: true })
       .limit(data.limit);
     if (error) throw new Error(error.message);
@@ -879,4 +887,111 @@ export const createCompanyForOrphan = createServerFn({ method: "POST" })
     );
     if (error) throw new Error(error.message);
     return { companyId: companyId as string };
+  });
+
+// ============================================================
+// Company lifecycle: hard delete (orphan only) + manual reactivate
+// ============================================================
+
+async function logCompanyAudit(
+  action: string,
+  userId: string,
+  payload: JsonObject,
+) {
+  const actorProfileId = await getActorProfileId(userId);
+  await supabaseAdmin.from("audit_logs").insert({
+    event_id: null,
+    actor_profile_id: actorProfileId,
+    action,
+    payload,
+  });
+}
+
+export const adminHardDeleteCompany = createServerFn({ method: "POST" })
+  .inputValidator((input) =>
+    z
+      .object({
+        companyId: z.string().uuid(),
+        confirm: z.literal(true),
+      })
+      .parse(input),
+  )
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    await assertAdminStrict(context.userId);
+    const { data: company, error: cErr } = await supabaseAdmin
+      .from("companies")
+      .select("id, trade_name, is_active, inactivated_reason")
+      .eq("id", data.companyId)
+      .maybeSingle();
+    if (cErr) throw new Error(cErr.message);
+    if (!company) throw new Error("Empresa não encontrada");
+    if ((company as { is_active?: boolean }).is_active !== false) {
+      throw new Error(
+        "Apenas empresas inativas/órfãs podem ser excluídas definitivamente.",
+      );
+    }
+    const { count: activeOwners, error: pErr } = await supabaseAdmin
+      .from("profiles")
+      .select("id", { count: "exact", head: true })
+      .eq("company_id", data.companyId)
+      .eq("is_active", true)
+      .eq("pending_signup", false);
+    if (pErr) throw new Error(pErr.message);
+    if ((activeOwners ?? 0) > 0) {
+      throw new Error(
+        "Empresa possui usuários ativos vinculados; não é possível excluir definitivamente.",
+      );
+    }
+    await logCompanyAudit("admin.company_hard_delete", context.userId, {
+      company_id: company.id,
+      trade_name: company.trade_name,
+      inactivated_reason: (company as { inactivated_reason?: string | null })
+        .inactivated_reason ?? null,
+    });
+    const { error: dErr } = await supabaseAdmin
+      .from("companies")
+      .delete()
+      .eq("id", data.companyId);
+    if (dErr) throw new Error(dErr.message);
+    return { ok: true };
+  });
+
+export const adminReactivateCompany = createServerFn({ method: "POST" })
+  .inputValidator((input) =>
+    z
+      .object({
+        companyId: z.string().uuid(),
+        confirm: z.literal(true),
+      })
+      .parse(input),
+  )
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    await assertAdminStrict(context.userId);
+    const { data: company, error: cErr } = await supabaseAdmin
+      .from("companies")
+      .select("id, is_active, inactivated_reason")
+      .eq("id", data.companyId)
+      .maybeSingle();
+    if (cErr) throw new Error(cErr.message);
+    if (!company) throw new Error("Empresa não encontrada");
+    if ((company as { is_active?: boolean }).is_active === true) {
+      return { ok: true, alreadyActive: true };
+    }
+    const { error: uErr } = await supabaseAdmin
+      .from("companies")
+      .update({
+        is_active: true,
+        inactivated_at: null,
+        inactivated_reason: null,
+      })
+      .eq("id", data.companyId);
+    if (uErr) throw new Error(uErr.message);
+    await logCompanyAudit("admin.company_reactivated", context.userId, {
+      company_id: company.id,
+      previous_reason: (company as { inactivated_reason?: string | null })
+        .inactivated_reason ?? null,
+    });
+    return { ok: true };
   });
