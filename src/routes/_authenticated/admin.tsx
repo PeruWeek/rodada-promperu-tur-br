@@ -15,12 +15,14 @@ import {
   adminCreateConfirmedUser,
   adminDeleteUser,
   adminListUsers,
+  adminSendRecoveryEmail,
   adminSetPassword,
   adminSetPrimaryRole,
   adminUpdateUserProfile,
   adminUpdateUserEmail,
   adminUpsertUserCompany,
   findAuthUserByEmail,
+  getAuthDiagnostics,
 } from "@/lib/admin-auth.functions";
 import {
   getMyStaffAgenda,
