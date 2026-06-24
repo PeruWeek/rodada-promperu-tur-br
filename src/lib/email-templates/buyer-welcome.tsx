@@ -59,6 +59,7 @@ const BuyerWelcomeEmail = ({
           <Text style={small}>
             Em caso de dúvidas, entre em contato com a organização.
           </Text>
+          <Text style={small}>WhatsApp (11) 99367-0633</Text>
           <Text style={footer}>Atenciosamente,<br />Equipe PERU MICE Networking evento</Text>
         </Container>
       </Body>
