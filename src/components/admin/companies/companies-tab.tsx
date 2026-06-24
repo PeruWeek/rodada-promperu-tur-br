@@ -294,6 +294,24 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
             <SelectItem value="no">Não participará do almoço</SelectItem>
           </SelectContent>
         </Select>
+        {!readOnly && (
+          <Select
+            value={status}
+            onValueChange={(v) => {
+              setPage(1);
+              setStatus(v as StatusFilter);
+            }}
+          >
+            <SelectTrigger className="w-full sm:w-44">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="active">{t("admin.companies.statusActive")}</SelectItem>
+              <SelectItem value="inactive">{t("admin.companies.statusInactive")}</SelectItem>
+              <SelectItem value="all">{t("admin.companies.statusAll")}</SelectItem>
+            </SelectContent>
+          </Select>
+        )}
         <Button variant="outline" size="sm" onClick={exportXlsx} disabled={exporting !== null}>
           <FileSpreadsheet size={14} /> {exporting === "xlsx" ? t("common.loading") : "XLSX"}
         </Button>
