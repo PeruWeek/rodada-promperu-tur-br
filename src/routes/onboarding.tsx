@@ -81,6 +81,9 @@ function OnboardingPage() {
   // If the user already has a role/profile set up, skip the kind picker entirely.
   useEffect(() => {
     if (!profile) return;
+    // Don't short-circuit while the buyer success screen is showing
+    // (auto-finalize just ran and we need the 8s redirect to play).
+    if (buyerSuccess || autoFinishing) return;
     const primary = getPrimaryRole(profile.roles);
     if (primary === "admin" || primary === "staff") {
       navigate({ to: "/admin" });
@@ -90,7 +93,7 @@ function OnboardingPage() {
     } else if (primary === "visitor" && profile.company_id) {
       navigate({ to: "/agenda" });
     }
-  }, [profile, navigate]);
+  }, [profile, navigate, buyerSuccess, autoFinishing]);
 
   // If the buyer wizard left a pending payload, finalize automatically and skip the kind picker.
   useEffect(() => {
