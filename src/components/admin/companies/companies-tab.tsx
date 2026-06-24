@@ -3,9 +3,14 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { FileSpreadsheet, FileText, Files, Pencil, Search } from "lucide-react";
+import { FileSpreadsheet, FileText, Files, Pencil, RotateCcw, Search, Trash2 } from "lucide-react";
 
-import { listAdminCompanies, setVisitorLunchParticipation } from "@/lib/admin.functions";
+import {
+  adminHardDeleteCompany,
+  adminReactivateCompany,
+  listAdminCompanies,
+  setVisitorLunchParticipation,
+} from "@/lib/admin.functions";
 import { downloadBlob, toCsv } from "@/lib/exports/csv";
 import { downloadXlsx } from "@/lib/exports/xlsx";
 import jsPDF from "jspdf";
@@ -25,29 +30,57 @@ import {
 import { EditCompanyDrawer } from "./edit-company-drawer";
 import { OrphanExhibitorsPanel } from "./orphan-exhibitors-panel";
 import { UnpublishedExhibitorsPanel } from "./unpublished-exhibitors-panel";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 type RoleFilter = "all" | "visitor" | "exhibitor" | "cliente";
 type ConfirmedFilter = "all" | "yes" | "no";
 type LunchFilter = "all" | "yes" | "no";
+type StatusFilter = "active" | "inactive" | "all";
 
 export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) {
   const { t, i18n } = useTranslation();
   const listFn = useServerFn(listAdminCompanies);
   const setLunchFn = useServerFn(setVisitorLunchParticipation);
+  const reactivateFn = useServerFn(adminReactivateCompany);
+  const hardDeleteFn = useServerFn(adminHardDeleteCompany);
   const [search, setSearch] = useState("");
   const [role, setRole] = useState<RoleFilter>(readOnly ? "visitor" : "all");
   const [confirmed, setConfirmed] = useState<ConfirmedFilter>(readOnly ? "yes" : "all");
   const [lunch, setLunch] = useState<LunchFilter>("all");
+  const [status, setStatus] = useState<StatusFilter>("active");
   const [page, setPage] = useState(1);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [exporting, setExporting] = useState<null | "xlsx" | "csv" | "pdf">(null);
   const [savingLunchId, setSavingLunchId] = useState<string | null>(null);
+  const [reactivatingId, setReactivatingId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [deleting, setDeleting] = useState(false);
 
   const effectiveRole: RoleFilter = readOnly ? "visitor" : role;
   const effectiveConfirmed: ConfirmedFilter = readOnly ? "yes" : confirmed;
+  const effectiveStatus: StatusFilter = readOnly ? "active" : status;
 
   const { data, isLoading, refetch } = useQuery({
-    queryKey: ["admin-companies", search, effectiveRole, effectiveConfirmed, lunch, page, readOnly],
+    queryKey: [
+      "admin-companies",
+      search,
+      effectiveRole,
+      effectiveConfirmed,
+      lunch,
+      effectiveStatus,
+      page,
+      readOnly,
+    ],
     queryFn: () =>
       listFn({
         data: {
@@ -58,6 +91,7 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
           page,
           pageSize: 25,
           activeOnly: readOnly,
+          status: effectiveStatus,
         },
       }),
   });
