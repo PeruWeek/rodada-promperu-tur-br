@@ -333,6 +333,10 @@ export const listAdminCompanies = createServerFn({ method: "POST" })
         confirmed,
         hasActiveOwner: activeOwners.length > 0,
         networking_lunch_participation: lunch,
+        is_active: (c as { is_active?: boolean }).is_active ?? true,
+        inactivated_at: (c as { inactivated_at?: string | null }).inactivated_at ?? null,
+        inactivated_reason:
+          (c as { inactivated_reason?: string | null }).inactivated_reason ?? null,
       };
     });
 
