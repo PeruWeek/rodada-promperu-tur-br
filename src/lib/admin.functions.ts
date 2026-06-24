@@ -357,7 +357,7 @@ export const setVisitorLunchParticipation = createServerFn({ method: "POST" })
   )
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
-    await assertAdminOrStaffRead(context.userId);
+    await assertAdminOrStaff(context.userId);
     const { data: existing } = await supabaseAdmin
       .from("visitor_profiles")
       .select("id")
