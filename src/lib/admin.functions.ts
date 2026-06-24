@@ -195,6 +195,7 @@ export const listAdminCompanies = createServerFn({ method: "POST" })
         pageSize: z.number().int().min(1).max(5000).default(25),
         activeOnly: z.boolean().optional(),
         lunch: z.enum(["all", "yes", "no"]).optional().default("all"),
+        status: z.enum(["active", "inactive", "all"]).optional().default("active"),
       })
       .parse(input),
   )
@@ -204,8 +205,10 @@ export const listAdminCompanies = createServerFn({ method: "POST" })
 
     let q = supabaseAdmin
       .from("companies")
-      .select("id, trade_name, legal_name, country_code, state_code, city, whatsapp, phone, general_phone, created_at")
+      .select("id, trade_name, legal_name, country_code, state_code, city, whatsapp, phone, general_phone, created_at, is_active, inactivated_at, inactivated_reason")
       .order("trade_name", { ascending: true });
+    if (data.status === "active") q = q.eq("is_active", true);
+    else if (data.status === "inactive") q = q.eq("is_active", false);
     if (data.search?.trim()) {
       const s = data.search.trim();
       // Also match by contact name/email by resolving company_ids from profiles first.
