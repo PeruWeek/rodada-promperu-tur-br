@@ -176,11 +176,11 @@ function ProfilePage() {
       }
 
       if (isVisitor) {
-        // Critério de "signup concluído" do banco: buyer_types >= 1 e
-        // interests_segments >= 1 (mesmos mínimos exigidos pelo wizard).
-        // Se a row ainda não tem `signup_completed_at` e os mínimos foram
-        // atingidos agora, marcamos — sem sobrescrever um carimbo anterior.
-        const meetsMinimum = buyerTypes.length > 0 && vSegments.length > 0;
+        // Critério de "signup concluído": `interests_segments >= 1`.
+        // `buyer_types` deixou de ser obrigatório e não bloqueia a conclusão.
+        // Se a row ainda não tem `signup_completed_at` e o mínimo foi
+        // atingido agora, marcamos — sem sobrescrever um carimbo anterior.
+        const meetsMinimum = vSegments.length > 0;
         const previouslyCompleted = !!extra?.vis?.signup_completed_at;
         const upsertPayload: Record<string, unknown> = {
           profile_id: profile.id,
@@ -235,7 +235,6 @@ function ProfilePage() {
         const ready =
           !!trade.trim() &&
           !!city.trim() &&
-          buyerTypes.length > 0 &&
           vSegments.length > 0;
         if (ready) {
           try {

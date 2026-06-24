@@ -13,7 +13,8 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 export const VISITOR_REQUIRED = {
   profile: ["full_name", "job_title", "whatsapp", "preferred_language"] as const,
   company: ["trade_name", "city", "state_code", "tax_id"] as const,
-  visitor: ["buyer_types", "networking_lunch_participation", "consent_data_sharing"] as const,
+  // `buyer_types` é opcional: o usuário pode concluir o cadastro sem preencher.
+  visitor: ["networking_lunch_participation", "consent_data_sharing"] as const,
 };
 
 export const EXHIBITOR_REQUIRED = {
@@ -92,8 +93,6 @@ export function computeMissing(input: {
       // consent must be literally true; networking_lunch_participation must be a boolean.
       if (f === "consent_data_sharing" && val !== true) out.push(`visitor.${f}`);
       else if (f === "networking_lunch_participation" && typeof val !== "boolean")
-        out.push(`visitor.${f}`);
-      else if (f === "buyer_types" && (!Array.isArray(val) || val.length === 0))
         out.push(`visitor.${f}`);
     }
   } else {

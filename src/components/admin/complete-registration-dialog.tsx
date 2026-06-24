@@ -112,8 +112,6 @@ export function CompleteRegistrationDialog({
       if (isBlank((form.company as Record<string, unknown>)[f])) missing.push(`company.${f}`);
     });
     if (details.kind === "visitor" && form.visitor) {
-      if (!form.visitor.buyer_types || form.visitor.buyer_types.length === 0)
-        missing.push("visitor.buyer_types");
       if (typeof form.visitor.networking_lunch_participation !== "boolean")
         missing.push("visitor.networking_lunch_participation");
       if (form.visitor.consent_data_sharing !== true) missing.push("visitor.consent_data_sharing");
@@ -296,7 +294,7 @@ export function CompleteRegistrationDialog({
             {details.kind === "visitor" && form.visitor && (
               <section className="space-y-3">
                 <h3 className="text-sm font-semibold">Perfil de Visitante</h3>
-                <Field label="Tipo de comprador *" missing={isMissing("visitor.buyer_types")}>
+                <Field label="Tipo de comprador">
                   <MultiSelectChips
                     taxonomyKey="buyer_types"
                     value={form.visitor.buyer_types}
