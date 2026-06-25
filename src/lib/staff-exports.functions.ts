@@ -271,6 +271,125 @@ export const listEventRegistrants = createServerFn({ method: "POST" })
     }),
   );
 
+/**
+ * Cliente "Visão geral" base.
+ *
+ * Returns the full operational base of REGISTERED companies for the active
+ * event (`registration_status IN ('cadastro_concluido','aprovado')`) without
+ * any scheduling filter — the overview separates "inscrição" from
+ * "agendamento" and must NOT depend on the meetings table to decide who is
+ * registered. Counting `comAgendamento` and `% com agendamento` is done on
+ * the client from `scheduled_meetings_count` (single source of truth, see
+ * `src/lib/scheduling-status.ts`).
+ *
+ * Authorization: admin, staff, or cliente. Same ineligibility filter as
+ * `listEventRegistrants` (drops profiles owned by admin/staff/cliente).
+ */
+export const listClienteOverviewBase = createServerFn({ method: "POST" })
+  .inputValidator((input) =>
+    z
+      .object({ eventId: z.string().uuid().optional() })
+      .parse(input ?? {}),
+  )
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    const role = await getPrimaryRoleServer(supabaseAdmin, context.userId);
+    if (role !== "admin" && role !== "staff" && role !== "cliente") {
+      throw new Error("Forbidden");
+    }
+    const eventId = await getCurrentEventIdWith(supabaseAdmin, data.eventId);
+    if (!eventId) return { eventId: null, rows: [] as RegistrantRow[] };
+
+    const { data: rows, error } = await supabaseAdmin
+      .from("v_company_event_pipeline")
+      .select(
+        "id, event_id, company_id, primary_profile_id, company_role, company_trade_name, company_legal_name, country_code, state_code, city, registration_status, scheduling_status, scheduled_meetings_count, primary_contact_name, primary_contact_email, primary_contact_phone, primary_contact_whatsapp, created_at",
+      )
+      .eq("event_id", eventId)
+      .in("registration_status", ["cadastro_concluido", "aprovado"])
+      .order("company_trade_name", { ascending: true });
+    if (error) throw new Error(error.message);
+
+    type PipelineRow = {
+      id: string;
+      event_id: string | null;
+      company_id: string | null;
+      primary_profile_id: string | null;
+      company_role: string | null;
+      company_trade_name: string | null;
+      company_legal_name: string | null;
+      country_code: string | null;
+      state_code: string | null;
+      city: string | null;
+      registration_status: string | null;
+      scheduling_status: string | null;
+      scheduled_meetings_count: number | null;
+      primary_contact_name: string | null;
+      primary_contact_email: string | null;
+      primary_contact_phone: string | null;
+      primary_contact_whatsapp: string | null;
+      created_at: string | null;
+    };
+    const rowsTyped = (rows ?? []) as PipelineRow[];
+    const profileIds = Array.from(
+      new Set(rowsTyped.map((r) => r.primary_profile_id).filter(Boolean) as string[]),
+    );
+    const { data: profs } = profileIds.length
+      ? await supabaseAdmin
+          .from("profiles")
+          .select("id, job_title, phone, whatsapp, auth_user_id, is_active")
+          .in("id", profileIds)
+      : { data: [] as Array<{ id: string; job_title: string | null; phone: string | null; whatsapp: string | null; auth_user_id: string | null; is_active: boolean | null }> };
+    const profById = new Map((profs ?? []).map((p) => [p.id, p]));
+    const authIds = Array.from(
+      new Set((profs ?? []).map((p) => p.auth_user_id).filter(Boolean) as string[]),
+    );
+    const { data: roleRows } = authIds.length
+      ? await supabaseAdmin.from("user_roles").select("user_id, role").in("user_id", authIds)
+      : { data: [] as Array<{ user_id: string; role: string }> };
+    const ineligibleAuth = new Set<string>();
+    for (const r of roleRows ?? []) {
+      const rr = String(r.role);
+      if (rr === "cliente" || rr === "admin" || rr === "staff") {
+        ineligibleAuth.add(r.user_id as string);
+      }
+    }
+    const out: RegistrantRow[] = rowsTyped
+      .filter((r) => r.company_id && r.primary_profile_id)
+      .filter((r) => {
+        const p = profById.get(r.primary_profile_id as string);
+        if (!p?.auth_user_id || p?.is_active === false) return false;
+        if (ineligibleAuth.has(p.auth_user_id)) return false;
+        return true;
+      })
+      .map((r) => {
+        const p = profById.get(r.primary_profile_id as string);
+        return {
+          profile_id: r.primary_profile_id as string,
+          auth_user_id: (p?.auth_user_id ?? "") as string,
+          is_active: p?.is_active !== false,
+          full_name: r.primary_contact_name ?? "—",
+          email: r.primary_contact_email ?? null,
+          phone: p?.phone ?? r.primary_contact_phone ?? null,
+          whatsapp: p?.whatsapp ?? r.primary_contact_whatsapp ?? null,
+          job_title: p?.job_title ?? null,
+          role: (r.company_role === "exhibitor" ? "exhibitor" : "visitor") as "exhibitor" | "visitor",
+          company_id: r.company_id as string,
+          company_trade_name: r.company_trade_name ?? "—",
+          company_legal_name: r.company_legal_name ?? null,
+          company_tax_id: null,
+          country_code: r.country_code ?? null,
+          state_code: r.state_code ?? null,
+          city: r.city ?? null,
+          registration_status: r.registration_status ?? null,
+          scheduling_status: r.scheduling_status ?? null,
+          scheduled_meetings_count: Number(r.scheduled_meetings_count ?? 0),
+          created_at: r.created_at ?? null,
+        };
+      });
+    return { eventId, rows: out };
+  });
+
 export type ParticipantAgendaRow = {
   time: string;
   withName: string;
