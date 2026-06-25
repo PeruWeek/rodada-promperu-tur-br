@@ -330,48 +330,96 @@ export const listClienteOverviewBase = createServerFn({ method: "POST" })
       created_at: string | null;
     };
     const rowsTyped = (rows ?? []) as PipelineRow[];
-    const profileIds = Array.from(
-      new Set(rowsTyped.map((r) => r.primary_profile_id).filter(Boolean) as string[]),
+    // Pull ALL profiles for the companies in the pipeline — not just the
+    // pipeline's `primary_profile_id`. The pipeline view often points
+    // `primary` at a pre-registration profile with no `auth_user_id`, while
+    // the same company already has a confirmed participant contact. The
+    // Empresas tab treats those companies as visible (any active owner);
+    // the overview must match that universe.
+    const companyIds = Array.from(
+      new Set(rowsTyped.map((r) => r.company_id).filter(Boolean) as string[]),
     );
-    const { data: profs } = profileIds.length
+    const { data: allProfs } = companyIds.length
       ? await supabaseAdmin
           .from("profiles")
-          .select("id, job_title, phone, whatsapp, auth_user_id, is_active")
-          .in("id", profileIds)
-      : { data: [] as Array<{ id: string; job_title: string | null; phone: string | null; whatsapp: string | null; auth_user_id: string | null; is_active: boolean | null }> };
-    const profById = new Map((profs ?? []).map((p) => [p.id, p]));
+          .select(
+            "id, company_id, full_name, email, job_title, phone, whatsapp, auth_user_id, is_active, created_at",
+          )
+          .in("company_id", companyIds)
+          .order("created_at", { ascending: true })
+      : {
+          data: [] as Array<{
+            id: string;
+            company_id: string | null;
+            full_name: string | null;
+            email: string | null;
+            job_title: string | null;
+            phone: string | null;
+            whatsapp: string | null;
+            auth_user_id: string | null;
+            is_active: boolean | null;
+            created_at: string | null;
+          }>,
+        };
+    const profsByCompany = new Map<string, typeof allProfs>();
+    for (const p of allProfs ?? []) {
+      if (!p.company_id) continue;
+      const arr = profsByCompany.get(p.company_id) ?? [];
+      arr.push(p);
+      profsByCompany.set(p.company_id, arr);
+    }
     const authIds = Array.from(
-      new Set((profs ?? []).map((p) => p.auth_user_id).filter(Boolean) as string[]),
+      new Set((allProfs ?? []).map((p) => p.auth_user_id).filter(Boolean) as string[]),
     );
     const { data: roleRows } = authIds.length
       ? await supabaseAdmin.from("user_roles").select("user_id, role").in("user_id", authIds)
       : { data: [] as Array<{ user_id: string; role: string }> };
-    const ineligibleAuth = new Set<string>();
+    const rolesByAuth = new Map<string, Set<string>>();
     for (const r of roleRows ?? []) {
-      const rr = String(r.role);
-      if (rr === "cliente" || rr === "admin" || rr === "staff") {
-        ineligibleAuth.add(r.user_id as string);
-      }
+      const set = rolesByAuth.get(r.user_id) ?? new Set<string>();
+      set.add(String(r.role));
+      rolesByAuth.set(r.user_id, set);
     }
+    const isParticipantAuth = (authId: string | null | undefined) => {
+      if (!authId) return false;
+      const set = rolesByAuth.get(authId);
+      if (!set) return false;
+      // Same ineligibility rule as listEventRegistrants: drop internal roles.
+      if (set.has("cliente") || set.has("admin") || set.has("staff")) return false;
+      return set.has("visitor") || set.has("exhibitor");
+    };
     const out: RegistrantRow[] = rowsTyped
-      .filter((r) => r.company_id && r.primary_profile_id)
-      .filter((r) => {
-        const p = profById.get(r.primary_profile_id as string);
-        if (!p?.auth_user_id || p?.is_active === false) return false;
-        if (ineligibleAuth.has(p.auth_user_id)) return false;
-        return true;
-      })
+      .filter((r) => !!r.company_id)
       .map((r) => {
-        const p = profById.get(r.primary_profile_id as string);
+        const companyProfiles = profsByCompany.get(r.company_id as string) ?? [];
+        // Promote a confirmed, active participant contact when the pipeline's
+        // `primary_profile_id` is a pre-registration with no auth_user_id.
+        const pipelinePrimary = companyProfiles.find(
+          (p) => p.id === r.primary_profile_id,
+        );
+        const confirmedParticipant = companyProfiles.find(
+          (p) => p.is_active !== false && isParticipantAuth(p.auth_user_id),
+        );
+        const p =
+          pipelinePrimary &&
+          pipelinePrimary.is_active !== false &&
+          isParticipantAuth(pipelinePrimary.auth_user_id)
+            ? pipelinePrimary
+            : confirmedParticipant ?? null;
+        return { r, p };
+      })
+      .filter(({ p }) => !!p)
+      .map(({ r, p }) => {
+        const prof = p!;
         return {
-          profile_id: r.primary_profile_id as string,
-          auth_user_id: (p?.auth_user_id ?? "") as string,
-          is_active: p?.is_active !== false,
-          full_name: r.primary_contact_name ?? "—",
-          email: r.primary_contact_email ?? null,
-          phone: p?.phone ?? r.primary_contact_phone ?? null,
-          whatsapp: p?.whatsapp ?? r.primary_contact_whatsapp ?? null,
-          job_title: p?.job_title ?? null,
+          profile_id: prof.id,
+          auth_user_id: (prof.auth_user_id ?? "") as string,
+          is_active: prof.is_active !== false,
+          full_name: prof.full_name ?? r.primary_contact_name ?? "—",
+          email: prof.email ?? r.primary_contact_email ?? null,
+          phone: prof.phone ?? r.primary_contact_phone ?? null,
+          whatsapp: prof.whatsapp ?? r.primary_contact_whatsapp ?? null,
+          job_title: prof.job_title ?? null,
           role: (r.company_role === "exhibitor" ? "exhibitor" : "visitor") as "exhibitor" | "visitor",
           company_id: r.company_id as string,
           company_trade_name: r.company_trade_name ?? "—",
