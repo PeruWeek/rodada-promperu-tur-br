@@ -583,6 +583,17 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
         </AlertDialogContent>
       </AlertDialog>
       </Card>
+      <AddCompanyContactDialog
+        open={contactDialogOpen}
+        initialCompany={contactDialogCompany}
+        onClose={() => {
+          setContactDialogOpen(false);
+          setContactDialogCompany(null);
+        }}
+        onSuccess={() => {
+          void refetch();
+        }}
+      />
     </div>
   );
 }
