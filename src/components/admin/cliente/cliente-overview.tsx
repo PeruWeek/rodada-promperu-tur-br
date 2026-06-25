@@ -35,6 +35,7 @@ import {
 } from "@/lib/scheduling-status";
 
 type StatusFilter = "any" | SchedulingGroup;
+type TypeFilter = "all" | "visitor" | "exhibitor";
 
 /**
  * Read-only overview for the `cliente` profile.
@@ -52,6 +53,7 @@ export function ClienteOverview() {
   const listFn = useServerFn(listEventRegistrants);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<StatusFilter>("any");
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
 
   const { data, isLoading } = useQuery({
     queryKey: ["cliente-overview"],
@@ -104,11 +106,15 @@ export function ClienteOverview() {
           bucketGroupFromMeetings(r.scheduled_meetings_count ?? 0) === status
         );
       })
+      .filter((r) => {
+        if (typeFilter === "all") return true;
+        return r.role === typeFilter;
+      })
       .slice()
       .sort((a, b) =>
         (a.company_trade_name ?? "").localeCompare(b.company_trade_name ?? ""),
       );
-  }, [rows, search, status]);
+  }, [rows, search, status, typeFilter]);
 
   return (
     <div className="space-y-4">
@@ -150,6 +156,25 @@ export function ClienteOverview() {
             placeholder={t("cliente.overview.search.placeholder")}
             className="max-w-xs"
           />
+          <Select
+            value={typeFilter}
+            onValueChange={(v) => setTypeFilter(v as TypeFilter)}
+          >
+            <SelectTrigger className="w-44">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">
+                {t("cliente.overview.filter.all")}
+              </SelectItem>
+              <SelectItem value="visitor">
+                {t("cliente.overview.filter.visitors")}
+              </SelectItem>
+              <SelectItem value="exhibitor">
+                {t("cliente.overview.filter.exhibitors")}
+              </SelectItem>
+            </SelectContent>
+          </Select>
           {showStatusFilter && (
             <Select
               value={status}
