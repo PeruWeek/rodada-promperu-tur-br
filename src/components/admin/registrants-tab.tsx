@@ -144,11 +144,19 @@ export function RegistrantsTab({
   const rows = useMemo(() => {
     const all = data?.rows ?? [];
     let filtered = onlyWithMeetings ? all.filter((r) => r.scheduled_meetings_count > 0) : all;
-    if (readOnly) {
+    // For read-only "Agendamentos" view (cliente), the source of truth is the
+    // scheduling_status (already enforced server-side as agendado_ok/parcial).
+    // We must NOT additionally filter by registration_status, otherwise companies
+    // that are validly booked but still have registration in "em_preenchimento"
+    // (a common state) disappear from the list. Keep only the auth_user_id
+    // sanity check to hide ghost rows without an actual account.
+    if (readOnly && !onlyWithMeetings) {
       const preStatuses = new Set(["nao_iniciado", "em_preenchimento", "aguardando_aprovacao"]);
       filtered = filtered.filter(
         (r) => !!r.auth_user_id && !preStatuses.has(r.registration_status ?? ""),
       );
+    } else if (readOnly && onlyWithMeetings) {
+      filtered = filtered.filter((r) => !!r.auth_user_id);
     }
     return filtered;
   }, [data, onlyWithMeetings, readOnly]);
