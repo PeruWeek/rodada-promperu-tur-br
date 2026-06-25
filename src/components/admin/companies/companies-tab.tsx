@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { FileSpreadsheet, FileText, Files, Pencil, RotateCcw, Search, Trash2 } from "lucide-react";
+import { FileSpreadsheet, FileText, Files, Pencil, RotateCcw, Search, Trash2, UserPlus } from "lucide-react";
 
 import {
   adminHardDeleteCompany,
@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { AddCompanyContactDialog } from "@/components/admin/companies/add-company-contact-dialog";
 import {
   Select,
   SelectContent,
@@ -65,6 +66,18 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [deleting, setDeleting] = useState(false);
+  const [contactDialogCompany, setContactDialogCompany] = useState<
+    | null
+    | {
+        id: string;
+        trade_name: string;
+        legal_name: string | null;
+        tax_id: string | null;
+        city: string | null;
+        state_code: string | null;
+      }
+  >(null);
+  const [contactDialogOpen, setContactDialogOpen] = useState(false);
 
   const effectiveRole: RoleFilter = readOnly ? "visitor" : role;
   const effectiveConfirmed: ConfirmedFilter = readOnly ? "yes" : confirmed;
@@ -321,6 +334,18 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
         <Button variant="outline" size="sm" onClick={exportPdf} disabled={exporting !== null}>
           <Files size={14} /> {exporting === "pdf" ? t("common.loading") : "PDF"}
         </Button>
+        {!readOnly && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setContactDialogCompany(null);
+              setContactDialogOpen(true);
+            }}
+          >
+            <UserPlus size={14} /> {t("admin.companies.addContact", { defaultValue: "Adicionar contato" })}
+          </Button>
+        )}
       </div>
 
       {isLoading ? (
@@ -412,6 +437,23 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
                 <div className="flex flex-wrap items-center gap-2">
                   <Button size="sm" variant="outline" onClick={() => setEditingId(c.id)}>
                     <Pencil size={14} /> {t("admin.companies.edit")}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setContactDialogCompany({
+                        id: c.id,
+                        trade_name: c.trade_name,
+                        legal_name: (c as { legal_name?: string | null }).legal_name ?? null,
+                        tax_id: (c as { tax_id?: string | null }).tax_id ?? null,
+                        city: (c as { city?: string | null }).city ?? null,
+                        state_code: (c as { state_code?: string | null }).state_code ?? null,
+                      });
+                      setContactDialogOpen(true);
+                    }}
+                  >
+                    <UserPlus size={14} /> {t("admin.companies.addContact", { defaultValue: "Adicionar contato" })}
                   </Button>
                   {c.is_active === false && (
                     <>
@@ -541,6 +583,17 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
         </AlertDialogContent>
       </AlertDialog>
       </Card>
+      <AddCompanyContactDialog
+        open={contactDialogOpen}
+        initialCompany={contactDialogCompany}
+        onClose={() => {
+          setContactDialogOpen(false);
+          setContactDialogCompany(null);
+        }}
+        onSuccess={() => {
+          void refetch();
+        }}
+      />
     </div>
   );
 }

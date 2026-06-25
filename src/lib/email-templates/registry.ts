@@ -13,10 +13,12 @@ import { template as meetingConfirmation } from './meeting-confirmation'
 import { template as meetingCancelled } from './meeting-cancelled'
 import { template as buyerWelcome } from './buyer-welcome'
 import { template as bookingReminder } from './booking-reminder'
+import { template as companyContactInvite } from './company-contact-invite'
 
 export const TEMPLATES: Record<string, TemplateEntry> = {
   'meeting-confirmation': meetingConfirmation,
   'meeting-cancelled': meetingCancelled,
   'buyer-welcome': buyerWelcome,
   'booking-reminder': bookingReminder,
+  'company-contact-invite': companyContactInvite,
 }
