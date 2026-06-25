@@ -148,7 +148,7 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
   const displayTotal = readOnly ? clienteFilteredRows.length : data?.total ?? 0;
 
   const headers = [
-    "Empresa",
+    "Nome Fantasia",
     "Razão social",
     "Tipo",
     "Status",
