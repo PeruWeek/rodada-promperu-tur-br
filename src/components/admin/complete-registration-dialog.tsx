@@ -43,6 +43,7 @@ const MISSING_LABEL: Record<string, string> = {
   "company.state_code": "UF",
   "visitor.buyer_types": "Tipo de comprador",
   "visitor.networking_lunch_participation": "Almoço networking",
+  "visitor.image_authorization": "Autorização de imagem",
   "visitor.consent_data_sharing": "Consentimento de dados",
   "exhibitor.segments": "Segmentos",
   "exhibitor.services": "Serviços",
@@ -114,6 +115,8 @@ export function CompleteRegistrationDialog({
     if (details.kind === "visitor" && form.visitor) {
       if (typeof form.visitor.networking_lunch_participation !== "boolean")
         missing.push("visitor.networking_lunch_participation");
+      if (typeof form.visitor.image_authorization !== "boolean")
+        missing.push("visitor.image_authorization");
       if (form.visitor.consent_data_sharing !== true) missing.push("visitor.consent_data_sharing");
     }
     if (details.kind === "exhibitor" && form.exhibitor) {
@@ -340,6 +343,37 @@ export function CompleteRegistrationDialog({
                     <SelectContent>
                       <SelectItem value="yes">Sim</SelectItem>
                       <SelectItem value="no">Não</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </Field>
+                <Field
+                  label="Autorização de uso de imagem *"
+                  missing={isMissing("visitor.image_authorization")}
+                >
+                  <Select
+                    value={
+                      form.visitor.image_authorization === true
+                        ? "yes"
+                        : form.visitor.image_authorization === false
+                          ? "no"
+                          : ""
+                    }
+                    onValueChange={(v) =>
+                      setForm({
+                        ...form,
+                        visitor: {
+                          ...form.visitor!,
+                          image_authorization: v === "yes" ? true : v === "no" ? false : null,
+                        },
+                      })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="yes">Sim, autorizo</SelectItem>
+                      <SelectItem value="no">Não autorizo</SelectItem>
                     </SelectContent>
                   </Select>
                 </Field>
