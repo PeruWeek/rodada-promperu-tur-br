@@ -733,5 +733,28 @@
       "parcial": "Parcial",
       "ok": "Completo"
     }
+  },
+  "cliente": {
+    "overview": {
+      "title": "Vista general",
+      "subtitle": "Seguimiento de las empresas visibles para ti.",
+      "kpi": {
+        "companies": "Empresas inscritas",
+        "scheduled": "Empresas con agenda",
+        "meetings": "Total de reuniones",
+        "percentScheduled": "% con agenda"
+      },
+      "table": {
+        "company": "Empresa",
+        "location": "Localidad",
+        "status": "Estado de la agenda",
+        "meetings": "Reuniones",
+        "updated": "Última actualización"
+      },
+      "search": {
+        "placeholder": "Buscar empresa..."
+      },
+      "empty": "No hay empresas para mostrar."
+    }
   }
 }
