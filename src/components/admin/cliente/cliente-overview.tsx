@@ -27,7 +27,7 @@ import {
   formatLocation,
   type ClienteOverviewRow,
 } from "@/lib/cliente-overview";
-import { listEventRegistrants, type RegistrantRow } from "@/lib/staff-exports.functions";
+import { listClienteOverviewBase, type RegistrantRow } from "@/lib/staff-exports.functions";
 import {
   bucketGroupFromMeetings,
   labelForGroup,
@@ -50,14 +50,14 @@ type TypeFilter = "all" | "visitor" | "exhibitor";
  */
 export function ClienteOverview() {
   const { t } = useTranslation();
-  const listFn = useServerFn(listEventRegistrants);
+  const listFn = useServerFn(listClienteOverviewBase);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<StatusFilter>("any");
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
 
   const { data, isLoading } = useQuery({
-    queryKey: ["cliente-overview"],
-    queryFn: () => listFn({ data: { role: "all" } }),
+    queryKey: ["cliente-overview-base"],
+    queryFn: () => listFn({ data: {} }),
   });
 
   const rows = (data?.rows ?? []) as RegistrantRow[];
