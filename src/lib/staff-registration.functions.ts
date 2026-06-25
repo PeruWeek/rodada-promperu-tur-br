@@ -3,27 +3,19 @@ import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import {
+  VISITOR_REQUIRED_FIELDS,
+  EXHIBITOR_REQUIRED_FIELDS,
+  computeMissing as computeMissingCentral,
+  type RegistrationKind as CentralRegistrationKind,
+} from "@/lib/registration-requirements";
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Required-fields contract per registration kind. The "Completar cadastro"
-// flow used by Staff is driven by these lists — keep them in sync with the
-// quick signup schemas (src/lib/validation/{buyer,exhibitor}-signup.schema.ts).
-// ─────────────────────────────────────────────────────────────────────────────
+// Required-fields contract: single source of truth lives in
+// `src/lib/registration-requirements.ts`. Re-exported for backwards compat.
+export const VISITOR_REQUIRED = VISITOR_REQUIRED_FIELDS;
+export const EXHIBITOR_REQUIRED = EXHIBITOR_REQUIRED_FIELDS;
 
-export const VISITOR_REQUIRED = {
-  profile: ["full_name", "job_title", "whatsapp", "preferred_language"] as const,
-  company: ["trade_name", "city", "state_code", "tax_id"] as const,
-  // `buyer_types` é opcional: o usuário pode concluir o cadastro sem preencher.
-  visitor: ["networking_lunch_participation", "image_authorization", "consent_data_sharing"] as const,
-};
-
-export const EXHIBITOR_REQUIRED = {
-  profile: ["full_name", "job_title", "whatsapp", "preferred_language"] as const,
-  company: ["trade_name", "city"] as const,
-  exhibitor: ["segments", "services"] as const,
-};
-
-export type RegistrationKind = "visitor" | "exhibitor";
+export type RegistrationKind = CentralRegistrationKind;
 
 export type RegistrationDetails = {
   profileId: string;
@@ -64,13 +56,6 @@ export type RegistrationDetails = {
   status: "incompleto" | "completo";
 };
 
-function isBlank(v: unknown): boolean {
-  if (v === null || v === undefined) return true;
-  if (typeof v === "string") return v.trim() === "";
-  if (Array.isArray(v)) return v.length === 0;
-  return false;
-}
-
 export function computeMissing(input: {
   kind: RegistrationKind;
   profile: Partial<RegistrationDetails["profile"]>;
@@ -78,34 +63,13 @@ export function computeMissing(input: {
   visitor?: Partial<NonNullable<RegistrationDetails["visitor"]>> | null;
   exhibitor?: Partial<NonNullable<RegistrationDetails["exhibitor"]>> | null;
 }): string[] {
-  const out: string[] = [];
-  const req =
-    input.kind === "visitor" ? VISITOR_REQUIRED : EXHIBITOR_REQUIRED;
-  for (const f of req.profile) {
-    if (isBlank((input.profile as Record<string, unknown>)[f])) out.push(`profile.${f}`);
-  }
-  for (const f of req.company) {
-    if (isBlank((input.company as Record<string, unknown>)[f])) out.push(`company.${f}`);
-  }
-  if (input.kind === "visitor") {
-    const v = (input.visitor ?? {}) as Record<string, unknown>;
-    for (const f of VISITOR_REQUIRED.visitor) {
-      const val = v[f];
-      // consent must be literally true; networking_lunch_participation must be a boolean.
-      if (f === "consent_data_sharing" && val !== true) out.push(`visitor.${f}`);
-      else if (f === "networking_lunch_participation" && typeof val !== "boolean")
-        out.push(`visitor.${f}`);
-      else if (f === "image_authorization" && typeof val !== "boolean")
-        out.push(`visitor.${f}`);
-    }
-  } else {
-    const e = (input.exhibitor ?? {}) as Record<string, unknown>;
-    for (const f of EXHIBITOR_REQUIRED.exhibitor) {
-      if (!Array.isArray(e[f]) || (e[f] as unknown[]).length === 0)
-        out.push(`exhibitor.${f}`);
-    }
-  }
-  return out;
+  return computeMissingCentral({
+    kind: input.kind,
+    profile: input.profile as Record<string, unknown>,
+    company: input.company as Record<string, unknown>,
+    visitor: (input.visitor ?? undefined) as Record<string, unknown> | undefined,
+    exhibitor: (input.exhibitor ?? undefined) as Record<string, unknown> | undefined,
+  });
 }
 
 async function assertStaffOrAdmin(userId: string) {
