@@ -19,6 +19,7 @@ const inputSchema = z.object({
 export type SignupAvailability = {
   email_taken: boolean;
   cnpj_taken: boolean;
+  cnpj_status: "free" | "claimed" | "pending_same_email" | "pending_other_email";
 };
 
 const onlyDigits = (s: string) => s.replace(/\D+/g, "");
@@ -50,11 +51,10 @@ export const checkSignupAvailability = createServerFn({ method: "POST" })
       .maybeSingle();
     if (emailErr) throw new Error(emailErr.message);
 
-    let cnpj_taken = false;
+    let cnpj_status: SignupAvailability["cnpj_status"] = "free";
     if (taxDigits.length === 14) {
       // Pull ALL companies (small dataset for this event) and compare by
-      // digits-only on tax_id. Avoids fragile ilike prefixes that miss masked
-      // values like "08.030.124/0001-21" when digits don't appear together.
+      // digits-only on tax_id.
       const { data: companies, error: cErr } = await supabaseAdmin
         .from("companies")
         .select("id, tax_id")
@@ -68,13 +68,35 @@ export const checkSignupAvailability = createServerFn({ method: "POST" })
         matched: matchingCompanies.length,
         matched_ids: matchingCompanies.map((c) => c.id),
       });
-      // Any existing company with this CNPJ — whether already claimed or
-      // still a pending pre-registration — blocks the signup. Pending
-      // pre-registrations are only claimable via the matching email, so a
-      // different-email signup against the same CNPJ would otherwise create
-      // a duplicate company silently.
-      cnpj_taken = matchingCompanies.length > 0;
+      if (matchingCompanies.length > 0) {
+        const companyIds = matchingCompanies.map((c) => c.id);
+        const { data: linkedProfiles, error: pErr } = await supabaseAdmin
+          .from("profiles")
+          .select("id, email, auth_user_id, company_id")
+          .in("company_id", companyIds);
+        if (pErr) throw new Error(pErr.message);
+        const profiles = linkedProfiles ?? [];
+        const hasClaimed = profiles.some((p) => p.auth_user_id != null);
+        if (hasClaimed) {
+          cnpj_status = "claimed";
+        } else {
+          const pending = profiles.filter((p) => p.auth_user_id == null);
+          const hasPendingSameEmail = pending.some(
+            (p) => (p.email ?? "").toLowerCase() === email,
+          );
+          if (hasPendingSameEmail) {
+            cnpj_status = "pending_same_email";
+          } else if (pending.length > 0) {
+            cnpj_status = "pending_other_email";
+          } else {
+            // Matching companies but no linked profiles at all — treat as
+            // pending without an email match so the RPC reuses the company.
+            cnpj_status = "pending_other_email";
+          }
+        }
+      }
     }
+    const cnpj_taken = cnpj_status === "claimed";
 
     console.log("[signup-availability] result", {
       email_taken: !!emailRow,
@@ -84,5 +106,6 @@ export const checkSignupAvailability = createServerFn({ method: "POST" })
     return {
       email_taken: !!emailRow,
       cnpj_taken,
+      cnpj_status,
     };
   });
