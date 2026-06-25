@@ -288,7 +288,7 @@ function SignupPage() {
           setStep(1);
           return;
         }
-        if (availability.cnpj_taken) {
+        if (availability.cnpj_status === "claimed") {
           toast.error(t("signup.errors.cnpjTaken", { defaultValue: "Este CNPJ já está cadastrado em outra conta." }));
           trackMauticEvent(
             "signup_duplicate_cnpj",
@@ -303,6 +303,14 @@ function SignupPage() {
           setErrors((e) => ({ ...e, tax_id: "signup.errors.cnpjTaken" }));
           setStep(2);
           return;
+        }
+        if (availability.cnpj_status === "pending_other_email") {
+          toast.info(
+            t("signup.notices.cnpjPendingLink", {
+              defaultValue:
+                "Encontramos um pré-cadastro com este CNPJ — vincularemos automaticamente após análise.",
+            }),
+          );
         }
       } catch (availErr) {
         // Falha no pré-check não bloqueia o fluxo — segue para signUp e a
