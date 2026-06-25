@@ -347,16 +347,22 @@ function EnumSelect({ value, onChange, placeholder, options }: { value: string; 
 
 function SchedulingTab({ isAdmin }: Props) {
   const listFn = useServerFn(listPipeline);
-  const [status, setStatus] = useState<string>("any");
+  // Grupo principal (count-based). Sub-status operacional só para staff/admin.
+  const [group, setGroup] = useState<"any" | "sem_agendamento" | "com_agendamento">("any");
+  const [opStatus, setOpStatus] = useState<"any" | "agendado_parcial" | "agendado_ok">("any");
   const [mine, setMine] = useState(!isAdmin);
   const { data, isLoading } = useQuery({
-    queryKey: ["pipeline-scheduling", status, mine],
+    queryKey: ["pipeline-scheduling", group, opStatus, mine],
     queryFn: () =>
       listFn({
         data: {
           pageSize: 200,
           page: 1,
-          schedulingStatus: status === "any" ? undefined : (status as (typeof SCHEDULING_STATUSES)[number]),
+          schedulingGroup: group === "any" ? undefined : group,
+          schedulingStatus:
+            group === "com_agendamento" && opStatus !== "any"
+              ? (opStatus as (typeof SCHEDULING_STATUSES)[number])
+              : undefined,
           mine,
         },
       }),
@@ -365,7 +371,24 @@ function SchedulingTab({ isAdmin }: Props) {
   return (
     <Card className="p-4">
       <div className="mb-3 flex flex-wrap items-center gap-3">
-        <EnumSelect value={status} onChange={setStatus} placeholder="Status agend." options={[...SCHEDULING_STATUSES]} />
+        <Select value={group} onValueChange={(v) => setGroup(v as typeof group)}>
+          <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="any">Agendamento — todos</SelectItem>
+            <SelectItem value="sem_agendamento">Sem agendamento</SelectItem>
+            <SelectItem value="com_agendamento">Com agendamento</SelectItem>
+          </SelectContent>
+        </Select>
+        {group === "com_agendamento" && (
+          <Select value={opStatus} onValueChange={(v) => setOpStatus(v as typeof opStatus)}>
+            <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="any">Operacional — todos</SelectItem>
+              <SelectItem value="agendado_parcial">Parcial</SelectItem>
+              <SelectItem value="agendado_ok">Completo</SelectItem>
+            </SelectContent>
+          </Select>
+        )}
         <div className="flex items-center gap-2">
           <Switch checked={mine} onCheckedChange={setMine} id="mine-sch" />
           <Label htmlFor="mine-sch" className="text-sm">Apenas meus</Label>
