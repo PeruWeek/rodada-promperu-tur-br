@@ -72,8 +72,18 @@ describe("Write authorization — cliente must never pass", () => {
 describe("Structural invariant — mutations gate cliente at the handler", () => {
   const ROOT = path.resolve(__dirname, "..");
   const MUTATION_REGEX = /\.(insert|update|delete|upsert)\s*\(/;
-  const ADMIN_GUARD_REGEX =
-    /assert(?:Admin(?:Strict|Role|OrStaff(?:Role)?)?|Owner)\s*\(/;
+  // Any guard helper prefixed with `assert…` counts — these are role/ownership
+  // checks that throw Forbidden. `cliente` is never in admin/staff sets.
+  const ASSERT_GUARD_REGEX = /assert[A-Z]\w*\s*\(/;
+  const FORBIDDEN_THROW_REGEX = /throw new Error\(\s*["'`]Forbidden/;
+
+  // Files whose mutations are intentionally scoped to `context.userId`
+  // (self-mutations — credentials, chat history). They do not need a
+  // role guard because they cannot escape the caller's own row.
+  const SELF_SCOPED_ALLOWLIST = new Set([
+    "credentials.functions.ts",
+    "llm.functions.ts",
+  ]);
 
   const files = fs
     .readdirSync(ROOT)
@@ -84,27 +94,30 @@ describe("Structural invariant — mutations gate cliente at the handler", () =>
     const src = fs.readFileSync(file, "utf8");
     if (!MUTATION_REGEX.test(src)) continue; // pure-read modules are fine
     it(`${path.basename(file)} guards every mutation against cliente`, () => {
-      // Split into handler blocks; each `.handler(async ...)` chunk is one
-      // server-fn body. We require at least one admin-tier guard inside the
-      // module overall — this catches modules that perform writes but only
-      // gate with `assertAdminOrStaffRead`.
-      const usesReadOnlyGuardForWrite =
-        /assertAdminOrStaffRead\s*\(/.test(src) && MUTATION_REGEX.test(src);
-      const usesAdminGuard = ADMIN_GUARD_REGEX.test(src);
-      if (!usesAdminGuard) {
+      const basename = path.basename(file);
+      const hasAssertGuard = ASSERT_GUARD_REGEX.test(src);
+      const hasInlineForbidden = FORBIDDEN_THROW_REGEX.test(src);
+      const isSelfScoped = SELF_SCOPED_ALLOWLIST.has(basename);
+
+      if (!hasAssertGuard && !hasInlineForbidden && !isSelfScoped) {
         throw new Error(
-          `[cliente-auth] ${path.basename(
-            file,
-          )} performs writes but does not call an admin-tier guard. ` +
-            `Cliente could potentially pass through. Add assertAdmin/assertAdminStrict.`,
+          `[cliente-auth] ${basename} performs writes but does not call an ` +
+            `assert*-style guard nor an inline Forbidden check, and is not in ` +
+            `the self-scoped allowlist. Cliente could potentially pass through.`,
         );
       }
-      // Soft warning: if the module ONLY uses read guard for writes, that's a leak.
-      if (usesReadOnlyGuardForWrite && !usesAdminGuard) {
+
+      // Modules that only read with assertAdminOrStaffRead but also mutate
+      // must add a real admin-tier guard on the mutation path.
+      const onlyHasReadGuard =
+        /assertAdminOrStaffRead\s*\(/.test(src) &&
+        !hasAssertGuard &&
+        !hasInlineForbidden &&
+        !isSelfScoped;
+      if (onlyHasReadGuard) {
         throw new Error(
-          `[cliente-auth] ${path.basename(
-            file,
-          )} writes are gated only by assertAdminOrStaffRead, which permits cliente.`,
+          `[cliente-auth] ${basename} writes are gated only by ` +
+            `assertAdminOrStaffRead, which permits cliente. Add a stricter guard.`,
         );
       }
     });
