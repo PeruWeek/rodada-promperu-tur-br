@@ -471,7 +471,7 @@
       "meetingsCount_other": "{{count}} reuniões",
       "sheetName": "Inscritos",
       "cols": {
-        "company": "Empresa",
+        "company": "Nome Fantasia",
         "legalName": "Razão social",
         "taxId": "CNPJ/RUC",
         "role": "Tipo",
@@ -774,7 +774,7 @@
         "exhibitorMeetings": "Reuniões de expositores"
       },
       "table": {
-        "company": "Empresa",
+        "company": "Nome Fantasia",
         "type": "Tipo",
         "location": "Localidade",
         "status": "Status da agenda",

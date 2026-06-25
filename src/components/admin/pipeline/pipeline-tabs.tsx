@@ -289,7 +289,7 @@ function RegistrationsTab({ isAdmin }: Props) {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Empresa</TableHead>
+                  <TableHead>Nome Fantasia</TableHead>
                   <TableHead>Contato</TableHead>
                   <TableHead>Papel</TableHead>
                   <TableHead>Tipo</TableHead>
@@ -399,7 +399,7 @@ function SchedulingTab({ isAdmin }: Props) {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Empresa</TableHead>
+                <TableHead>Nome Fantasia</TableHead>
                 <TableHead>Papel</TableHead>
                 <TableHead>Tipo</TableHead>
                 <TableHead>Categoria</TableHead>
