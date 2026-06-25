@@ -66,6 +66,18 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [deleting, setDeleting] = useState(false);
+  const [contactDialogCompany, setContactDialogCompany] = useState<
+    | null
+    | {
+        id: string;
+        trade_name: string;
+        legal_name: string | null;
+        tax_id: string | null;
+        city: string | null;
+        state_code: string | null;
+      }
+  >(null);
+  const [contactDialogOpen, setContactDialogOpen] = useState(false);
 
   const effectiveRole: RoleFilter = readOnly ? "visitor" : role;
   const effectiveConfirmed: ConfirmedFilter = readOnly ? "yes" : confirmed;
