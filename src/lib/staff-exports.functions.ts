@@ -112,41 +112,77 @@ export async function _listEventRegistrantsImpl(
     const { data: rows, error } = await q.order("company_trade_name", { ascending: true });
     if (error) throw new Error(error.message);
 
-    const companyIds = Array.from(new Set((rows ?? []).map((r) => r.company_id).filter(Boolean) as string[]));
+    type PipelineRow = {
+      id: string;
+      event_id: string | null;
+      company_id: string | null;
+      primary_profile_id: string | null;
+      company_role: string | null;
+      company_trade_name: string | null;
+      company_legal_name: string | null;
+      country_code: string | null;
+      state_code: string | null;
+      city: string | null;
+      registration_status: string | null;
+      scheduling_status: string | null;
+      scheduled_meetings_count: number | null;
+      primary_contact_name: string | null;
+      primary_contact_email: string | null;
+      primary_contact_phone: string | null;
+      primary_contact_whatsapp: string | null;
+      created_at: string | null;
+    };
+    type CompanyTaxRow = { id: string; tax_id: string | null };
+    type ProfileRow = {
+      id: string;
+      job_title: string | null;
+      phone: string | null;
+      whatsapp: string | null;
+      auth_user_id: string | null;
+      is_active: boolean | null;
+    };
+    type UserRoleRow = { user_id: string; role: string };
+    const rowsTyped = (rows ?? []) as PipelineRow[];
+    const companyIds = Array.from(
+      new Set(rowsTyped.map((r) => r.company_id).filter(Boolean) as string[]),
+    );
     const { data: companies } = companyIds.length
       ? await ctx.supabase
           .from("companies")
           .select("id, tax_id")
           .in("id", companyIds)
-      : { data: [] as Array<{ id: string; tax_id: string | null }> };
-    const taxById = new Map((companies ?? []).map((c) => [c.id, c.tax_id]));
+      : { data: [] as CompanyTaxRow[] };
+    const taxById = new Map(
+      ((companies ?? []) as CompanyTaxRow[]).map((c) => [c.id, c.tax_id]),
+    );
 
     const profileIds = Array.from(
-      new Set((rows ?? []).map((r) => r.primary_profile_id).filter(Boolean) as string[]),
+      new Set(rowsTyped.map((r) => r.primary_profile_id).filter(Boolean) as string[]),
     );
     const { data: profs } = profileIds.length
       ? await ctx.supabase
           .from("profiles")
           .select("id, job_title, phone, whatsapp, auth_user_id, is_active")
           .in("id", profileIds)
-      : { data: [] as Array<{ id: string; job_title: string | null; phone: string | null; whatsapp: string | null; auth_user_id: string | null; is_active: boolean | null }> };
-    const profById = new Map((profs ?? []).map((p) => [p.id, p]));
+      : { data: [] as ProfileRow[] };
+    const profsTyped = (profs ?? []) as ProfileRow[];
+    const profById = new Map(profsTyped.map((p) => [p.id, p]));
 
     // Exclude profiles whose owner is not actually a participant role
     // (exhibitor/visitor). `cliente`, `admin`, and `staff` are internal /
     // business profiles and must not appear in the "Inscritos" list even
     // when the underlying company is tagged as visitor in the pipeline.
     const authUserIds = Array.from(
-      new Set((profs ?? []).map((p) => p.auth_user_id).filter(Boolean) as string[]),
+      new Set(profsTyped.map((p) => p.auth_user_id).filter(Boolean) as string[]),
     );
     const { data: rolesData } = authUserIds.length
       ? await ctx.supabase
           .from("user_roles")
           .select("user_id, role")
           .in("user_id", authUserIds)
-      : { data: [] as Array<{ user_id: string; role: string }> };
+      : { data: [] as UserRoleRow[] };
     const rolesByUser = new Map<string, Set<string>>();
-    for (const r of rolesData ?? []) {
+    for (const r of (rolesData ?? []) as UserRoleRow[]) {
       const key = r.user_id as string;
       if (!rolesByUser.has(key)) rolesByUser.set(key, new Set());
       rolesByUser.get(key)!.add(String(r.role));
@@ -158,7 +194,7 @@ export async function _listEventRegistrantsImpl(
       }
     }
 
-    const out: RegistrantRow[] = (rows ?? [])
+    const out: RegistrantRow[] = rowsTyped
       .filter((r) => r.company_id && r.primary_profile_id)
       .filter((r) => {
         const p = profById.get(r.primary_profile_id as string);
