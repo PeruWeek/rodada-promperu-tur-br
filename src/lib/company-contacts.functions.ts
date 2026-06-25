@@ -210,3 +210,122 @@ export const findCompanyForContact = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { rows: rows ?? [] };
   });
+
+const lookupInput = z.object({
+  email: z.string().trim().email().max(255),
+});
+
+export const lookupProfileByEmail = createServerFn({ method: "POST" })
+  .inputValidator((input) => lookupInput.parse(input))
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const emailNorm = data.email.trim().toLowerCase();
+
+    const { data: profile, error } = await supabaseAdmin
+      .from("profiles")
+      .select("id, auth_user_id, full_name, email, company_id, pending_signup, is_active")
+      .eq("email", emailNorm)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!profile) return { found: false as const };
+
+    let company: {
+      id: string;
+      trade_name: string;
+      legal_name: string | null;
+      tax_id: string | null;
+      city: string | null;
+      state_code: string | null;
+    } | null = null;
+    if (profile.company_id) {
+      const { data: c } = await supabaseAdmin
+        .from("companies")
+        .select("id, trade_name, legal_name, tax_id, city, state_code")
+        .eq("id", profile.company_id)
+        .maybeSingle();
+      company = c ?? null;
+    }
+    return {
+      found: true as const,
+      profile: {
+        id: profile.id,
+        auth_user_id: profile.auth_user_id,
+        full_name: profile.full_name,
+        email: profile.email,
+        company_id: profile.company_id,
+        pending_signup: profile.pending_signup,
+        is_active: profile.is_active,
+      },
+      current_company: company,
+    };
+  });
+
+const reassignInput = z.object({
+  email: z.string().trim().email().max(255),
+  target_company_id: z.string().uuid(),
+  reason: z.string().trim().min(10).max(500),
+  confirm: z.literal(true),
+});
+
+export const reassignCompanyContact = createServerFn({ method: "POST" })
+  .inputValidator((input) => reassignInput.parse(input))
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const emailNorm = data.email.trim().toLowerCase();
+
+    const { data: profile, error: pErr } = await supabaseAdmin
+      .from("profiles")
+      .select("id, auth_user_id, company_id, is_active, email, full_name")
+      .eq("email", emailNorm)
+      .maybeSingle();
+    if (pErr) throw new Error(pErr.message);
+    if (!profile) throw new Error("profile_not_found");
+    if (!profile.auth_user_id) throw new Error("profile_not_active");
+
+    const { data: targetCompany, error: cErr } = await supabaseAdmin
+      .from("companies")
+      .select("id, trade_name")
+      .eq("id", data.target_company_id)
+      .maybeSingle();
+    if (cErr) throw new Error(cErr.message);
+    if (!targetCompany) throw new Error("target_company_not_found");
+
+    const previousCompanyId = profile.company_id;
+    if (previousCompanyId === data.target_company_id) {
+      throw new Error("already_in_target_company");
+    }
+
+    const { error: uErr } = await supabaseAdmin
+      .from("profiles")
+      .update({ company_id: data.target_company_id })
+      .eq("id", profile.id);
+    if (uErr) throw new Error(uErr.message);
+
+    try {
+      const actor = await getActorProfileId(context.userId);
+      await supabaseAdmin.from("audit_logs").insert({
+        actor_profile_id: actor,
+        action: "company_contact_reassigned",
+        payload: {
+          profile_id: profile.id,
+          auth_user_id: profile.auth_user_id,
+          email: emailNorm,
+          previous_company_id: previousCompanyId,
+          new_company_id: data.target_company_id,
+          reason: data.reason,
+        },
+      });
+    } catch {
+      /* best-effort audit */
+    }
+
+    return {
+      profile_id: profile.id,
+      previous_company_id: previousCompanyId,
+      new_company_id: data.target_company_id,
+    };
+  });
