@@ -39,6 +39,7 @@ import { EmailTemplatesTab } from "@/components/admin/email-templates-tab";
 import { BookingRemindersTab } from "@/components/admin/booking-reminders-tab";
 import { CompaniesTab } from "@/components/admin/companies/companies-tab";
 import { RegistrantsTab } from "@/components/admin/registrants-tab";
+import { ClienteOverview } from "@/components/admin/cliente/cliente-overview";
 import { PreRegistrationsTab } from "@/components/admin/pre-registrations-tab";
 import { QaSimulationTab } from "@/components/admin/qa-simulation-tab";
 import { ReviewQueueTab } from "@/components/admin/review-queue-tab";
@@ -112,11 +113,13 @@ function AdminPage() {
       <p className="mt-1 text-sm text-muted-foreground">{t("admin.subtitle")}</p>
 
       {isClienteOnly ? (
-        <Tabs defaultValue="companies" className="mt-6">
+        <Tabs defaultValue="overview" className="mt-6">
           <TabsList className="flex flex-wrap h-auto">
+            <TabsTrigger value="overview">{t("cliente.overview.title")}</TabsTrigger>
             <TabsTrigger value="companies">{t("admin.tabs.companies")}</TabsTrigger>
             <TabsTrigger value="meetings">{t("admin.tabs.meetings", { defaultValue: "Agendamentos" })}</TabsTrigger>
           </TabsList>
+          <TabsContent value="overview" className="mt-4"><ClienteOverview /></TabsContent>
           <TabsContent value="companies" className="mt-4"><CompaniesTab readOnly /></TabsContent>
           <TabsContent value="meetings" className="mt-4"><RegistrantsTab readOnly onlyWithMeetings /></TabsContent>
         </Tabs>
