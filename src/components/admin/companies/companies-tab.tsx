@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { FileSpreadsheet, FileText, Files, Pencil, RotateCcw, Search, Trash2 } from "lucide-react";
+import { FileSpreadsheet, FileText, Files, Pencil, RotateCcw, Search, Trash2, UserPlus } from "lucide-react";
 
 import {
   adminHardDeleteCompany,
@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { AddCompanyContactDialog } from "@/components/admin/companies/add-company-contact-dialog";
 import {
   Select,
   SelectContent,
