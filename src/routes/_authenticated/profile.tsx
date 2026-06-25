@@ -282,10 +282,20 @@ function ProfilePage() {
       // `trackMauticEvent` faz dedupe por user.id → saves subsequentes
       // não duplicam o evento.
       if (isVisitor && !isExhibitor && user) {
+        // Dispara Mautic apenas quando o registro está oficialmente completo
+        // (`signup_completed_at` recém-gravado OU já existente).
         const ready =
-          !!trade.trim() &&
-          !!city.trim() &&
-          vSegments.length > 0;
+          !!extra?.vis?.signup_completed_at ||
+          computeRegistrationMissing({
+            kind: "visitor",
+            profile: { full_name: fullName, job_title: (profile as unknown as { job_title?: string }).job_title, whatsapp, preferred_language: prefLang },
+            company: { trade_name: trade, city, state_code: (extra?.company as { state_code?: string } | null | undefined)?.state_code, tax_id: (extra?.company as { tax_id?: string } | null | undefined)?.tax_id },
+            visitor: {
+              networking_lunch_participation: vLunch === "yes" ? true : vLunch === "no" ? false : null,
+              image_authorization: vImageAuth === "yes" ? true : vImageAuth === "no" ? false : null,
+              consent_data_sharing: extra?.vis?.consent_data_sharing ?? false,
+            },
+          }).length === 0;
         if (ready) {
           try {
             const firstname = (fullName || "").trim().split(/\s+/)[0] ?? "";
