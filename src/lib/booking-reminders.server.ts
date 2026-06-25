@@ -209,13 +209,22 @@ export async function runBookingReminders(
   }
 
   // 3. Exclude those with any scheduled meeting in this event.
+  // Regra global de agendamento (src/lib/scheduling-status.ts): só envia
+  // lembrete para empresas com `scheduled_meetings_count = 0`. Ausência de
+  // qualquer `meetings.status='scheduled'` neste evento equivale a count = 0.
   const { data: meetings } = await supabaseAdmin
     .from("meetings")
     .select("visitor_profile_id")
     .eq("event_id", eventId)
     .eq("status", "scheduled")
     .in("visitor_profile_id", profileIds);
-  const withMeeting = new Set((meetings ?? []).map((m) => m.visitor_profile_id as string));
+  // Conta por perfil (count real). Bloqueia qualquer envio para count > 0.
+  const meetingCountByProfile = new Map<string, number>();
+  for (const m of meetings ?? []) {
+    const pid = m.visitor_profile_id as string;
+    meetingCountByProfile.set(pid, (meetingCountByProfile.get(pid) ?? 0) + 1);
+  }
+  const withMeeting = new Set(meetingCountByProfile.keys());
 
   // 4. Pull reminder history for this event for the candidates.
   const { data: history } = await supabaseAdmin
@@ -239,7 +248,9 @@ export async function runBookingReminders(
   // 5. Process each eligible profile.
   for (const p of profilesWithCompany) {
     const pid = p.id as string;
-    if (withMeeting.has(pid)) {
+    // Guarda defensiva: count > 0 ⇒ NUNCA envia lembrete.
+    const meetingsCount = meetingCountByProfile.get(pid) ?? 0;
+    if (meetingsCount > 0 || withMeeting.has(pid)) {
       summary.skipped_has_meeting += 1;
       continue;
     }

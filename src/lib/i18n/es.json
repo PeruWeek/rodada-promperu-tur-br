@@ -23,7 +23,7 @@
   },
   "landing": {
     "heroEyebrow": "08 de julio de 2026 · Brasil",
-    "heroTitle": "PERU MICE\u00a0\nNetworking evento",
+    "heroTitle": "PERU MICE \nNetworking evento",
     "heroSubtitle": "Peru, um destino que conecta e transforma viagens de incentivos em experiências Memoráveis",
     "ctaSignup": "Regístrate ahora",
     "ctaLogin": "Ya tengo cuenta",
@@ -722,6 +722,16 @@
       "useMyData": "Usar mis datos",
       "startBlank": "Empezar en blanco",
       "toastFilled": "Campos completados. Revisa y ajusta si lo necesitas."
+    }
+  },
+  "scheduling": {
+    "group": {
+      "sem": "Sin agenda",
+      "com": "Con agenda"
+    },
+    "operational": {
+      "parcial": "Parcial",
+      "ok": "Completo"
     }
   }
 }
