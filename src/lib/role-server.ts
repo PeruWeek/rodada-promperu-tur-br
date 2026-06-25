@@ -69,3 +69,20 @@ export async function assertAdminOrStaffRole(
   );
   if (!ok) throw new Error("Forbidden");
 }
+
+/**
+ * Blocks callers whose primary role is `cliente` from reaching a mutation
+ * that is otherwise self-scoped (e.g. booking a meeting). Cliente accounts
+ * are read-only acompanhamento and must never schedule anything.
+ */
+export async function assertNotCliente(
+  supabase: any,
+  userId: string,
+): Promise<void> {
+  const role = await getPrimaryRoleServer(supabase, userId);
+  if (role === "cliente") {
+    throw new Error(
+      "Forbidden: contas cliente são somente leitura e não podem realizar esta ação.",
+    );
+  }
+}
