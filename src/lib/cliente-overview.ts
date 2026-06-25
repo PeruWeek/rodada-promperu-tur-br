@@ -10,6 +10,7 @@ import { bucketGroupFromMeetings } from "./scheduling-status";
 
 export type ClienteOverviewRow = {
   scheduled_meetings_count: number | null;
+  role?: "visitor" | "exhibitor" | null;
   // Other fields exist but are irrelevant for KPIs.
 };
 
@@ -34,6 +35,46 @@ export function computeClienteKpis(rows: ClienteOverviewRow[]): ClienteKpis {
   const percentComAgendamento =
     inscritas > 0 ? Math.round((comAgendamento / inscritas) * 100) : 0;
   return { inscritas, comAgendamento, totalReunioes, percentComAgendamento };
+}
+
+export type ClienteTypeBreakdown = {
+  visitantesCount: number;
+  expositoresCount: number;
+  visitantesMeetings: number;
+  expositoresMeetings: number;
+};
+
+/**
+ * Splits rows by the OFFICIAL `role` field returned by the backend
+ * (`listEventRegistrants` → `RegistrantRow.role`). Rows with an unknown
+ * role are intentionally NOT placed in either bucket — preserving the
+ * invariant `visitantesCount + expositoresCount <= rows.length`.
+ *
+ * No textual heuristics. No inference from company name.
+ */
+export function computeClienteTypeBreakdown(
+  rows: ClienteOverviewRow[],
+): ClienteTypeBreakdown {
+  let visitantesCount = 0;
+  let expositoresCount = 0;
+  let visitantesMeetings = 0;
+  let expositoresMeetings = 0;
+  for (const r of rows) {
+    const count = Number(r.scheduled_meetings_count ?? 0);
+    if (r.role === "visitor") {
+      visitantesCount += 1;
+      visitantesMeetings += count;
+    } else if (r.role === "exhibitor") {
+      expositoresCount += 1;
+      expositoresMeetings += count;
+    }
+  }
+  return {
+    visitantesCount,
+    expositoresCount,
+    visitantesMeetings,
+    expositoresMeetings,
+  };
 }
 
 /**

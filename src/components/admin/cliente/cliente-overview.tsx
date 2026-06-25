@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/table";
 import {
   computeClienteKpis,
+  computeClienteTypeBreakdown,
   formatLocation,
   type ClienteOverviewRow,
 } from "@/lib/cliente-overview";
@@ -61,6 +62,11 @@ export function ClienteOverview() {
 
   const kpis = useMemo<ReturnType<typeof computeClienteKpis>>(
     () => computeClienteKpis(rows as ClienteOverviewRow[]),
+    [rows],
+  );
+
+  const breakdown = useMemo(
+    () => computeClienteTypeBreakdown(rows as ClienteOverviewRow[]),
     [rows],
   );
 
@@ -123,6 +129,19 @@ export function ClienteOverview() {
         />
       </div>
 
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Kpi
+          label={t("cliente.overview.kpi.visitors")}
+          value={breakdown.visitantesCount}
+          hint={`${breakdown.visitantesMeetings} ${t("cliente.overview.kpi.visitorMeetings")}`}
+        />
+        <Kpi
+          label={t("cliente.overview.kpi.exhibitors")}
+          value={breakdown.expositoresCount}
+          hint={`${breakdown.expositoresMeetings} ${t("cliente.overview.kpi.exhibitorMeetings")}`}
+        />
+      </div>
+
       <Card className="p-4">
         <div className="mb-3 flex flex-wrap items-center gap-3">
           <Input
@@ -157,6 +176,7 @@ export function ClienteOverview() {
             <TableHeader>
               <TableRow>
                 <TableHead>{t("cliente.overview.table.company")}</TableHead>
+                <TableHead>{t("cliente.overview.table.type")}</TableHead>
                 <TableHead>{t("cliente.overview.table.location")}</TableHead>
                 <TableHead>{t("cliente.overview.table.status")}</TableHead>
                 <TableHead className="text-right">
@@ -171,7 +191,7 @@ export function ClienteOverview() {
               {isLoading ? null : filtered.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={hasUpdatedAt ? 5 : 4}
+                    colSpan={hasUpdatedAt ? 6 : 5}
                     className="text-center text-sm text-muted-foreground"
                   >
                     {t("cliente.overview.empty")}
@@ -189,6 +209,15 @@ export function ClienteOverview() {
                     <TableRow key={`${r.company_id}-${r.profile_id}`}>
                       <TableCell className="font-medium">
                         {r.company_trade_name}
+                      </TableCell>
+                      <TableCell>
+                        {r.role === "visitor" || r.role === "exhibitor" ? (
+                          <Badge variant="outline">
+                            {t(`cliente.overview.type.${r.role}`)}
+                          </Badge>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
                       </TableCell>
                       <TableCell className="text-muted-foreground">
                         {formatLocation({
@@ -231,11 +260,22 @@ export function ClienteOverview() {
   );
 }
 
-function Kpi({ label, value }: { label: string; value: number | string }) {
+function Kpi({
+  label,
+  value,
+  hint,
+}: {
+  label: string;
+  value: number | string;
+  hint?: string;
+}) {
   return (
     <Card className="p-4">
       <div className="text-xs text-muted-foreground">{label}</div>
       <div className="mt-1 text-2xl font-semibold tabular-nums">{value}</div>
+      {hint ? (
+        <div className="mt-1 text-xs text-muted-foreground">{hint}</div>
+      ) : null}
     </Card>
   );
 }

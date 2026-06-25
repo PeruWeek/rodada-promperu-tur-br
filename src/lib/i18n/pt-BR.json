@@ -767,14 +767,23 @@
         "companies": "Empresas inscritas",
         "scheduled": "Empresas com agendamento",
         "meetings": "Total de reuniões",
-        "percentScheduled": "% com agendamento"
+        "percentScheduled": "% com agendamento",
+        "visitors": "Empresas visitantes",
+        "exhibitors": "Empresas expositoras",
+        "visitorMeetings": "Reuniões de visitantes",
+        "exhibitorMeetings": "Reuniões de expositores"
       },
       "table": {
         "company": "Empresa",
+        "type": "Tipo",
         "location": "Localidade",
         "status": "Status da agenda",
         "meetings": "Qtd. de reuniões",
         "updated": "Última atualização"
+      },
+      "type": {
+        "visitor": "Visitante",
+        "exhibitor": "Expositor"
       },
       "search": {
         "placeholder": "Buscar empresa..."

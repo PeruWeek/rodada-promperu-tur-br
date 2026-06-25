@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { computeClienteKpis } from "@/lib/cliente-overview";
+import {
+  computeClienteKpis,
+  computeClienteTypeBreakdown,
+  formatLocation,
+} from "@/lib/cliente-overview";
 
 describe("computeClienteKpis — derives all KPIs from scheduled_meetings_count", () => {
   it("empty list → all zeros, percent = 0", () => {
@@ -60,5 +64,76 @@ describe("computeClienteKpis — derives all KPIs from scheduled_meetings_count"
     ]);
     expect(k.comAgendamento).toBe(1);
     expect(k.totalReunioes).toBe(3);
+  });
+});
+
+describe("computeClienteTypeBreakdown — official role field only", () => {
+  it("empty list → all zeros", () => {
+    expect(computeClienteTypeBreakdown([])).toEqual({
+      visitantesCount: 0,
+      expositoresCount: 0,
+      visitantesMeetings: 0,
+      expositoresMeetings: 0,
+    });
+  });
+
+  it("mix 2 visitors + 1 exhibitor → correct per-type counts and meeting sums", () => {
+    const b = computeClienteTypeBreakdown([
+      { role: "visitor", scheduled_meetings_count: 2 },
+      { role: "visitor", scheduled_meetings_count: 3 },
+      { role: "exhibitor", scheduled_meetings_count: 5 },
+    ]);
+    expect(b.visitantesCount).toBe(2);
+    expect(b.expositoresCount).toBe(1);
+    expect(b.visitantesMeetings).toBe(5);
+    expect(b.expositoresMeetings).toBe(5);
+  });
+
+  it("rows with missing role are excluded from both buckets", () => {
+    const rows = [
+      { role: "visitor" as const, scheduled_meetings_count: 1 },
+      { scheduled_meetings_count: 2 },
+      { role: null, scheduled_meetings_count: 3 },
+    ];
+    const b = computeClienteTypeBreakdown(rows);
+    expect(b.visitantesCount + b.expositoresCount).toBeLessThanOrEqual(
+      rows.length,
+    );
+    expect(b.visitantesCount).toBe(1);
+    expect(b.expositoresCount).toBe(0);
+  });
+
+  it("when all rows have role, per-type meeting sums match totalReunioes", () => {
+    const rows = [
+      { role: "visitor" as const, scheduled_meetings_count: 1 },
+      { role: "exhibitor" as const, scheduled_meetings_count: 4 },
+      { role: "exhibitor" as const, scheduled_meetings_count: 7 },
+    ];
+    const k = computeClienteKpis(rows);
+    const b = computeClienteTypeBreakdown(rows);
+    expect(b.visitantesMeetings + b.expositoresMeetings).toBe(k.totalReunioes);
+    expect(b.visitantesCount + b.expositoresCount).toBe(k.inscritas);
+  });
+});
+
+describe("formatLocation — concatenates only present fields", () => {
+  it("returns em-dash when nothing is provided", () => {
+    expect(formatLocation({})).toBe("—");
+  });
+
+  it("returns city alone when only city is present", () => {
+    expect(formatLocation({ city: "Lima" })).toBe("Lima");
+  });
+
+  it("joins city + state when both present", () => {
+    expect(formatLocation({ city: "São Paulo", state_code: "SP" })).toBe(
+      "São Paulo, SP",
+    );
+  });
+
+  it("falls back to country when state is absent", () => {
+    expect(formatLocation({ city: "Cusco", country_code: "PE" })).toBe(
+      "Cusco, PE",
+    );
   });
 });
