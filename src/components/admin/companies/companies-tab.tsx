@@ -49,6 +49,17 @@ type LunchFilter = "all" | "yes" | "no";
 type StatusFilter = "active" | "inactive" | "all";
 type ClienteTypeFilter = "all" | "visitor" | "exhibitor";
 
+// Centralized filter used by the table AND every export (XLSX/CSV/PDF) so the
+// active type selector always matches the exported dataset. Classification is
+// based exclusively on the official `role` field from the payload.
+function filterRowsByType<T extends { role?: string | null }>(
+  rows: T[],
+  typeFilter: ClienteTypeFilter,
+): T[] {
+  if (typeFilter === "all") return rows;
+  return rows.filter((r) => r.role === typeFilter);
+}
+
 export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) {
   const { t, i18n } = useTranslation();
   const listFn = useServerFn(listAdminCompanies);
@@ -166,7 +177,10 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
         excludeCliente: readOnly,
       },
     });
-    return res.rows;
+    // In readOnly (cliente) mode the server returns the full universe and the
+    // visible type selector is purely client-side, so we must apply the same
+    // filter to every exporter to keep table and exports in sync.
+    return readOnly ? filterRowsByType(res.rows, clienteTypeFilter) : res.rows;
   };
 
   const buildRows = (rows: Awaited<ReturnType<typeof fetchAll>>) =>
