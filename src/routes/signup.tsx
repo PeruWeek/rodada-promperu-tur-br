@@ -289,7 +289,17 @@ function SignupPage() {
           return;
         }
         if (availability.cnpj_status === "claimed") {
-          toast.error(t("signup.errors.cnpjTaken", { defaultValue: "Este CNPJ já está cadastrado em outra conta." }));
+          toast.error(
+            t("signup.cnpjClaimed.title", {
+              defaultValue: "Este CNPJ já possui uma conta ativa",
+            }),
+            {
+              description: t("signup.cnpjClaimed.body", {
+                defaultValue:
+                  "Se você faz parte desta empresa, solicite acesso ao responsável ou recupere a senha. Se não souber quem cadastrou, contate o suporte.",
+              }),
+            },
+          );
           trackMauticEvent(
             "signup_duplicate_cnpj",
             {
@@ -300,7 +310,7 @@ function SignupPage() {
             },
             { dedupeKey: `${emailKey}:${data.tax_id}` },
           );
-          setErrors((e) => ({ ...e, tax_id: "signup.errors.cnpjTaken" }));
+          setErrors((e) => ({ ...e, tax_id: "signup.errors.cnpjClaimed" }));
           setStep(2);
           return;
         }
