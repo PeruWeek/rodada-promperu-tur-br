@@ -67,7 +67,14 @@ export const addCompanyContact = createServerFn({ method: "POST" })
       if (existing.company_id && existing.company_id !== data.company_id) {
         throw new Error("email_linked_to_other_company");
       }
-      const patch: Record<string, unknown> = {};
+      const patch: {
+        company_id?: string;
+        pending_signup?: boolean;
+        full_name?: string;
+        job_title?: string;
+        phone?: string;
+        whatsapp?: string;
+      } = {};
       if (!existing.company_id) patch.company_id = data.company_id;
       if (!existing.pending_signup) patch.pending_signup = true;
       if (!existing.full_name && data.full_name) patch.full_name = data.full_name;
@@ -84,7 +91,17 @@ export const addCompanyContact = createServerFn({ method: "POST" })
       profileId = existing.id;
       status = "reused";
     } else {
-      const insertRow: Record<string, unknown> = {
+      const insertRow: {
+        email: string;
+        company_id: string;
+        full_name: string;
+        pending_signup: boolean;
+        auth_user_id: null;
+        preferred_language: "pt-BR" | "es";
+        job_title?: string;
+        phone?: string;
+        whatsapp?: string;
+      } = {
         email: emailNorm,
         company_id: data.company_id,
         full_name: data.full_name ?? "",
