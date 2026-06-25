@@ -138,9 +138,7 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
       }
     : null;
   const clienteFilteredRows = readOnly
-    ? allRows.filter((r) =>
-        clienteTypeFilter === "all" ? true : r.role === clienteTypeFilter,
-      )
+    ? filterRowsByType(allRows, clienteTypeFilter)
     : allRows;
   const clientePageSize = 25;
   const clientePagedRows = readOnly
