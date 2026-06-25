@@ -3,10 +3,7 @@ import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import {
-  CLIENTE_ALLOWED_SCHEDULING_STATUSES,
-  getPrimaryRoleServer,
-} from "@/lib/role-server";
+import { getPrimaryRoleServer } from "@/lib/role-server";
 
 async function assertAdminOrStaff(userId: string) {
   const { data } = await supabaseAdmin
@@ -71,10 +68,13 @@ export type ListEventRegistrantsInput = {
  * is a thin wrapper that injects the production `supabaseAdmin` client and
  * authenticated `userId` from middleware.
  *
- * Cliente enforcement: when the caller's primary role is `cliente`, the
- * `schedulingStatuses` input is OVERRIDDEN to `agendado_ok | agendado_parcial`
- * regardless of what the client sent. This is the server-side mirror of the
- * read-only acompanhamento view; do not rely on UI gating alone.
+ * Cliente enforcement (count-based): when the caller's primary role is
+ * `cliente`, the query is restricted to rows with
+ * `scheduled_meetings_count > 0` — the canonical "com agendamento" bucket
+ * (see `src/lib/scheduling-status.ts`). The string `scheduling_status` is
+ * NOT used to decide visibility; if it ever disagrees with the count, the
+ * count wins. A defensive post-filter drops any leaked row with `<= 0`.
+ * The `schedulingStatuses` input is ignored for cliente.
  */
 export async function _listEventRegistrantsImpl(
   data: ListEventRegistrantsInput,
@@ -85,10 +85,8 @@ export async function _listEventRegistrantsImpl(
     throw new Error("Forbidden");
   }
   const isCliente = role === "cliente";
-  // Override input for cliente — never trust client filters for read scope.
-  const schedulingStatuses = isCliente
-    ? [...CLIENTE_ALLOWED_SCHEDULING_STATUSES]
-    : data.schedulingStatuses;
+  // Cliente: ignore client-supplied filter; canonical rule (count > 0).
+  const schedulingStatuses = isCliente ? undefined : data.schedulingStatuses;
 
   const eventId = await getCurrentEventIdWith(ctx.supabase, data.eventId);
     if (!eventId) return { eventId: null, rows: [] as RegistrantRow[] };
@@ -100,6 +98,10 @@ export async function _listEventRegistrantsImpl(
       )
       .eq("event_id", eventId);
     if (data.role !== "all") q = q.eq("company_role", data.role);
+    if (isCliente) {
+      // Canonical "com agendamento" bucket = count > 0. Source of truth.
+      q = q.gt("scheduled_meetings_count", 0);
+    }
     if (schedulingStatuses && schedulingStatuses.length > 0) {
       q = q.in("scheduling_status", schedulingStatuses);
     }
@@ -196,6 +198,12 @@ export async function _listEventRegistrantsImpl(
 
     const out: RegistrantRow[] = rowsTyped
       .filter((r) => r.company_id && r.primary_profile_id)
+      .filter((r) => {
+        // Defensive post-filter: cliente NEVER sees rows whose real count is
+        // <= 0, even if scheduling_status text incorrectly says agendado_ok.
+        if (!isCliente) return true;
+        return Number(r.scheduled_meetings_count ?? 0) > 0;
+      })
       .filter((r) => {
         const p = profById.get(r.primary_profile_id as string);
         if (!p?.auth_user_id || p?.is_active === false) return false;
