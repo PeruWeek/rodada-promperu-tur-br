@@ -57,7 +57,7 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
   const [role, setRole] = useState<RoleFilter>(readOnly ? "visitor" : "all");
   const [confirmed, setConfirmed] = useState<ConfirmedFilter>(readOnly ? "yes" : "all");
   const [lunch, setLunch] = useState<LunchFilter>("all");
-  const [status, setStatus] = useState<StatusFilter>("active");
+  const [status, setStatus] = useState<StatusFilter>(readOnly ? "active" : "all");
   const [page, setPage] = useState(1);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [exporting, setExporting] = useState<null | "xlsx" | "csv" | "pdf">(null);
@@ -334,18 +334,16 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
         <Button variant="outline" size="sm" onClick={exportPdf} disabled={exporting !== null}>
           <Files size={14} /> {exporting === "pdf" ? t("common.loading") : "PDF"}
         </Button>
-        {!readOnly && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              setContactDialogCompany(null);
-              setContactDialogOpen(true);
-            }}
-          >
-            <UserPlus size={14} /> {t("admin.companies.addContact", { defaultValue: "Adicionar contato" })}
-          </Button>
-        )}
+        <Button
+          variant="default"
+          size="sm"
+          onClick={() => {
+            setContactDialogCompany(null);
+            setContactDialogOpen(true);
+          }}
+        >
+          <UserPlus size={14} /> {t("admin.companies.addContact", { defaultValue: "Adicionar contato" })}
+        </Button>
       </div>
 
       {isLoading ? (
