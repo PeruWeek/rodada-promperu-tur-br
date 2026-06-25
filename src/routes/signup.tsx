@@ -69,6 +69,7 @@ const emptyData: BuyerSignupData = {
   buyer_types: [],
   interests_segments: [],
   networking_lunch_participation: "",
+  image_authorization: "",
   consent_data_sharing: false,
   phone: "",
   additional_contacts: [],
@@ -358,6 +359,7 @@ function SignupPage() {
         portfolio_pt: "",
         notes: "",
         networking_lunch_participation: data.networking_lunch_participation === "yes",
+        image_authorization: data.image_authorization === "yes",
         consent_data_sharing: data.consent_data_sharing,
         consent_marketing: false,
       };
@@ -783,6 +785,40 @@ function Step3({ data, set, errors, t, lang }: StepProps & { lang: "pt" | "es" }
           </label>
         </div>
         <FieldError msg={errors.networking_lunch_participation} t={t} />
+      </div>
+      <div className="space-y-2 rounded-md border p-3">
+        <Label>{t("signup.imageAuthorization.label", { defaultValue: "Autorização de uso de imagem" })} *</Label>
+        <p className="text-xs text-muted-foreground">
+          {t("signup.imageAuthorization.help", {
+            defaultValue:
+              "Autorizo o uso da minha imagem (foto e vídeo) capturada durante o evento para fins de divulgação institucional.",
+          })}
+        </p>
+        <div className="mt-1 space-y-2">
+          <label className="flex items-start gap-2 text-sm leading-snug">
+            <input
+              type="radio"
+              name="image_authorization"
+              value="yes"
+              checked={data.image_authorization === "yes"}
+              onChange={() => set("image_authorization", "yes")}
+              className="mt-0.5"
+            />
+            <span>{t("signup.imageAuthorization.yes", { defaultValue: "Sim, autorizo" })}</span>
+          </label>
+          <label className="flex items-start gap-2 text-sm leading-snug">
+            <input
+              type="radio"
+              name="image_authorization"
+              value="no"
+              checked={data.image_authorization === "no"}
+              onChange={() => set("image_authorization", "no")}
+              className="mt-0.5"
+            />
+            <span>{t("signup.imageAuthorization.no", { defaultValue: "Não autorizo" })}</span>
+          </label>
+        </div>
+        <FieldError msg={errors.image_authorization} t={t} />
       </div>
       <div className="flex items-start gap-2 rounded-md border p-3">
         <Checkbox id="consent_data_sharing" checked={data.consent_data_sharing}

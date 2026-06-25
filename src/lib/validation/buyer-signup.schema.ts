@@ -58,6 +58,9 @@ export const stepContactProfileQuickSchema = z.object({
   networking_lunch_participation: z.enum(["yes", "no"], {
     errorMap: () => ({ message: "signup.errors.required" }),
   }),
+  image_authorization: z.enum(["yes", "no"], {
+    errorMap: () => ({ message: "signup.errors.required" }),
+  }),
   consent_data_sharing: z.literal(true, {
     errorMap: () => ({ message: "consentRequired" }),
   }),
@@ -121,6 +124,7 @@ export type BuyerSignupData = {
   buyer_types: string[];
   interests_segments: string[];
   networking_lunch_participation: "yes" | "no" | "";
+  image_authorization: "yes" | "no" | "";
   consent_data_sharing: boolean;
   // perfil complementar (opcionais)
   phone: string;
