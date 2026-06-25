@@ -3,6 +3,10 @@ import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import {
+  CLIENTE_ALLOWED_SCHEDULING_STATUSES,
+  getPrimaryRoleServer,
+} from "@/lib/role-server";
 
 async function assertAdminOrStaff(userId: string) {
   const { data } = await supabaseAdmin
@@ -44,33 +48,61 @@ export type RegistrantRow = {
   state_code: string | null;
   city: string | null;
   registration_status: string | null;
+  scheduling_status: string | null;
   scheduled_meetings_count: number;
   created_at: string | null;
 };
 
-export const listEventRegistrants = createServerFn({ method: "POST" })
-  .inputValidator((input) =>
-    z
-      .object({
-        eventId: z.string().uuid().optional(),
-        role: z.enum(["all", "exhibitor", "visitor"]).default("all"),
-        search: z.string().trim().max(120).optional(),
-      })
-      .parse(input ?? {}),
-  )
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ data, context }) => {
-    await assertAdminOrStaff(context.userId);
-    const eventId = await getCurrentEventId(data.eventId);
+const SCHEDULING_STATUS_VALUES = [
+  "sem_agendamento",
+  "agendado_parcial",
+  "agendado_ok",
+] as const;
+
+export type ListEventRegistrantsInput = {
+  eventId?: string;
+  role: "all" | "exhibitor" | "visitor";
+  search?: string;
+  schedulingStatuses?: Array<(typeof SCHEDULING_STATUS_VALUES)[number] | string>;
+};
+
+/**
+ * Pure implementation — exposed for unit tests. The exported server function
+ * is a thin wrapper that injects the production `supabaseAdmin` client and
+ * authenticated `userId` from middleware.
+ *
+ * Cliente enforcement: when the caller's primary role is `cliente`, the
+ * `schedulingStatuses` input is OVERRIDDEN to `agendado_ok | agendado_parcial`
+ * regardless of what the client sent. This is the server-side mirror of the
+ * read-only acompanhamento view; do not rely on UI gating alone.
+ */
+export async function _listEventRegistrantsImpl(
+  data: ListEventRegistrantsInput,
+  ctx: { userId: string; supabase: any },
+) {
+  const role = await getPrimaryRoleServer(ctx.supabase, ctx.userId);
+  if (role !== "admin" && role !== "staff" && role !== "cliente") {
+    throw new Error("Forbidden");
+  }
+  const isCliente = role === "cliente";
+  // Override input for cliente — never trust client filters for read scope.
+  const schedulingStatuses = isCliente
+    ? [...CLIENTE_ALLOWED_SCHEDULING_STATUSES]
+    : data.schedulingStatuses;
+
+  const eventId = await getCurrentEventIdWith(ctx.supabase, data.eventId);
     if (!eventId) return { eventId: null, rows: [] as RegistrantRow[] };
 
-    let q = supabaseAdmin
+    let q = ctx.supabase
       .from("v_company_event_pipeline")
       .select(
-        "id, event_id, company_id, primary_profile_id, company_role, company_trade_name, company_legal_name, country_code, state_code, city, registration_status, scheduled_meetings_count, primary_contact_name, primary_contact_email, primary_contact_phone, primary_contact_whatsapp, created_at",
+        "id, event_id, company_id, primary_profile_id, company_role, company_trade_name, company_legal_name, country_code, state_code, city, registration_status, scheduling_status, scheduled_meetings_count, primary_contact_name, primary_contact_email, primary_contact_phone, primary_contact_whatsapp, created_at",
       )
       .eq("event_id", eventId);
     if (data.role !== "all") q = q.eq("company_role", data.role);
+    if (schedulingStatuses && schedulingStatuses.length > 0) {
+      q = q.in("scheduling_status", schedulingStatuses);
+    }
     if (data.search) {
       const s = data.search;
       q = q.or(
@@ -80,41 +112,77 @@ export const listEventRegistrants = createServerFn({ method: "POST" })
     const { data: rows, error } = await q.order("company_trade_name", { ascending: true });
     if (error) throw new Error(error.message);
 
-    const companyIds = Array.from(new Set((rows ?? []).map((r) => r.company_id).filter(Boolean) as string[]));
+    type PipelineRow = {
+      id: string;
+      event_id: string | null;
+      company_id: string | null;
+      primary_profile_id: string | null;
+      company_role: string | null;
+      company_trade_name: string | null;
+      company_legal_name: string | null;
+      country_code: string | null;
+      state_code: string | null;
+      city: string | null;
+      registration_status: string | null;
+      scheduling_status: string | null;
+      scheduled_meetings_count: number | null;
+      primary_contact_name: string | null;
+      primary_contact_email: string | null;
+      primary_contact_phone: string | null;
+      primary_contact_whatsapp: string | null;
+      created_at: string | null;
+    };
+    type CompanyTaxRow = { id: string; tax_id: string | null };
+    type ProfileRow = {
+      id: string;
+      job_title: string | null;
+      phone: string | null;
+      whatsapp: string | null;
+      auth_user_id: string | null;
+      is_active: boolean | null;
+    };
+    type UserRoleRow = { user_id: string; role: string };
+    const rowsTyped = (rows ?? []) as PipelineRow[];
+    const companyIds = Array.from(
+      new Set(rowsTyped.map((r) => r.company_id).filter(Boolean) as string[]),
+    );
     const { data: companies } = companyIds.length
-      ? await supabaseAdmin
+      ? await ctx.supabase
           .from("companies")
           .select("id, tax_id")
           .in("id", companyIds)
-      : { data: [] as Array<{ id: string; tax_id: string | null }> };
-    const taxById = new Map((companies ?? []).map((c) => [c.id, c.tax_id]));
+      : { data: [] as CompanyTaxRow[] };
+    const taxById = new Map(
+      ((companies ?? []) as CompanyTaxRow[]).map((c) => [c.id, c.tax_id]),
+    );
 
     const profileIds = Array.from(
-      new Set((rows ?? []).map((r) => r.primary_profile_id).filter(Boolean) as string[]),
+      new Set(rowsTyped.map((r) => r.primary_profile_id).filter(Boolean) as string[]),
     );
     const { data: profs } = profileIds.length
-      ? await supabaseAdmin
+      ? await ctx.supabase
           .from("profiles")
           .select("id, job_title, phone, whatsapp, auth_user_id, is_active")
           .in("id", profileIds)
-      : { data: [] as Array<{ id: string; job_title: string | null; phone: string | null; whatsapp: string | null; auth_user_id: string | null; is_active: boolean | null }> };
-    const profById = new Map((profs ?? []).map((p) => [p.id, p]));
+      : { data: [] as ProfileRow[] };
+    const profsTyped = (profs ?? []) as ProfileRow[];
+    const profById = new Map(profsTyped.map((p) => [p.id, p]));
 
     // Exclude profiles whose owner is not actually a participant role
     // (exhibitor/visitor). `cliente`, `admin`, and `staff` are internal /
     // business profiles and must not appear in the "Inscritos" list even
     // when the underlying company is tagged as visitor in the pipeline.
     const authUserIds = Array.from(
-      new Set((profs ?? []).map((p) => p.auth_user_id).filter(Boolean) as string[]),
+      new Set(profsTyped.map((p) => p.auth_user_id).filter(Boolean) as string[]),
     );
     const { data: rolesData } = authUserIds.length
-      ? await supabaseAdmin
+      ? await ctx.supabase
           .from("user_roles")
           .select("user_id, role")
           .in("user_id", authUserIds)
-      : { data: [] as Array<{ user_id: string; role: string }> };
+      : { data: [] as UserRoleRow[] };
     const rolesByUser = new Map<string, Set<string>>();
-    for (const r of rolesData ?? []) {
+    for (const r of (rolesData ?? []) as UserRoleRow[]) {
       const key = r.user_id as string;
       if (!rolesByUser.has(key)) rolesByUser.set(key, new Set());
       rolesByUser.get(key)!.add(String(r.role));
@@ -126,7 +194,7 @@ export const listEventRegistrants = createServerFn({ method: "POST" })
       }
     }
 
-    const out: RegistrantRow[] = (rows ?? [])
+    const out: RegistrantRow[] = rowsTyped
       .filter((r) => r.company_id && r.primary_profile_id)
       .filter((r) => {
         const p = profById.get(r.primary_profile_id as string);
@@ -154,12 +222,46 @@ export const listEventRegistrants = createServerFn({ method: "POST" })
           state_code: r.state_code ?? null,
           city: r.city ?? null,
           registration_status: (r.registration_status as string | null) ?? null,
+          scheduling_status: (r.scheduling_status as string | null) ?? null,
           scheduled_meetings_count: Number(r.scheduled_meetings_count ?? 0),
           created_at: r.created_at as string | null,
         };
       });
-    return { eventId, rows: out };
-  });
+  return { eventId, rows: out };
+}
+
+async function getCurrentEventIdWith(supabase: any, explicit?: string) {
+  if (explicit) return explicit;
+  const { data } = await supabase
+    .from("events")
+    .select("id")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return data?.id ?? null;
+}
+
+export const listEventRegistrants = createServerFn({ method: "POST" })
+  .inputValidator((input) =>
+    z
+      .object({
+        eventId: z.string().uuid().optional(),
+        role: z.enum(["all", "exhibitor", "visitor"]).default("all"),
+        search: z.string().trim().max(120).optional(),
+        schedulingStatuses: z
+          .array(z.enum(SCHEDULING_STATUS_VALUES))
+          .max(SCHEDULING_STATUS_VALUES.length)
+          .optional(),
+      })
+      .parse(input ?? {}),
+  )
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) =>
+    _listEventRegistrantsImpl(data, {
+      userId: context.userId,
+      supabase: supabaseAdmin,
+    }),
+  );
 
 export type ParticipantAgendaRow = {
   time: string;
