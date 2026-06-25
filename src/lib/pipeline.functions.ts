@@ -12,6 +12,9 @@ import {
   REGISTRATION_STATUSES,
   SCHEDULING_STATUSES,
 } from "./pipeline.constants";
+// Canonical bucket helper: never decide grupo `sem/com_agendamento` from
+// `scheduling_status` — always derive from `scheduled_meetings_count`.
+// See src/lib/scheduling-status.ts.
 
 type Role = "admin" | "staff" | "exhibitor" | "visitor" | "cliente";
 
@@ -89,6 +92,9 @@ const filtersSchema = z.object({
   city: z.string().trim().optional(),
   registrationStatus: z.enum(REGISTRATION_STATUSES).optional(),
   schedulingStatus: z.enum(SCHEDULING_STATUSES).optional(),
+  // Bucket principal de agendamento (count-based). Independente de
+  // `schedulingStatus`, que continua como detalhamento operacional.
+  schedulingGroup: z.enum(["sem_agendamento", "com_agendamento"]).optional(),
   nextAction: z.enum(NEXT_ACTIONS).optional(),
   ownerProfileId: z.string().uuid().nullable().optional(),
   mine: z.boolean().optional(),
@@ -118,6 +124,12 @@ export const listPipeline = createServerFn({ method: "POST" })
     if (data.city) q = q.ilike("city", `%${data.city}%`);
     if (data.registrationStatus) q = q.eq("registration_status", data.registrationStatus);
     if (data.schedulingStatus) q = q.eq("scheduling_status", data.schedulingStatus);
+    // Grupo principal SEMPRE pelo count real de reuniões (fonte da verdade).
+    if (data.schedulingGroup === "sem_agendamento") {
+      q = q.eq("scheduled_meetings_count", 0);
+    } else if (data.schedulingGroup === "com_agendamento") {
+      q = q.gt("scheduled_meetings_count", 0);
+    }
     if (data.nextAction) q = q.eq("next_action", data.nextAction);
     if (data.ownerProfileId === null) q = q.is("owner_staff_profile_id", null);
     else if (data.ownerProfileId) q = q.eq("owner_staff_profile_id", data.ownerProfileId);
@@ -182,7 +194,7 @@ export const getPipelineKpis = createServerFn({ method: "POST" })
     let q = supabaseAdmin
       .from("v_company_event_pipeline")
       .select(
-        "id, company_role, company_type, company_category, country_code, state_code, city, region_label, registration_status, scheduling_status, next_action, owner_staff_profile_id, owner_name, created_at, next_action_due_at, primary_profile_id",
+        "id, company_role, company_type, company_category, country_code, state_code, city, region_label, registration_status, scheduling_status, scheduled_meetings_count, next_action, owner_staff_profile_id, owner_name, created_at, next_action_due_at, primary_profile_id",
       )
       .eq("event_id", eventId);
     if (scopeOwner) q = q.eq("owner_staff_profile_id", scopeOwner);
@@ -241,7 +253,9 @@ export const getPipelineKpis = createServerFn({ method: "POST" })
       confirmedRegistrants: all.filter((r) => confirmedIds.has(r.primary_profile_id as string)).length,
       completed: all.filter((r) => ["cadastro_concluido", "aprovado"].includes(r.registration_status as string)).length,
       incomplete: all.filter((r) => ["nao_iniciado", "em_preenchimento"].includes(r.registration_status as string)).length,
-      withoutScheduling: all.filter((r) => r.scheduling_status === "sem_agendamento").length,
+      // count vence: `scheduled_meetings_count = 0` ⇒ sem agendamento.
+      withoutScheduling: all.filter((r) => Number(r.scheduled_meetings_count ?? 0) === 0).length,
+      withScheduling: all.filter((r) => Number(r.scheduled_meetings_count ?? 0) > 0).length,
       followUpPending: all.filter((r) => r.next_action !== "nenhuma").length,
       awaitingApproval: all.filter((r) => r.registration_status === "aguardando_aprovacao").length,
     };
@@ -278,7 +292,7 @@ export const getPipelineAlerts = createServerFn({ method: "POST" })
     }
 
     const baseSelect =
-      "id, company_trade_name, primary_contact_name, primary_profile_id, registration_status, scheduling_status, next_action, next_action_due_at, owner_name, created_at, region_label";
+      "id, company_trade_name, primary_contact_name, primary_profile_id, registration_status, scheduling_status, scheduled_meetings_count, next_action, next_action_due_at, owner_name, created_at, region_label";
     const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
     const base = () => {
       let q = supabaseAdmin
@@ -289,7 +303,8 @@ export const getPipelineAlerts = createServerFn({ method: "POST" })
       return q;
     };
     const [a, b, c, d] = await Promise.all([
-      base().eq("scheduling_status", "sem_agendamento").eq("registration_status", "cadastro_concluido").limit(5),
+      // Sem agendamento = 0 reuniões (fonte: count, não status textual).
+      base().eq("scheduled_meetings_count", 0).eq("registration_status", "cadastro_concluido").limit(5),
       base().in("registration_status", ["nao_iniciado", "em_preenchimento"]).lte("created_at", fourteenDaysAgo).limit(5),
       base().in("next_action", ["ligar_para_confirmar", "aguardar_retorno", "cobrar_documentos"]).limit(5),
       base().eq("registration_status", "aguardando_aprovacao").limit(5),
