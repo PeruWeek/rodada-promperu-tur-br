@@ -274,13 +274,13 @@ export const listEventRegistrants = createServerFn({ method: "POST" })
 /**
  * Cliente "Visão geral" base.
  *
- * Returns the full operational base of REGISTERED companies for the active
- * event (`registration_status IN ('cadastro_concluido','aprovado')`) without
- * any scheduling filter — the overview separates "inscrição" from
- * "agendamento" and must NOT depend on the meetings table to decide who is
- * registered. Counting `comAgendamento` and `% com agendamento` is done on
- * the client from `scheduled_meetings_count` (single source of truth, see
- * `src/lib/scheduling-status.ts`).
+ * Returns the full operational base of companies visible to the cliente for
+ * the active event — same universe as the Empresas tab (any registration
+ * status), without any scheduling filter. The overview separates "inscrição"
+ * from "agendamento" and must NOT depend on the meetings table to decide
+ * who is in the base. Counting `comAgendamento` and `% com agendamento` is
+ * done on the client from `scheduled_meetings_count` (single source of
+ * truth, see `src/lib/scheduling-status.ts`).
  *
  * Authorization: admin, staff, or cliente. Same ineligibility filter as
  * `listEventRegistrants` (drops profiles owned by admin/staff/cliente).
@@ -306,7 +306,6 @@ export const listClienteOverviewBase = createServerFn({ method: "POST" })
         "id, event_id, company_id, primary_profile_id, company_role, company_trade_name, company_legal_name, country_code, state_code, city, registration_status, scheduling_status, scheduled_meetings_count, primary_contact_name, primary_contact_email, primary_contact_phone, primary_contact_whatsapp, created_at",
       )
       .eq("event_id", eventId)
-      .in("registration_status", ["cadastro_concluido", "aprovado"])
       .order("company_trade_name", { ascending: true });
     if (error) throw new Error(error.message);
 
