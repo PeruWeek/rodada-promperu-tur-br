@@ -7,7 +7,7 @@
 type Row = Record<string, any>;
 type Dataset = Record<string, Row[]>;
 
-type FilterKind = "eq" | "in" | "neq" | "is" | "not" | "or";
+type FilterKind = "eq" | "in" | "neq" | "is" | "not" | "or" | "gt" | "gte" | "lt" | "lte";
 type Filter = { kind: FilterKind; column?: string; value?: any; raw?: any };
 
 export type RecordedCall = {
@@ -32,6 +32,10 @@ function applyFilters(rows: Row[], filters: Filter[]): Row[] {
       if (f.kind === "neq") return row[f.column!] !== f.value;
       if (f.kind === "in") return Array.isArray(f.value) && f.value.includes(row[f.column!]);
       if (f.kind === "is") return row[f.column!] === f.value;
+      if (f.kind === "gt") return Number(row[f.column!] ?? 0) > Number(f.value);
+      if (f.kind === "gte") return Number(row[f.column!] ?? 0) >= Number(f.value);
+      if (f.kind === "lt") return Number(row[f.column!] ?? 0) < Number(f.value);
+      if (f.kind === "lte") return Number(row[f.column!] ?? 0) <= Number(f.value);
       if (f.kind === "not") {
         // .not("col","is",null) → col != null
         const [col, , val] = f.raw as [string, string, any];
@@ -114,6 +118,22 @@ export function createSupabaseMock(initial: Dataset = {}): SupabaseMock {
       },
       in: (column: string, value: any[]) => {
         filters.push({ kind: "in", column, value });
+        return api;
+      },
+      gt: (column: string, value: any) => {
+        filters.push({ kind: "gt", column, value });
+        return api;
+      },
+      gte: (column: string, value: any) => {
+        filters.push({ kind: "gte", column, value });
+        return api;
+      },
+      lt: (column: string, value: any) => {
+        filters.push({ kind: "lt", column, value });
+        return api;
+      },
+      lte: (column: string, value: any) => {
+        filters.push({ kind: "lte", column, value });
         return api;
       },
       is: (column: string, value: any) => {
