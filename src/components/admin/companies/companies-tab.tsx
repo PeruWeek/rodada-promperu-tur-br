@@ -47,6 +47,7 @@ type RoleFilter = "all" | "visitor" | "exhibitor" | "cliente";
 type ConfirmedFilter = "all" | "yes" | "no";
 type LunchFilter = "all" | "yes" | "no";
 type StatusFilter = "active" | "inactive" | "all";
+type ClienteTypeFilter = "all" | "visitor" | "exhibitor";
 
 export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) {
   const { t, i18n } = useTranslation();
@@ -60,6 +61,7 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
   const [lunch, setLunch] = useState<LunchFilter>("all");
   const [status, setStatus] = useState<StatusFilter>(readOnly ? "active" : "all");
   const [page, setPage] = useState(1);
+  const [clienteTypeFilter, setClienteTypeFilter] = useState<ClienteTypeFilter>("all");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [exporting, setExporting] = useState<null | "xlsx" | "csv" | "pdf">(null);
   const [savingLunchId, setSavingLunchId] = useState<string | null>(null);
@@ -81,7 +83,10 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
   const [contactDialogOpen, setContactDialogOpen] = useState(false);
   const [reassignDialogOpen, setReassignDialogOpen] = useState(false);
 
-  const effectiveRole: RoleFilter = readOnly ? "visitor" : role;
+  // For the cliente read-only view we fetch all roles in a single page so we
+  // can compute Visitantes/Expositoras counts and filter client-side. The
+  // server already restricts the universe of visible companies for cliente.
+  const effectiveRole: RoleFilter = readOnly ? "all" : role;
   const effectiveConfirmed: ConfirmedFilter = readOnly ? "yes" : confirmed;
   const effectiveStatus: StatusFilter = readOnly ? "active" : status;
 
@@ -103,13 +108,34 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
           role: effectiveRole,
           confirmed: effectiveConfirmed,
           lunch,
-          page,
-          pageSize: 25,
+          page: readOnly ? 1 : page,
+          pageSize: readOnly ? 5000 : 25,
           activeOnly: readOnly,
           status: effectiveStatus,
         },
       }),
   });
+
+  // Cliente-only: derive summary counts + client-side filtered/paginated rows.
+  const allRows = data?.rows ?? [];
+  const clienteSummary = readOnly
+    ? {
+        total: allRows.length,
+        visitors: allRows.filter((r) => r.role === "visitor").length,
+        exhibitors: allRows.filter((r) => r.role === "exhibitor").length,
+      }
+    : null;
+  const clienteFilteredRows = readOnly
+    ? allRows.filter((r) =>
+        clienteTypeFilter === "all" ? true : r.role === clienteTypeFilter,
+      )
+    : allRows;
+  const clientePageSize = 25;
+  const clientePagedRows = readOnly
+    ? clienteFilteredRows.slice((page - 1) * clientePageSize, page * clientePageSize)
+    : allRows;
+  const displayRows = readOnly ? clientePagedRows : allRows;
+  const displayTotal = readOnly ? clienteFilteredRows.length : data?.total ?? 0;
 
   const headers = [
     "Empresa",
@@ -245,6 +271,28 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
       {!readOnly && <UnpublishedExhibitorsPanel />}
       <Card className="p-5">
       <p className="mb-4 text-xs text-muted-foreground">{t("admin.companies.help")}</p>
+      {readOnly && clienteSummary && (
+        <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="rounded-md border border-border bg-card p-3">
+            <p className="text-xs text-muted-foreground">
+              {t("cliente.companies.summary.total")}
+            </p>
+            <p className="text-2xl font-semibold tabular-nums">{clienteSummary.total}</p>
+          </div>
+          <div className="rounded-md border border-border bg-card p-3">
+            <p className="text-xs text-muted-foreground">
+              {t("cliente.companies.summary.visitors")}
+            </p>
+            <p className="text-2xl font-semibold tabular-nums">{clienteSummary.visitors}</p>
+          </div>
+          <div className="rounded-md border border-border bg-card p-3">
+            <p className="text-xs text-muted-foreground">
+              {t("cliente.companies.summary.exhibitors")}
+            </p>
+            <p className="text-2xl font-semibold tabular-nums">{clienteSummary.exhibitors}</p>
+          </div>
+        </div>
+      )}
       <div className="mb-4 flex flex-col gap-2 sm:flex-row">
         <div className="relative flex-1">
           <Search className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" size={14} />
@@ -258,6 +306,24 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
             className="pl-8"
           />
         </div>
+        {readOnly && (
+          <Select
+            value={clienteTypeFilter}
+            onValueChange={(v) => {
+              setPage(1);
+              setClienteTypeFilter(v as ClienteTypeFilter);
+            }}
+          >
+            <SelectTrigger className="w-full sm:w-48">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">{t("cliente.companies.filter.all")}</SelectItem>
+              <SelectItem value="visitor">{t("cliente.companies.filter.visitors")}</SelectItem>
+              <SelectItem value="exhibitor">{t("cliente.companies.filter.exhibitors")}</SelectItem>
+            </SelectContent>
+          </Select>
+        )}
         {!readOnly && <Select
           value={role}
           onValueChange={(v) => {
@@ -359,11 +425,11 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
 
       {isLoading ? (
         <Skeleton className="h-48 w-full" />
-      ) : (data?.rows ?? []).length === 0 ? (
+      ) : displayRows.length === 0 ? (
         <p className="py-8 text-center text-sm text-muted-foreground">{t("admin.companies.empty")}</p>
       ) : (
         <div className="space-y-2">
-          {data!.rows.map((c) => (
+          {displayRows.map((c) => (
             <div
               key={c.id}
               className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border p-3"
@@ -373,10 +439,14 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
                   <span className="font-medium">{c.trade_name}</span>
                   <Badge variant={c.role === "exhibitor" ? "default" : c.role === "cliente" ? "outline" : "secondary"}>
                     {c.role === "exhibitor"
-                      ? t("admin.companies.roleExhibitor")
+                      ? readOnly
+                        ? t("cliente.companies.type.exhibitor")
+                        : t("admin.companies.roleExhibitor")
                       : c.role === "cliente"
                         ? t("admin.companies.roleCliente")
-                        : t("admin.companies.roleVisitor")}
+                        : readOnly
+                          ? t("cliente.companies.type.visitor")
+                          : t("admin.companies.roleVisitor")}
                   </Badge>
                   {!c.confirmed && (
                     <Badge variant="outline" className="text-muted-foreground">
@@ -504,9 +574,10 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
         </div>
       )}
 
-      {data && data.total > 25 && (
+      {((!readOnly && data && data.total > 25) ||
+        (readOnly && displayTotal > clientePageSize)) && (
         <div className="mt-4 flex items-center justify-between text-xs text-muted-foreground">
-          <span>{data.total} empresa(s)</span>
+          <span>{displayTotal} empresa(s)</span>
           <div className="flex gap-1">
             <Button size="sm" variant="ghost" disabled={page === 1} onClick={() => setPage((p) => p - 1)}>
               ‹
@@ -515,7 +586,7 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
             <Button
               size="sm"
               variant="ghost"
-              disabled={page * 25 >= data.total}
+              disabled={page * (readOnly ? clientePageSize : 25) >= displayTotal}
               onClick={() => setPage((p) => p + 1)}
             >
               ›
