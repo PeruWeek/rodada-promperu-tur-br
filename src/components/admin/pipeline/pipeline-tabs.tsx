@@ -106,6 +106,7 @@ function OverviewTab({ isAdmin }: Props) {
         <Kpi label="Cadastros concluídos" value={kpis.kpis.completed} />
         <Kpi label="Cadastros incompletos" value={kpis.kpis.incomplete} />
         <Kpi label="Sem agendamento" value={kpis.kpis.withoutScheduling} />
+        <Kpi label="Com agendamento" value={kpis.kpis.withScheduling ?? 0} />
         <Kpi label="Follow-up pendente" value={kpis.kpis.followUpPending} />
         <Kpi label="Aguardando aprovação" value={kpis.kpis.awaitingApproval} />
       </div>
