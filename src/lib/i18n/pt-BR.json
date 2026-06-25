@@ -794,6 +794,22 @@
         "exhibitors": "Expositores"
       },
       "empty": "Nenhuma empresa para exibir."
+    },
+    "companies": {
+      "summary": {
+        "total": "Total de empresas",
+        "visitors": "Visitantes",
+        "exhibitors": "Expositoras"
+      },
+      "filter": {
+        "all": "Todos",
+        "visitors": "Visitantes",
+        "exhibitors": "Expositoras"
+      },
+      "type": {
+        "visitor": "Visitante",
+        "exhibitor": "Expositora"
+      }
     }
   }
 }
