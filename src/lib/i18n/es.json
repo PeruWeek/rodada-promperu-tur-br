@@ -698,7 +698,17 @@
       "phoneTooShort": "El número informado es inválido o está incompleto.",
       "urlInvalid": "URL inválida (usa https://...).",
       "passwordMismatch": "Las contraseñas no coinciden.",
-      "consentRequired": "Debes aceptar para continuar."
+      "consentRequired": "Debes aceptar para continuar.",
+      "cnpjClaimed": "Este CNPJ ya tiene una cuenta activa."
+    },
+    "cnpjClaimed": {
+      "title": "Este CNPJ ya tiene una cuenta activa",
+      "body": "Si formas parte de esta empresa, solicita acceso al responsable o recupera tu contraseña. Si no sabes quién hizo el registro, contacta al soporte.",
+      "support": "Si no sabes quién hizo el registro, contacta al soporte.",
+      "cta": {
+        "login": "Iniciar sesión",
+        "recover": "Recuperar contraseña"
+      }
     },
     "labels": {
       "whatsappSameAsPhone": "WhatsApp es el mismo del teléfono"
