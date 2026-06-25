@@ -49,6 +49,12 @@ import { resendBuyerWelcome } from "@/lib/email-admin.functions";
 import { staffListRegistrationCompletion } from "@/lib/staff-registration.functions";
 import { CompleteRegistrationDialog } from "@/components/admin/complete-registration-dialog";
 import { hasRole, useProfile } from "@/hooks/use-profile";
+import {
+  bucketGroupFromMeetings,
+  labelForGroup,
+  labelForOperational,
+  operationalStatusFromMeetings,
+} from "@/lib/scheduling-status";
 import { downloadBlob, toCsv } from "@/lib/exports/csv";
 import { downloadXlsx } from "@/lib/exports/xlsx";
 import { buildAgendaPdf } from "@/lib/pdf";
@@ -390,13 +396,31 @@ export function RegistrantsTab({
                       {t("admin.registrants.inactiveBadge")}
                     </Badge>
                   )}
-                  {r.scheduled_meetings_count > 0 && (
-                    <Badge variant="outline">
-                      {t("admin.registrants.meetingsCount", {
-                        count: r.scheduled_meetings_count,
-                      })}
-                    </Badge>
-                  )}
+                  {(() => {
+                    const count = r.scheduled_meetings_count ?? 0;
+                    const group = bucketGroupFromMeetings(count);
+                    const op = operationalStatusFromMeetings(count);
+                    return (
+                      <>
+                        <Badge
+                          variant="outline"
+                          className={
+                            group === "com_agendamento"
+                              ? "border-emerald-500 text-emerald-700 dark:text-emerald-400"
+                              : "border-muted-foreground/40 text-muted-foreground"
+                          }
+                        >
+                          {labelForGroup(group, t)}
+                          {count > 0 ? ` · ${count}` : ""}
+                        </Badge>
+                        {isStaffOrAdmin && op && (
+                          <Badge variant="secondary" className="text-xs">
+                            {labelForOperational(op, t)}
+                          </Badge>
+                        )}
+                      </>
+                    );
+                  })()}
                   {isStaffOrAdmin && completionById[r.profile_id] && (
                     completionById[r.profile_id].status === "incompleto" ? (
                       <Badge variant="outline" className="border-amber-500 text-amber-700 dark:text-amber-400">
