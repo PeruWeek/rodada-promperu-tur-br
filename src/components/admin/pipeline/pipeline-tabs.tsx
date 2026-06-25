@@ -102,7 +102,7 @@ function OverviewTab({ isAdmin }: Props) {
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Kpi label="Total empresas" value={kpis.kpis.total} />
         <Kpi label="Novos no período" value={kpis.kpis.newInPeriod} />
-        <Kpi label="Inscritos confirmados" value={kpis.kpis.confirmedRegistrants} />
+        <Kpi label="Empresas inscritas" value={kpis.kpis.registeredCompanies} />
         <Kpi label="Cadastros concluídos" value={kpis.kpis.completed} />
         <Kpi label="Cadastros incompletos" value={kpis.kpis.incomplete} />
         <Kpi label="Sem agendamento" value={kpis.kpis.withoutScheduling} />
