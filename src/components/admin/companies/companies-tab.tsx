@@ -426,6 +426,23 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
                   <Button size="sm" variant="outline" onClick={() => setEditingId(c.id)}>
                     <Pencil size={14} /> {t("admin.companies.edit")}
                   </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setContactDialogCompany({
+                        id: c.id,
+                        trade_name: c.trade_name,
+                        legal_name: (c as { legal_name?: string | null }).legal_name ?? null,
+                        tax_id: (c as { tax_id?: string | null }).tax_id ?? null,
+                        city: (c as { city?: string | null }).city ?? null,
+                        state_code: (c as { state_code?: string | null }).state_code ?? null,
+                      });
+                      setContactDialogOpen(true);
+                    }}
+                  >
+                    <UserPlus size={14} /> {t("admin.companies.addContact", { defaultValue: "Adicionar contato" })}
+                  </Button>
                   {c.is_active === false && (
                     <>
                       <Button
