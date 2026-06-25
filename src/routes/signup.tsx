@@ -637,6 +637,41 @@ function Step2({ data, set, errors, t }: StepProps) {
           onChange={(e) => set("tax_id", formatCNPJ(e.target.value))} className="mt-1.5" />
         <p className="mt-1 text-xs text-muted-foreground">{t("signup.taxIdHelp")}</p>
         <FieldError msg={errors.tax_id} t={t} />
+        {errors.tax_id === "signup.errors.cnpjClaimed" && (
+          <div className="mt-3 rounded-md border border-amber-300/60 bg-amber-50 p-3 text-sm dark:border-amber-700/50 dark:bg-amber-950/30">
+            <p className="font-medium text-amber-900 dark:text-amber-200">
+              {t("signup.cnpjClaimed.title", {
+                defaultValue: "Este CNPJ já possui uma conta ativa",
+              })}
+            </p>
+            <p className="mt-1 text-amber-800/90 dark:text-amber-200/80">
+              {t("signup.cnpjClaimed.body", {
+                defaultValue:
+                  "Se você faz parte desta empresa, solicite acesso ao responsável ou recupere a senha. Se não souber quem cadastrou, contate o suporte.",
+              })}
+            </p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <Link
+                to="/login"
+                className="inline-flex items-center rounded-md border border-amber-400/70 bg-white px-3 py-1.5 text-xs font-medium text-amber-900 hover:bg-amber-100 dark:bg-amber-900/40 dark:text-amber-100"
+              >
+                {t("signup.cnpjClaimed.cta.login", { defaultValue: "Entrar" })}
+              </Link>
+              <Link
+                to="/forgot-password"
+                className="inline-flex items-center rounded-md border border-amber-400/70 bg-white px-3 py-1.5 text-xs font-medium text-amber-900 hover:bg-amber-100 dark:bg-amber-900/40 dark:text-amber-100"
+              >
+                {t("signup.cnpjClaimed.cta.recover", { defaultValue: "Recuperar senha" })}
+              </Link>
+            </div>
+            <p className="mt-2 text-xs text-amber-800/80 dark:text-amber-200/70">
+              {t("signup.cnpjClaimed.support", {
+                defaultValue:
+                  "Se você não sabe quem cadastrou, entre em contato com o suporte.",
+              })}
+            </p>
+          </div>
+        )}
       </div>
       <div>
         <Label htmlFor="legal_name">{t("signup.legalName")} *</Label>
