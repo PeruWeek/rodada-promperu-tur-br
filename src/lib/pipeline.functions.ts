@@ -209,20 +209,6 @@ export const getPipelineKpis = createServerFn({ method: "POST" })
       (r) => !ineligibleKpi.has(r.primary_profile_id as string),
     );
 
-    // Determine which primary contacts have actually created an account.
-    const primaryIds = Array.from(
-      new Set(rowsFiltered.map((r) => r.primary_profile_id as string | null).filter(Boolean) as string[]),
-    );
-    const { data: confirmedProfs } = primaryIds.length
-      ? await supabaseAdmin
-          .from("profiles")
-          .select("id, auth_user_id")
-          .in("id", primaryIds)
-      : { data: [] as Array<{ id: string; auth_user_id: string | null }> };
-    const confirmedIds = new Set(
-      (confirmedProfs ?? []).filter((p) => !!p.auth_user_id).map((p) => p.id),
-    );
-
     const sinceMs = Date.now() - data.periodDays * 24 * 60 * 60 * 1000;
     const tally = <T extends string>(field: T, source: Array<Record<string, unknown>>) => {
       const m = new Map<string, number>();
@@ -250,7 +236,7 @@ export const getPipelineKpis = createServerFn({ method: "POST" })
     const kpis = {
       total: all.length,
       newInPeriod: recent.length,
-      confirmedRegistrants: all.filter((r) => confirmedIds.has(r.primary_profile_id as string)).length,
+      registeredCompanies: all.filter((r) => ["cadastro_concluido", "aprovado"].includes(r.registration_status as string)).length,
       completed: all.filter((r) => ["cadastro_concluido", "aprovado"].includes(r.registration_status as string)).length,
       incomplete: all.filter((r) => ["nao_iniciado", "em_preenchimento"].includes(r.registration_status as string)).length,
       // count vence: `scheduled_meetings_count = 0` ⇒ sem agendamento.
