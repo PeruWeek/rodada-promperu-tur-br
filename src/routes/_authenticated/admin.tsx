@@ -124,18 +124,12 @@ function AdminPage() {
           <TabsContent value="meetings" className="mt-4"><RegistrantsTab readOnly onlyWithMeetings /></TabsContent>
         </Tabs>
       ) : isStaffOnly ? (
-        <Tabs defaultValue="dashboard" className="mt-6">
+        <Tabs defaultValue="checkin" className="mt-6">
           <TabsList className="flex flex-wrap h-auto">
-            <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
-            <TabsTrigger value="tables">{t("admin.tabs.tables")}</TabsTrigger>
-            <TabsTrigger value="staffAgenda">{t("admin.tabs.staffAgenda")}</TabsTrigger>
             <TabsTrigger value="checkin">{t("admin.tabs.checkin")}</TabsTrigger>
             <TabsTrigger value="companies">{t("admin.tabs.companies")}</TabsTrigger>
             <TabsTrigger value="registrants">{t("admin.tabs.registrants")}</TabsTrigger>
           </TabsList>
-          <TabsContent value="dashboard" className="mt-4"><PipelineDashboard isAdmin={false} /></TabsContent>
-          <TabsContent value="tables" className="mt-4"><TablesTab readOnly /></TabsContent>
-          <TabsContent value="staffAgenda" className="mt-4"><StaffAgendaTab isAdmin={false} /></TabsContent>
           <TabsContent value="checkin" className="mt-4"><CheckinTab /></TabsContent>
           <TabsContent value="companies" className="mt-4"><CompaniesTab readOnly /></TabsContent>
           <TabsContent value="registrants" className="mt-4"><RegistrantsTab defaultRole="visitor" /></TabsContent>
