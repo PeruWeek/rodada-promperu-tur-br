@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { FileSpreadsheet, FileText, Files, Pencil, RotateCcw, Search, Trash2, UserPlus } from "lucide-react";
+import { ArrowLeftRight, FileSpreadsheet, FileText, Files, Pencil, RotateCcw, Search, Trash2, UserPlus } from "lucide-react";
 
 import {
   adminHardDeleteCompany,
@@ -21,6 +21,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AddCompanyContactDialog } from "@/components/admin/companies/add-company-contact-dialog";
+import { ReassignContactDialog } from "@/components/admin/companies/reassign-contact-dialog";
 import {
   Select,
   SelectContent,
@@ -78,6 +79,7 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
       }
   >(null);
   const [contactDialogOpen, setContactDialogOpen] = useState(false);
+  const [reassignDialogOpen, setReassignDialogOpen] = useState(false);
 
   const effectiveRole: RoleFilter = readOnly ? "visitor" : role;
   const effectiveConfirmed: ConfirmedFilter = readOnly ? "yes" : confirmed;
@@ -344,6 +346,15 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
         >
           <UserPlus size={14} /> {t("admin.companies.addContact", { defaultValue: "Adicionar contato" })}
         </Button>
+        {!readOnly && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setReassignDialogOpen(true)}
+          >
+            <ArrowLeftRight size={14} /> Reatribuir contato ativo
+          </Button>
+        )}
       </div>
 
       {isLoading ? (
@@ -588,6 +599,13 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
           setContactDialogOpen(false);
           setContactDialogCompany(null);
         }}
+        onSuccess={() => {
+          void refetch();
+        }}
+      />
+      <ReassignContactDialog
+        open={reassignDialogOpen}
+        onClose={() => setReassignDialogOpen(false)}
         onSuccess={() => {
           void refetch();
         }}
