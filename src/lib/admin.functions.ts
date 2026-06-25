@@ -196,6 +196,7 @@ export const listAdminCompanies = createServerFn({ method: "POST" })
         activeOnly: z.boolean().optional(),
         lunch: z.enum(["all", "yes", "no"]).optional().default("all"),
         status: z.enum(["active", "inactive", "all"]).optional().default("active"),
+        excludeCliente: z.boolean().optional().default(false),
       })
       .parse(input),
   )
@@ -342,6 +343,9 @@ export const listAdminCompanies = createServerFn({ method: "POST" })
 
     let filtered = rows;
     if (data.activeOnly) filtered = filtered.filter((r) => r.hasActiveOwner);
+    // Exclude internal `cliente`-owned companies from cliente-facing views so
+    // the summary buckets (Visitantes + Expositoras) match Total exactly.
+    if (data.excludeCliente) filtered = filtered.filter((r) => r.role !== "cliente");
     if (data.role !== "all") filtered = filtered.filter((r) => r.role === data.role);
     if (data.confirmed === "yes") filtered = filtered.filter((r) => r.confirmed);
     else if (data.confirmed === "no") filtered = filtered.filter((r) => !r.confirmed);

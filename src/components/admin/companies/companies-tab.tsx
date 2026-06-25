@@ -112,6 +112,7 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
           pageSize: readOnly ? 5000 : 25,
           activeOnly: readOnly,
           status: effectiveStatus,
+          excludeCliente: readOnly,
         },
       }),
   });
@@ -162,6 +163,7 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
         pageSize: 5000,
         activeOnly: readOnly,
         status: effectiveStatus,
+        excludeCliente: readOnly,
       },
     });
     return res.rows;
