@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { assertNotCliente } from "@/lib/role-server";
 
 async function sendMeetingEmail(params: {
   templateName: "meeting-confirmation" | "meeting-cancelled";
@@ -48,6 +49,7 @@ export const bookMeeting = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
+    await assertNotCliente(supabaseAdmin, userId);
 
     // Email column is restricted via column-level grants; use admin client for own profile read.
     const { data: profile, error: profErr } = await supabaseAdmin
@@ -170,6 +172,7 @@ export const cancelMeeting = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
     const { userId } = context;
+    await assertNotCliente(supabaseAdmin, userId);
 
     const { data: profile } = await supabaseAdmin
       .from("profiles")
