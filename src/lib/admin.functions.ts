@@ -196,6 +196,7 @@ export const listAdminCompanies = createServerFn({ method: "POST" })
         activeOnly: z.boolean().optional(),
         lunch: z.enum(["all", "yes", "no"]).optional().default("all"),
         status: z.enum(["active", "inactive", "all"]).optional().default("active"),
+        excludeCliente: z.boolean().optional().default(false),
       })
       .parse(input),
   )
