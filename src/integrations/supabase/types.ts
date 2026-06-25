@@ -1614,6 +1614,7 @@ export type Database = {
           consent_data_sharing_at: string | null
           consent_marketing: boolean
           demand_profile: string | null
+          image_authorization: boolean | null
           interests_destinations: string[] | null
           interests_destinations_free: string | null
           interests_segments: string[] | null
@@ -1633,6 +1634,7 @@ export type Database = {
           consent_data_sharing_at?: string | null
           consent_marketing?: boolean
           demand_profile?: string | null
+          image_authorization?: boolean | null
           interests_destinations?: string[] | null
           interests_destinations_free?: string | null
           interests_segments?: string[] | null
@@ -1652,6 +1654,7 @@ export type Database = {
           consent_data_sharing_at?: string | null
           consent_marketing?: boolean
           demand_profile?: string | null
+          image_authorization?: boolean | null
           interests_destinations?: string[] | null
           interests_destinations_free?: string | null
           interests_segments?: string[] | null

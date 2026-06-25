@@ -69,6 +69,7 @@ function ProfilePage() {
   const [vPortPt, setVPortPt] = useState("");
   const [vNotes, setVNotes] = useState("");
   const [vLunch, setVLunch] = useState<"yes" | "no" | "">("");
+  const [vImageAuth, setVImageAuth] = useState<"yes" | "no" | "">("");
   // Exhibitor
   const [eSegments, setESegments] = useState<string[]>([]);
   const [eServices, setEServices] = useState<string[]>([]);
@@ -117,6 +118,13 @@ function ProfilePage() {
         extra.vis.networking_lunch_participation === true
           ? "yes"
           : extra.vis.networking_lunch_participation === false
+            ? "no"
+            : "",
+      );
+      setVImageAuth(
+        extra.vis.image_authorization === true
+          ? "yes"
+          : extra.vis.image_authorization === false
             ? "no"
             : "",
       );
@@ -176,12 +184,25 @@ function ProfilePage() {
       }
 
       if (isVisitor) {
-        // Critério de "signup concluído": `interests_segments >= 1`.
-        // `buyer_types` deixou de ser obrigatório e não bloqueia a conclusão.
-        // Se a row ainda não tem `signup_completed_at` e o mínimo foi
-        // atingido agora, marcamos — sem sobrescrever um carimbo anterior.
-        const meetsMinimum = vSegments.length > 0;
+        // Critério de "signup concluído": `interests_segments >= 1` E
+        // ambas as respostas obrigatórias (almoço + autorização de imagem)
+        // preenchidas. Sem isso, NÃO marcamos signup_completed_at — o
+        // trigger de banco também bloqueia, mas validamos cedo para dar
+        // mensagem clara ao usuário.
         const previouslyCompleted = !!extra?.vis?.signup_completed_at;
+        const hasLunch = vLunch === "yes" || vLunch === "no";
+        const hasImage = vImageAuth === "yes" || vImageAuth === "no";
+        const meetsMinimum = vSegments.length > 0 && hasLunch && hasImage;
+        if (!previouslyCompleted && (hasLunch !== hasImage)) {
+          toast.error(
+            t("profile.lunchAndImageRequired", {
+              defaultValue:
+                "Informe a participação no almoço e a autorização de imagem para concluir o cadastro.",
+            }),
+          );
+          setSaving(false);
+          return;
+        }
         const upsertPayload: Record<string, unknown> = {
           profile_id: profile.id,
           buyer_type: buyerTypes[0] ?? null,
@@ -192,8 +213,11 @@ function ProfilePage() {
           portfolio_pt: vPortPt || null,
           notes: vNotes || null,
         };
-        if (vLunch === "yes" || vLunch === "no") {
+        if (hasLunch) {
           upsertPayload.networking_lunch_participation = vLunch === "yes";
+        }
+        if (hasImage) {
+          upsertPayload.image_authorization = vImageAuth === "yes";
         }
         if (!previouslyCompleted && meetsMinimum) {
           upsertPayload.signup_completed_at = new Date().toISOString();
@@ -359,6 +383,29 @@ function ProfilePage() {
                 <input type="radio" name="profile_networking_lunch" value="no"
                   checked={vLunch === "no"} onChange={() => setVLunch("no")} className="mt-0.5" />
                 <span>{t("signup.networkingLunch.no")}</span>
+              </label>
+            </div>
+          </div>
+          <div className="space-y-2 rounded-md border p-3">
+            <Label>
+              {t("signup.imageAuthorization.label", { defaultValue: "Autorização de uso de imagem" })}
+            </Label>
+            <p className="text-xs text-muted-foreground">
+              {t("signup.imageAuthorization.help", {
+                defaultValue:
+                  "Autorizo o uso da minha imagem (foto e vídeo) capturada durante o evento para fins de divulgação institucional.",
+              })}
+            </p>
+            <div className="mt-1 space-y-2">
+              <label className="flex items-start gap-2 text-sm leading-snug">
+                <input type="radio" name="profile_image_auth" value="yes"
+                  checked={vImageAuth === "yes"} onChange={() => setVImageAuth("yes")} className="mt-0.5" />
+                <span>{t("signup.imageAuthorization.yes", { defaultValue: "Sim, autorizo" })}</span>
+              </label>
+              <label className="flex items-start gap-2 text-sm leading-snug">
+                <input type="radio" name="profile_image_auth" value="no"
+                  checked={vImageAuth === "no"} onChange={() => setVImageAuth("no")} className="mt-0.5" />
+                <span>{t("signup.imageAuthorization.no", { defaultValue: "Não autorizo" })}</span>
               </label>
             </div>
           </div>

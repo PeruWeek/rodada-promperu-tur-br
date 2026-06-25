@@ -14,7 +14,7 @@ export const VISITOR_REQUIRED = {
   profile: ["full_name", "job_title", "whatsapp", "preferred_language"] as const,
   company: ["trade_name", "city", "state_code", "tax_id"] as const,
   // `buyer_types` é opcional: o usuário pode concluir o cadastro sem preencher.
-  visitor: ["networking_lunch_participation", "consent_data_sharing"] as const,
+  visitor: ["networking_lunch_participation", "image_authorization", "consent_data_sharing"] as const,
 };
 
 export const EXHIBITOR_REQUIRED = {
@@ -52,6 +52,7 @@ export type RegistrationDetails = {
     interests_destinations: string[];
     interests_services: string[];
     networking_lunch_participation: boolean | null;
+    image_authorization: boolean | null;
     consent_data_sharing: boolean;
   } | null;
   exhibitor: {
@@ -93,6 +94,8 @@ export function computeMissing(input: {
       // consent must be literally true; networking_lunch_participation must be a boolean.
       if (f === "consent_data_sharing" && val !== true) out.push(`visitor.${f}`);
       else if (f === "networking_lunch_participation" && typeof val !== "boolean")
+        out.push(`visitor.${f}`);
+      else if (f === "image_authorization" && typeof val !== "boolean")
         out.push(`visitor.${f}`);
     }
   } else {
@@ -141,7 +144,7 @@ async function loadDetails(profileId: string): Promise<RegistrationDetails> {
     supabaseAdmin
       .from("visitor_profiles")
       .select(
-        "buyer_types, interests_segments, interests_destinations, interests_services, networking_lunch_participation, consent_data_sharing",
+        "buyer_types, interests_segments, interests_destinations, interests_services, networking_lunch_participation, image_authorization, consent_data_sharing",
       )
       .eq("profile_id", profileId)
       .maybeSingle(),
@@ -177,6 +180,7 @@ async function loadDetails(profileId: string): Promise<RegistrationDetails> {
           interests_destinations: vis?.interests_destinations ?? [],
           interests_services: vis?.interests_services ?? [],
           networking_lunch_participation: vis?.networking_lunch_participation ?? null,
+          image_authorization: vis?.image_authorization ?? null,
           consent_data_sharing: vis?.consent_data_sharing ?? false,
         }
       : null,
@@ -221,7 +225,7 @@ export const staffListRegistrationCompletion = createServerFn({ method: "POST" }
       supabaseAdmin
         .from("visitor_profiles")
         .select(
-          "profile_id, buyer_types, networking_lunch_participation, consent_data_sharing",
+          "profile_id, buyer_types, networking_lunch_participation, image_authorization, consent_data_sharing",
         )
         .in("profile_id", ids),
       supabaseAdmin
@@ -293,6 +297,7 @@ const patchSchema = z.object({
       interests_destinations: z.array(z.string()).optional(),
       interests_services: z.array(z.string()).optional(),
       networking_lunch_participation: z.boolean().optional().nullable(),
+      image_authorization: z.boolean().optional().nullable(),
       consent_data_sharing: z.boolean().optional(),
     })
     .optional(),
