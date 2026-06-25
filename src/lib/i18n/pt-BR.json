@@ -723,7 +723,17 @@
       "phoneTooShort": "O número informado é inválido ou está incompleto.",
       "urlInvalid": "URL inválida (use https://...).",
       "passwordMismatch": "As senhas não coincidem.",
-      "consentRequired": "É necessário aceitar para continuar."
+      "consentRequired": "É necessário aceitar para continuar.",
+      "cnpjClaimed": "Este CNPJ já possui uma conta ativa."
+    },
+    "cnpjClaimed": {
+      "title": "Este CNPJ já possui uma conta ativa",
+      "body": "Se você faz parte desta empresa, solicite acesso ao responsável ou recupere a senha. Se não souber quem cadastrou, contate o suporte.",
+      "support": "Se você não sabe quem cadastrou, entre em contato com o suporte.",
+      "cta": {
+        "login": "Entrar",
+        "recover": "Recuperar senha"
+      }
     },
     "labels": {
       "whatsappSameAsPhone": "WhatsApp é o mesmo do telefone"
