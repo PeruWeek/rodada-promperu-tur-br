@@ -788,6 +788,11 @@
       "search": {
         "placeholder": "Buscar empresa..."
       },
+      "filter": {
+        "all": "Todos",
+        "visitors": "Visitantes",
+        "exhibitors": "Expositores"
+      },
       "empty": "Nenhuma empresa para exibir."
     }
   }
