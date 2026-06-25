@@ -69,10 +69,10 @@ describe("listEventRegistrants — cliente authorization", () => {
 
   it("FAILS LOUDLY if cliente sees any sem_agendamento record (server-side override)", async () => {
     const rows = [
-      pipelineRow({ scheduling_status: "agendado_ok" }),
-      pipelineRow({ scheduling_status: "agendado_parcial" }),
-      pipelineRow({ scheduling_status: "sem_agendamento" }), // must be filtered out
-      pipelineRow({ scheduling_status: "sem_agendamento" }), // must be filtered out
+      pipelineRow({ scheduling_status: "agendado_ok", scheduled_meetings_count: 6 }),
+      pipelineRow({ scheduling_status: "agendado_parcial", scheduled_meetings_count: 2 }),
+      pipelineRow({ scheduling_status: "sem_agendamento", scheduled_meetings_count: 0 }), // must be filtered out
+      pipelineRow({ scheduling_status: "sem_agendamento", scheduled_meetings_count: 0 }), // must be filtered out
     ];
     setupDataset(mock, rows);
 
@@ -88,6 +88,28 @@ describe("listEventRegistrants — cliente authorization", () => {
     expect(result.rows.length).toBe(2);
     // Invariant: zero leak of sem_agendamento for cliente.
     assertNoSemAgendamento(result.rows);
+  });
+
+  it("PATHOLOGICAL: count vence o texto — scheduling_status='agendado_ok' com count=0 NUNCA aparece para cliente", async () => {
+    const rows = [
+      // Texto legado/inconsistente; count real = 0 ⇒ deve ser ocultado.
+      pipelineRow({ scheduling_status: "agendado_ok", scheduled_meetings_count: 0 }),
+      pipelineRow({ scheduling_status: "agendado_parcial", scheduled_meetings_count: 0 }),
+      // Caso válido (count > 0) deve aparecer.
+      pipelineRow({ scheduling_status: "agendado_ok", scheduled_meetings_count: 8 }),
+    ];
+    setupDataset(mock, rows);
+
+    const result = await _listEventRegistrantsImpl(
+      { role: "all" },
+      { userId: CLIENTE_ID, supabase: mock.client },
+    );
+
+    expect(result.rows.length).toBe(1);
+    expect(result.rows[0].scheduled_meetings_count).toBe(8);
+    for (const r of result.rows) {
+      expect(r.scheduled_meetings_count).toBeGreaterThan(0);
+    }
   });
 
   it("admin sees ALL statuses including sem_agendamento", async () => {
