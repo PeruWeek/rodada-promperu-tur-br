@@ -424,6 +424,44 @@ async function annotateProfileMeetingCounts(
   }
 }
 
+/**
+ * Populates `networking_lunch_participation` on visitor rows by fetching
+ * `visitor_profiles.networking_lunch_participation` for the relevant
+ * profile ids. Single source of truth for "Almoço de networking" across
+ * Inscritos and Visão Geral exports — same field used by the Empresas tab
+ * (`src/lib/admin.functions.ts`).
+ */
+async function annotateLunchParticipation(
+  supabase: any,
+  rows: RegistrantRow[],
+) {
+  if (rows.length === 0) return;
+  const visitorIds = Array.from(
+    new Set(
+      rows
+        .filter((r) => r.role === "visitor")
+        .map((r) => r.profile_id)
+        .filter(Boolean) as string[],
+    ),
+  );
+  if (visitorIds.length === 0) return;
+  const { data } = await supabase
+    .from("visitor_profiles")
+    .select("profile_id, networking_lunch_participation")
+    .in("profile_id", visitorIds);
+  const byProfile = new Map<string, boolean | null>();
+  for (const v of (data ?? []) as Array<{
+    profile_id: string;
+    networking_lunch_participation: boolean | null;
+  }>) {
+    byProfile.set(v.profile_id, v.networking_lunch_participation ?? null);
+  }
+  for (const r of rows) {
+    if (r.role !== "visitor") continue;
+    r.networking_lunch_participation = byProfile.get(r.profile_id) ?? null;
+  }
+}
+
 export const listEventRegistrants = createServerFn({ method: "POST" })
   .inputValidator((input) =>
     z
