@@ -343,6 +343,22 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
             </SelectContent>
           </Select>
         )}
+        <Select
+          value={schedulingFilter}
+          onValueChange={(v) => {
+            setPage(1);
+            setSchedulingFilter(v as SchedulingFilter);
+          }}
+        >
+          <SelectTrigger className="w-full sm:w-56">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Agendamento: todos</SelectItem>
+            <SelectItem value="scheduled">Já agendaram</SelectItem>
+            <SelectItem value="not_scheduled">Ainda não agendaram</SelectItem>
+          </SelectContent>
+        </Select>
         {!readOnly && <Select
           value={role}
           onValueChange={(v) => {
