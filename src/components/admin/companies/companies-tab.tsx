@@ -48,6 +48,7 @@ type ConfirmedFilter = "all" | "yes" | "no";
 type LunchFilter = "all" | "yes" | "no";
 type StatusFilter = "active" | "inactive" | "all";
 type ClienteTypeFilter = "all" | "visitor" | "exhibitor";
+type SchedulingFilter = "all" | "scheduled" | "not_scheduled";
 
 // Centralized filter used by the table AND every export (XLSX/CSV/PDF) so the
 // active type selector always matches the exported dataset. Classification is
@@ -73,6 +74,7 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
   const [status, setStatus] = useState<StatusFilter>(readOnly ? "active" : "all");
   const [page, setPage] = useState(1);
   const [clienteTypeFilter, setClienteTypeFilter] = useState<ClienteTypeFilter>("all");
+  const [schedulingFilter, setSchedulingFilter] = useState<SchedulingFilter>("all");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [exporting, setExporting] = useState<null | "xlsx" | "csv" | "pdf">(null);
   const [savingLunchId, setSavingLunchId] = useState<string | null>(null);
@@ -111,6 +113,7 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
       effectiveStatus,
       page,
       readOnly,
+      schedulingFilter,
     ],
     queryFn: () =>
       listFn({
@@ -124,6 +127,7 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
           activeOnly: readOnly,
           status: effectiveStatus,
           excludeCliente: readOnly,
+          scheduling: schedulingFilter,
         },
       }),
   });
@@ -173,6 +177,7 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
         activeOnly: readOnly,
         status: effectiveStatus,
         excludeCliente: readOnly,
+        scheduling: schedulingFilter,
       },
     });
     // In readOnly (cliente) mode the server returns the full universe and the
