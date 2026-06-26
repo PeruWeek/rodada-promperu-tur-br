@@ -533,12 +533,14 @@ export function RegistrantsTab({
                   size="sm"
                   variant="outline"
                   disabled={agendaLoadingId === r.profile_id}
-                  onClick={() => downloadAgendaPdf(r)}
+                  onClick={() => (readOnly ? downloadCompanyAgendaPdf(r) : downloadAgendaPdf(r))}
                 >
                   <Download size={14} />{" "}
                   {agendaLoadingId === r.profile_id
                     ? t("common.loading")
-                    : t("admin.registrants.downloadAgenda")}
+                    : readOnly
+                      ? t("admin.registrants.downloadCompanyAgenda")
+                      : t("admin.registrants.downloadAgenda")}
                 </Button>
                 {isStaffOrAdmin && r.auth_user_id && (
                   <Button
