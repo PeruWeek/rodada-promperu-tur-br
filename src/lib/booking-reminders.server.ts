@@ -255,13 +255,39 @@ export async function runBookingReminders(
       continue;
     }
     const hist = historyByProfile.get(pid);
+    const language = (p.preferred_language as string | null) === "es" ? "es" : "pt-BR";
+    const dayKey = dayBucketUTC();
     if (hist) {
       if (hist.count >= settings.max_reminders_per_event) {
         summary.skipped_limit += 1;
+        await supabaseAdmin.from("booking_reminder_log").insert({
+          event_id: eventId,
+          profile_id: pid,
+          recipient_email: p.email as string,
+          reminder_type: "booking-reminder",
+          idempotency_key: `skip-limit-${eventId}-${pid}-${dayKey}`,
+          status: "skipped",
+          mode: options.mode,
+          language,
+          skip_reason: "max_reminders_reached",
+          metadata: { mode: options.mode, language, reason: "max_reminders_reached" },
+        });
         continue;
       }
       if (nowTs - hist.lastSent < minIntervalMs) {
         summary.skipped_interval += 1;
+        await supabaseAdmin.from("booking_reminder_log").insert({
+          event_id: eventId,
+          profile_id: pid,
+          recipient_email: p.email as string,
+          reminder_type: "booking-reminder",
+          idempotency_key: `skip-interval-${eventId}-${pid}-${dayKey}`,
+          status: "skipped",
+          mode: options.mode,
+          language,
+          skip_reason: "min_interval_not_elapsed",
+          metadata: { mode: options.mode, language, reason: "min_interval_not_elapsed" },
+        });
         continue;
       }
     }
@@ -271,8 +297,6 @@ export async function runBookingReminders(
 
     const fullName = (p.full_name as string | null) ?? "";
     const firstName = fullName.trim().split(/\s+/)[0] ?? "";
-    const language = (p.preferred_language as string | null) === "es" ? "es" : "pt-BR";
-    const dayKey = dayBucketUTC();
     const idempotencyKey = `booking-reminder-${eventId}-${pid}-${dayKey}`;
 
     // Pre-insert log row to lock idempotency BEFORE send. UNIQUE on idempotency_key
@@ -285,6 +309,9 @@ export async function runBookingReminders(
         recipient_email: p.email as string,
         reminder_type: "booking-reminder",
         idempotency_key: idempotencyKey,
+        status: "queued",
+        mode: options.mode,
+        language,
         metadata: { mode: options.mode, language },
       });
     if (logErr) {
@@ -309,27 +336,33 @@ export async function runBookingReminders(
       });
       if (result.status >= 200 && result.status < 300) {
         summary.sent += 1;
+        await supabaseAdmin
+          .from("booking_reminder_log")
+          .update({ status: "sent" })
+          .eq("idempotency_key", idempotencyKey);
       } else {
         summary.errors += 1;
         summary.error_details!.push({
           profile_id: pid,
           reason: `send_failed_${result.status}`,
         });
-        // Roll back the log row so future runs can retry on the next day boundary.
+        // Mark as error and keep row for operator visibility. Day-level
+        // idempotency still blocks retries within the same day.
         await supabaseAdmin
           .from("booking_reminder_log")
-          .delete()
+          .update({ status: "error", error_reason: `send_failed_${result.status}` })
           .eq("idempotency_key", idempotencyKey);
       }
     } catch (err) {
       summary.errors += 1;
+      const reason = err instanceof Error ? err.message : String(err);
       summary.error_details!.push({
         profile_id: pid,
-        reason: err instanceof Error ? err.message : String(err),
+        reason,
       });
       await supabaseAdmin
         .from("booking_reminder_log")
-        .delete()
+        .update({ status: "error", error_reason: reason })
         .eq("idempotency_key", idempotencyKey);
     }
   }

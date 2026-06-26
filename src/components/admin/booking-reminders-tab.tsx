@@ -14,17 +14,67 @@ import {
   getBookingReminderSettings,
   updateBookingReminderSettings,
   runBookingRemindersNow,
+  listBookingReminderHistory,
+  listBookingReminderEvents,
 } from "@/lib/booking-reminders.functions";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export function BookingRemindersTab() {
   const qc = useQueryClient();
   const getFn = useServerFn(getBookingReminderSettings);
   const updateFn = useServerFn(updateBookingReminderSettings);
   const runFn = useServerFn(runBookingRemindersNow);
+  const historyFn = useServerFn(listBookingReminderHistory);
+  const eventsFn = useServerFn(listBookingReminderEvents);
 
   const { data, isLoading } = useQuery({
     queryKey: ["booking-reminder-settings"],
     queryFn: () => getFn(),
+  });
+
+  const { data: eventsList } = useQuery({
+    queryKey: ["booking-reminder-events"],
+    queryFn: () => eventsFn(),
+  });
+
+  const [filters, setFilters] = useState({
+    from: "",
+    to: "",
+    eventId: "",
+    status: "",
+    mode: "",
+    query: "",
+  });
+
+  const historyQuery = useQuery({
+    queryKey: ["booking-reminder-history", filters],
+    queryFn: () =>
+      historyFn({
+        data: {
+          from: filters.from ? new Date(filters.from).toISOString() : undefined,
+          to: filters.to ? new Date(filters.to).toISOString() : undefined,
+          eventId: filters.eventId || undefined,
+          status: (filters.status || undefined) as any,
+          mode: (filters.mode || undefined) as any,
+          query: filters.query.trim() || undefined,
+          limit: 200,
+        },
+      }),
   });
 
   const [form, setForm] = useState({
@@ -75,6 +125,7 @@ export function BookingRemindersTab() {
         `Execução concluída — enviados: ${s.sent}, elegíveis: ${s.eligible}, avaliados: ${s.evaluated}`,
       );
       qc.invalidateQueries({ queryKey: ["booking-reminder-settings"] });
+      qc.invalidateQueries({ queryKey: ["booking-reminder-history"] });
     },
     onError: (e: any) => toast.error(e?.message ?? "Falha ao executar"),
   });
@@ -206,6 +257,140 @@ export function BookingRemindersTab() {
         ) : (
           <p className="text-sm text-muted-foreground">Nenhuma execução registrada ainda.</p>
         )}
+      </Card>
+
+      <Card className="p-4 space-y-4">
+        <div>
+          <h4 className="font-semibold">Histórico de lembretes</h4>
+          <p className="text-sm text-muted-foreground">
+            Envios, skips e erros registrados pela rotina (automática e manual).
+          </p>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-6 gap-2 text-sm">
+          <div>
+            <Label>De</Label>
+            <Input
+              type="datetime-local"
+              value={filters.from}
+              onChange={(e) => setFilters((f) => ({ ...f, from: e.target.value }))}
+            />
+          </div>
+          <div>
+            <Label>Até</Label>
+            <Input
+              type="datetime-local"
+              value={filters.to}
+              onChange={(e) => setFilters((f) => ({ ...f, to: e.target.value }))}
+            />
+          </div>
+          <div>
+            <Label>Evento</Label>
+            <Select
+              value={filters.eventId || "all"}
+              onValueChange={(v) =>
+                setFilters((f) => ({ ...f, eventId: v === "all" ? "" : v }))
+              }
+            >
+              <SelectTrigger><SelectValue placeholder="Todos" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos</SelectItem>
+                {(eventsList ?? []).map((e: any) => (
+                  <SelectItem key={e.id} value={e.id}>{e.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label>Status</Label>
+            <Select
+              value={filters.status || "all"}
+              onValueChange={(v) =>
+                setFilters((f) => ({ ...f, status: v === "all" ? "" : v }))
+              }
+            >
+              <SelectTrigger><SelectValue placeholder="Todos" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos</SelectItem>
+                <SelectItem value="sent">Enviado</SelectItem>
+                <SelectItem value="queued">Em fila</SelectItem>
+                <SelectItem value="skipped">Skipped</SelectItem>
+                <SelectItem value="error">Erro</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label>Modo</Label>
+            <Select
+              value={filters.mode || "all"}
+              onValueChange={(v) =>
+                setFilters((f) => ({ ...f, mode: v === "all" ? "" : v }))
+              }
+            >
+              <SelectTrigger><SelectValue placeholder="Todos" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos</SelectItem>
+                <SelectItem value="auto">Automático</SelectItem>
+                <SelectItem value="manual">Manual</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label>Usuário / e-mail</Label>
+            <Input
+              placeholder="email contém..."
+              value={filters.query}
+              onChange={(e) => setFilters((f) => ({ ...f, query: e.target.value }))}
+            />
+          </div>
+        </div>
+
+        <div className="overflow-auto max-h-[600px]">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Data/hora</TableHead>
+                <TableHead>Evento</TableHead>
+                <TableHead>Usuário</TableHead>
+                <TableHead>E-mail</TableHead>
+                <TableHead>Idioma</TableHead>
+                <TableHead>Modo</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Detalhe</TableHead>
+                <TableHead className="text-right">Enviados</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {historyQuery.isLoading ? (
+                <TableRow><TableCell colSpan={9}><Skeleton className="h-24 w-full" /></TableCell></TableRow>
+              ) : (historyQuery.data?.items ?? []).length === 0 ? (
+                <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground py-6">Nenhum registro</TableCell></TableRow>
+              ) : (
+                (historyQuery.data?.items ?? []).map((r: any) => (
+                  <TableRow key={r.id}>
+                    <TableCell>{new Date(r.sent_at).toLocaleString("pt-BR")}</TableCell>
+                    <TableCell className="max-w-[140px] truncate">{r.event_name ?? r.event_id}</TableCell>
+                    <TableCell className="max-w-[160px] truncate">{r.user_name ?? "—"}</TableCell>
+                    <TableCell className="max-w-[200px] truncate">{r.recipient_email}</TableCell>
+                    <TableCell>{r.language ?? "—"}</TableCell>
+                    <TableCell>{r.mode === "manual" ? "Manual" : r.mode === "auto" ? "Auto" : "—"}</TableCell>
+                    <TableCell>
+                      <Badge variant={
+                        r.status === "sent" ? "default"
+                        : r.status === "error" ? "destructive"
+                        : r.status === "skipped" ? "secondary"
+                        : "outline"
+                      }>{r.status}</Badge>
+                    </TableCell>
+                    <TableCell className="max-w-[220px] truncate text-xs text-muted-foreground">
+                      {r.error_reason ?? r.skip_reason ?? "—"}
+                    </TableCell>
+                    <TableCell className="text-right">{r.sent_count_for_user_event}</TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
       </Card>
     </div>
   );

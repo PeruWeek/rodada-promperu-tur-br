@@ -69,3 +69,107 @@ export const runBookingRemindersNow = createServerFn({ method: "POST" })
     });
     return summary;
   });
+
+const HistorySchema = z.object({
+  from: z.string().datetime().optional(),
+  to: z.string().datetime().optional(),
+  eventId: z.string().uuid().optional(),
+  status: z.enum(["sent", "queued", "skipped", "error"]).optional(),
+  mode: z.enum(["auto", "manual"]).optional(),
+  query: z.string().max(120).optional(),
+  limit: z.number().int().min(1).max(500).optional(),
+});
+
+export const listBookingReminderHistory = createServerFn({ method: "POST" })
+  .inputValidator((i) => HistorySchema.parse(i ?? {}))
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    let q = supabaseAdmin
+      .from("booking_reminder_log")
+      .select(
+        "id, event_id, profile_id, recipient_email, sent_at, status, mode, language, error_reason, skip_reason, idempotency_key",
+      )
+      .order("sent_at", { ascending: false })
+      .limit(data.limit ?? 200);
+
+    if (data.from) q = q.gte("sent_at", data.from);
+    if (data.to) q = q.lte("sent_at", data.to);
+    if (data.eventId) q = q.eq("event_id", data.eventId);
+    if (data.status) q = q.eq("status", data.status);
+    if (data.mode) q = q.eq("mode", data.mode);
+    if (data.query) q = q.ilike("recipient_email", `%${data.query}%`);
+
+    const { data: rows, error } = await q;
+    if (error) throw new Error(error.message);
+
+    const profileIds = Array.from(
+      new Set((rows ?? []).map((r) => r.profile_id).filter(Boolean) as string[]),
+    );
+    const eventIds = Array.from(
+      new Set((rows ?? []).map((r) => r.event_id).filter(Boolean) as string[]),
+    );
+
+    const [{ data: profiles }, { data: events }] = await Promise.all([
+      profileIds.length
+        ? supabaseAdmin.from("profiles").select("id, full_name, email").in("id", profileIds)
+        : Promise.resolve({ data: [] as any[] }),
+      eventIds.length
+        ? supabaseAdmin.from("events").select("id, name").in("id", eventIds)
+        : Promise.resolve({ data: [] as any[] }),
+    ]);
+    const profileMap = new Map((profiles ?? []).map((p) => [p.id, p]));
+    const eventMap = new Map((events ?? []).map((e) => [e.id, e]));
+
+    // Count sent reminders per (profile, event) across the whole log
+    const sentCount = new Map<string, number>();
+    if (profileIds.length && eventIds.length) {
+      const { data: sentRows } = await supabaseAdmin
+        .from("booking_reminder_log")
+        .select("profile_id, event_id")
+        .eq("status", "sent")
+        .in("profile_id", profileIds)
+        .in("event_id", eventIds);
+      for (const r of sentRows ?? []) {
+        const k = `${r.profile_id}::${r.event_id}`;
+        sentCount.set(k, (sentCount.get(k) ?? 0) + 1);
+      }
+    }
+
+    const items = (rows ?? []).map((r) => {
+      const p = r.profile_id ? profileMap.get(r.profile_id) : null;
+      const ev = r.event_id ? eventMap.get(r.event_id) : null;
+      return {
+        id: r.id,
+        sent_at: r.sent_at,
+        event_id: r.event_id,
+        event_name: ev?.name ?? null,
+        profile_id: r.profile_id,
+        user_name: p?.full_name ?? null,
+        recipient_email: r.recipient_email,
+        language: r.language ?? null,
+        mode: r.mode ?? null,
+        status: r.status ?? "sent",
+        skip_reason: r.skip_reason ?? null,
+        error_reason: r.error_reason ?? null,
+        sent_count_for_user_event:
+          sentCount.get(`${r.profile_id}::${r.event_id}`) ?? 0,
+      };
+    });
+
+    return { items, eventsAvailable: events ?? [] };
+  });
+
+export const listBookingReminderEvents = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await assertAdmin(context.userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data } = await supabaseAdmin
+      .from("events")
+      .select("id, name")
+      .order("created_at", { ascending: false });
+    return data ?? [];
+  });

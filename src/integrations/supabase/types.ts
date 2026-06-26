@@ -148,36 +148,51 @@ export type Database = {
       booking_reminder_log: {
         Row: {
           created_at: string
+          error_reason: string | null
           event_id: string
           id: string
           idempotency_key: string
+          language: string | null
           metadata: Json
+          mode: string | null
           profile_id: string
           recipient_email: string
           reminder_type: string
           sent_at: string
+          skip_reason: string | null
+          status: string
         }
         Insert: {
           created_at?: string
+          error_reason?: string | null
           event_id: string
           id?: string
           idempotency_key: string
+          language?: string | null
           metadata?: Json
+          mode?: string | null
           profile_id: string
           recipient_email: string
           reminder_type?: string
           sent_at?: string
+          skip_reason?: string | null
+          status?: string
         }
         Update: {
           created_at?: string
+          error_reason?: string | null
           event_id?: string
           id?: string
           idempotency_key?: string
+          language?: string | null
           metadata?: Json
+          mode?: string | null
           profile_id?: string
           recipient_email?: string
           reminder_type?: string
           sent_at?: string
+          skip_reason?: string | null
+          status?: string
         }
         Relationships: [
           {
