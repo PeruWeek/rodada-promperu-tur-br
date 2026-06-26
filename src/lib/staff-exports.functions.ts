@@ -61,6 +61,7 @@ export type ListEventRegistrantsInput = {
   role: "all" | "exhibitor" | "visitor";
   search?: string;
   schedulingStatuses?: Array<(typeof SCHEDULING_STATUS_VALUES)[number] | string>;
+  sort?: "name" | "recent";
 };
 
 /**
