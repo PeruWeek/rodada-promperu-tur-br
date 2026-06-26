@@ -300,6 +300,8 @@ export async function runBookingReminders(
       }
       if (nowTs - hist.lastSent < minIntervalMs) {
         summary.skipped_interval += 1;
+        const lastSentIso = new Date(hist.lastSent).toISOString();
+        const nextEligibleIso = new Date(hist.lastSent + minIntervalMs).toISOString();
         await supabaseAdmin.from("booking_reminder_log").insert({
           run_id: runId,
           event_id: eventId,
@@ -311,7 +313,15 @@ export async function runBookingReminders(
           mode: options.mode,
           language,
           skip_reason: "min_interval_not_elapsed",
-          metadata: { run_id: runId, mode: options.mode, language, reason: "min_interval_not_elapsed" },
+          metadata: {
+            run_id: runId,
+            mode: options.mode,
+            language,
+            reason: "min_interval_not_elapsed",
+            last_sent_at: lastSentIso,
+            min_interval_hours: settings.min_interval_hours,
+            next_eligible_at: nextEligibleIso,
+          },
         });
         continue;
       }
