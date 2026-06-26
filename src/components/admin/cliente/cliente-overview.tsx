@@ -30,6 +30,7 @@ import {
   computeClienteKpis,
   computeClienteTypeBreakdown,
   formatLocation,
+  dedupeByCompany,
   type ClienteOverviewRow,
 } from "@/lib/cliente-overview";
 import { listClienteOverviewBase, type RegistrantRow } from "@/lib/staff-exports.functions";
@@ -122,6 +123,16 @@ export function ClienteOverview() {
         (a.company_trade_name ?? "").localeCompare(b.company_trade_name ?? ""),
       );
   }, [rows, search, status, typeFilter]);
+
+  // Per-profile expansion (`filtered`) drives EXPORTS only — XLSX/PDF must
+  // list every contact of a company (e.g. COPASTUR has 2 buyers).
+  // KPIs, badge counter and the on-screen table all talk about EMPRESAS,
+  // so they consume the deduped-by-company view. Single source of truth:
+  // `dedupeByCompany` in `src/lib/cliente-overview.ts`.
+  const filteredCompanies = useMemo(
+    () => dedupeByCompany(filtered as ClienteOverviewRow[]) as typeof filtered,
+    [filtered],
+  );
 
   const exportHeaders = [
     "Nome Fantasia",
@@ -311,8 +322,8 @@ export function ClienteOverview() {
                 </SelectContent>
               </Select>
               <Badge variant="secondary" className="h-9 px-3">
-                {filtered.length}{" "}
-                {filtered.length === 1 ? "empresa" : "empresas"}
+                {filteredCompanies.length}{" "}
+                {filteredCompanies.length === 1 ? "empresa" : "empresas"}
               </Badge>
             </>
           )}
