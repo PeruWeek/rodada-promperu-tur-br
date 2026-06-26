@@ -37,6 +37,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   getParticipantAgenda,
+  getCompanyAgenda,
   listEventRegistrants,
   listBulkAgendas,
   type RegistrantRow,
@@ -57,7 +58,7 @@ import {
 } from "@/lib/scheduling-status";
 import { downloadBlob, toCsv } from "@/lib/exports/csv";
 import { downloadXlsx } from "@/lib/exports/xlsx";
-import { buildAgendaPdf } from "@/lib/pdf";
+import { buildAgendaPdf, buildCompanyAgendaPdf } from "@/lib/pdf";
 import { buildConsolidatedAgendaPdf, downloadAgendaZip } from "@/lib/exports/bulk-agenda";
 
 type RoleFilter = "all" | "exhibitor" | "visitor";
@@ -138,6 +139,7 @@ export function RegistrantsTab({
   const isStaffOrAdmin = hasRole(me?.roles, "admin", "staff") && !readOnly;
   const listFn = useServerFn(listEventRegistrants);
   const agendaFn = useServerFn(getParticipantAgenda);
+  const companyAgendaFn = useServerFn(getCompanyAgenda);
   const bulkFn = useServerFn(listBulkAgendas);
   const updateProfileFn = useServerFn(adminUpdateUserProfile);
   const updateEmailFn = useServerFn(adminUpdateUserEmail);
@@ -274,6 +276,45 @@ export function RegistrantsTab({
       });
       const safe = (s: string) => s.replace(/[^a-z0-9-_]+/gi, "_").slice(0, 80);
       doc.save(`agenda-${safe(r.full_name)}.pdf`);
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setAgendaLoadingId(null);
+    }
+  };
+
+  /**
+   * Cliente download: consolidated company agenda.
+   *
+   * Root cause of the prior bug: this flow was reusing `downloadAgendaPdf`,
+   * which exports a single profile's slice. For companies with multiple
+   * contacts (e.g. COPASTUR — Naline 9, wellika 11), that surfaced only
+   * one contact's meetings, not the company's 20. We now hit
+   * `getCompanyAgenda` which loads every active contact of the company.
+   */
+  const downloadCompanyAgendaPdf = async (r: RegistrantRow) => {
+    setAgendaLoadingId(r.profile_id);
+    try {
+      const res = await companyAgendaFn({ data: { companyId: r.company_id } });
+      if (!res.rows || res.rows.length === 0) {
+        toast.info(t("admin.registrants.noAgenda"));
+        return;
+      }
+      const doc = buildCompanyAgendaPdf({
+        title: t("agenda.companyPdfTitle"),
+        subtitle: t("common.appName"),
+        companyName: res.companyName ?? r.company_trade_name,
+        rows: res.rows,
+        generatedLabel: t("agenda.pdfGenerated", {
+          date: new Date().toLocaleString(i18n.language === "es" ? "es" : "pt-BR"),
+        }),
+        totalLabel: t("agenda.companyPdfTotal", {
+          meetings: res.rows.length,
+          contacts: res.contactCount,
+        }),
+      });
+      const safe = (s: string) => s.replace(/[^a-z0-9-_]+/gi, "_").slice(0, 80);
+      doc.save(`agenda-empresa-${safe(res.companyName ?? r.company_trade_name)}.pdf`);
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
