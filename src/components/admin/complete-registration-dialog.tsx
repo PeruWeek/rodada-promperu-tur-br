@@ -31,23 +31,12 @@ import {
   staffGetRegistrationDetails,
   type RegistrationDetails,
 } from "@/lib/staff-registration.functions";
+import {
+  REGISTRATION_FIELD_LABEL,
+  computeMissing as computeMissingCentral,
+} from "@/lib/registration-requirements";
 
-const MISSING_LABEL: Record<string, string> = {
-  "profile.full_name": "Nome do contato",
-  "profile.job_title": "Cargo",
-  "profile.whatsapp": "WhatsApp",
-  "profile.preferred_language": "Idioma preferido",
-  "company.trade_name": "Nome fantasia",
-  "company.tax_id": "CNPJ",
-  "company.city": "Cidade",
-  "company.state_code": "UF",
-  "visitor.buyer_types": "Tipo de comprador",
-  "visitor.networking_lunch_participation": "Almoço networking",
-  "visitor.image_authorization": "Autorização de imagem",
-  "visitor.consent_data_sharing": "Consentimento de dados",
-  "exhibitor.segments": "Segmentos",
-  "exhibitor.services": "Serviços",
-};
+const MISSING_LABEL = REGISTRATION_FIELD_LABEL;
 
 function labelFor(field: string): string {
   return MISSING_LABEL[field] ?? field;
@@ -97,35 +86,14 @@ export function CompleteRegistrationDialog({
 
   const liveMissing = useMemo(() => {
     if (!details || !form) return details?.missing ?? [];
-    // Recompute client-side for instant feedback using same rules
-    const missing: string[] = [];
-    const isBlank = (v: unknown) =>
-      v === null || v === undefined || (typeof v === "string" && v.trim() === "") ||
-      (Array.isArray(v) && v.length === 0);
-    const REQ_PROFILE = ["full_name", "job_title", "whatsapp", "preferred_language"];
-    REQ_PROFILE.forEach((f) => {
-      if (isBlank((form.profile as Record<string, unknown>)[f])) missing.push(`profile.${f}`);
+    // Recalcula com a MESMA regra do backend / RPC / trigger.
+    return computeMissingCentral({
+      kind: details.kind,
+      profile: form.profile as Record<string, unknown>,
+      company: form.company as Record<string, unknown>,
+      visitor: form.visitor as Record<string, unknown> | null,
+      exhibitor: form.exhibitor as Record<string, unknown> | null,
     });
-    const REQ_COMP = details.kind === "visitor"
-      ? ["trade_name", "city", "state_code", "tax_id"]
-      : ["trade_name", "city"];
-    REQ_COMP.forEach((f) => {
-      if (isBlank((form.company as Record<string, unknown>)[f])) missing.push(`company.${f}`);
-    });
-    if (details.kind === "visitor" && form.visitor) {
-      if (typeof form.visitor.networking_lunch_participation !== "boolean")
-        missing.push("visitor.networking_lunch_participation");
-      if (typeof form.visitor.image_authorization !== "boolean")
-        missing.push("visitor.image_authorization");
-      if (form.visitor.consent_data_sharing !== true) missing.push("visitor.consent_data_sharing");
-    }
-    if (details.kind === "exhibitor" && form.exhibitor) {
-      if (!form.exhibitor.segments || form.exhibitor.segments.length === 0)
-        missing.push("exhibitor.segments");
-      if (!form.exhibitor.services || form.exhibitor.services.length === 0)
-        missing.push("exhibitor.services");
-    }
-    return missing;
   }, [details, form]);
 
   const saveMut = useMutation({

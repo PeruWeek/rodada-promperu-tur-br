@@ -18,6 +18,10 @@ import { MultiSelectChips } from "@/components/multi-select-chips";
 import { COUNTRIES } from "@/lib/taxonomy";
 import { trackMauticEvent } from "@/lib/mautic";
 import { useAuth } from "@/hooks/use-auth";
+import {
+  computeMissing as computeRegistrationMissing,
+  labelForRequirement,
+} from "@/lib/registration-requirements";
 
 export const Route = createFileRoute("/_authenticated/profile")({
   component: ProfilePage,
@@ -184,25 +188,14 @@ function ProfilePage() {
       }
 
       if (isVisitor) {
-        // Critério de "signup concluído": `interests_segments >= 1` E
-        // ambas as respostas obrigatórias (almoço + autorização de imagem)
-        // preenchidas. Sem isso, NÃO marcamos signup_completed_at — o
-        // trigger de banco também bloqueia, mas validamos cedo para dar
-        // mensagem clara ao usuário.
+        // Critério ÚNICO de "signup concluído" vem de
+        // `registration-requirements.ts` (mesmo usado pelo modal staff,
+        // pela RPC `complete_buyer_signup` e pelo trigger). Validamos
+        // contra o estado MESCLADO (DB + edição atual) para dar mensagem
+        // explícita antes do round-trip no banco.
         const previouslyCompleted = !!extra?.vis?.signup_completed_at;
         const hasLunch = vLunch === "yes" || vLunch === "no";
         const hasImage = vImageAuth === "yes" || vImageAuth === "no";
-        const meetsMinimum = vSegments.length > 0 && hasLunch && hasImage;
-        if (!previouslyCompleted && (hasLunch !== hasImage)) {
-          toast.error(
-            t("profile.lunchAndImageRequired", {
-              defaultValue:
-                "Informe a participação no almoço e a autorização de imagem para concluir o cadastro.",
-            }),
-          );
-          setSaving(false);
-          return;
-        }
         const upsertPayload: Record<string, unknown> = {
           profile_id: profile.id,
           buyer_type: buyerTypes[0] ?? null,
@@ -219,8 +212,41 @@ function ProfilePage() {
         if (hasImage) {
           upsertPayload.image_authorization = vImageAuth === "yes";
         }
-        if (!previouslyCompleted && meetsMinimum) {
-          upsertPayload.signup_completed_at = new Date().toISOString();
+        if (!previouslyCompleted) {
+          const co = (extra?.company ?? {}) as Record<string, unknown>;
+          const missing = computeRegistrationMissing({
+            kind: "visitor",
+            profile: {
+              full_name: fullName,
+              job_title: (profile as unknown as { job_title?: string }).job_title ?? null,
+              whatsapp: whatsapp || (profile as unknown as { whatsapp?: string }).whatsapp || null,
+              preferred_language: prefLang,
+            },
+            company: {
+              trade_name: trade,
+              city: city,
+              state_code: co.state_code,
+              tax_id: co.tax_id,
+            },
+            visitor: {
+              networking_lunch_participation: hasLunch ? vLunch === "yes" : null,
+              image_authorization: hasImage ? vImageAuth === "yes" : null,
+              consent_data_sharing: extra?.vis?.consent_data_sharing ?? false,
+            },
+          });
+          if (missing.length === 0) {
+            upsertPayload.signup_completed_at = new Date().toISOString();
+          } else {
+            // Não bloqueia o save dos campos parciais — apenas avisa por que
+            // o cadastro continua pendente.
+            console.info("[profile] cadastro permanece pendente", { missing });
+            toast.message(
+              t("profile.stillPending", {
+                defaultValue: "Cadastro ainda pendente: {{fields}}",
+                fields: missing.map(labelForRequirement).join(", "),
+              }),
+            );
+          }
         }
         const { error: vErr } = await supabase
           .from("visitor_profiles")
@@ -256,10 +282,20 @@ function ProfilePage() {
       // `trackMauticEvent` faz dedupe por user.id → saves subsequentes
       // não duplicam o evento.
       if (isVisitor && !isExhibitor && user) {
+        // Dispara Mautic apenas quando o registro está oficialmente completo
+        // (`signup_completed_at` recém-gravado OU já existente).
         const ready =
-          !!trade.trim() &&
-          !!city.trim() &&
-          vSegments.length > 0;
+          !!extra?.vis?.signup_completed_at ||
+          computeRegistrationMissing({
+            kind: "visitor",
+            profile: { full_name: fullName, job_title: (profile as unknown as { job_title?: string }).job_title, whatsapp, preferred_language: prefLang },
+            company: { trade_name: trade, city, state_code: (extra?.company as { state_code?: string } | null | undefined)?.state_code, tax_id: (extra?.company as { tax_id?: string } | null | undefined)?.tax_id },
+            visitor: {
+              networking_lunch_participation: vLunch === "yes" ? true : vLunch === "no" ? false : null,
+              image_authorization: vImageAuth === "yes" ? true : vImageAuth === "no" ? false : null,
+              consent_data_sharing: extra?.vis?.consent_data_sharing ?? false,
+            },
+          }).length === 0;
         if (ready) {
           try {
             const firstname = (fullName || "").trim().split(/\s+/)[0] ?? "";

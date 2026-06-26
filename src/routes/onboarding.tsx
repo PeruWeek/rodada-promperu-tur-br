@@ -248,7 +248,14 @@ function OnboardingPage() {
       if (cErr) throw cErr;
 
       if (submitKind === "visitor") {
-        await supabase.from("visitor_profiles").upsert({ profile_id: profile.id });
+        // Cria APENAS um stub "pendente" em visitor_profiles (sem
+        // signup_completed_at). O trigger
+        // `enforce_visitor_signup_completion_fields` impede que essa linha
+        // seja promovida a "completa" sem todos os obrigatórios da regra
+        // central (`src/lib/registration-requirements.ts`).
+        await supabase
+          .from("visitor_profiles")
+          .upsert({ profile_id: profile.id }, { onConflict: "profile_id", ignoreDuplicates: true });
         await qc.invalidateQueries();
         if (user.email) {
           const meta = (user.user_metadata ?? {}) as Record<string, unknown>;
