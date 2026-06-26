@@ -34,6 +34,28 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
+const SKIP_REASON_LABEL: Record<string, string> = {
+  has_scheduled_meeting: "Já possui reunião agendada",
+  max_reminders_reached: "Limite máximo de lembretes atingido",
+  min_interval_not_elapsed: "Intervalo mínimo entre lembretes não atingido",
+  already_processed_today: "Já processado hoje (execução duplicada)",
+};
+
+const STATUS_LABEL: Record<string, string> = {
+  sent: "Enviado",
+  queued: "Em fila",
+  skipped: "Pulado",
+  error: "Erro",
+};
+
+function describeRow(r: any): string {
+  if (r.error_reason) return r.error_reason;
+  if (r.skip_reason) return SKIP_REASON_LABEL[r.skip_reason] ?? r.skip_reason;
+  if (r.status === "sent") return "Lembrete enviado";
+  if (r.status === "queued") return "Aguardando processamento";
+  return "—";
+}
+
 export function BookingRemindersTab() {
   const qc = useQueryClient();
   const getFn = useServerFn(getBookingReminderSettings);
