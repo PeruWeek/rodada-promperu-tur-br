@@ -321,6 +321,77 @@ async function getCurrentEventIdWith(supabase: any, explicit?: string) {
   return data?.id ?? null;
 }
 
+/**
+ * Computes per-PROFILE scheduled meeting counts (visitor side via
+ * `meetings.visitor_profile_id`; exhibitor side via tables they own) for
+ * the given event and mutates each row's `profile_meetings_count`.
+ *
+ * Source of truth for the per-contact "Com agendamento · N" badge in the
+ * Inscritos tab, mirroring `getParticipantAgenda` and the per-row "Agenda
+ * (PDF)" export.
+ */
+async function annotateProfileMeetingCounts(
+  supabase: any,
+  eventId: string,
+  rows: RegistrantRow[],
+) {
+  if (rows.length === 0) return;
+  const visitorIds = Array.from(
+    new Set(rows.filter((r) => r.role === "visitor").map((r) => r.profile_id)),
+  );
+  const exhibitorIds = Array.from(
+    new Set(rows.filter((r) => r.role === "exhibitor").map((r) => r.profile_id)),
+  );
+  const counts = new Map<string, number>();
+
+  if (visitorIds.length) {
+    const { data: vm } = await supabase
+      .from("meetings")
+      .select("visitor_profile_id")
+      .eq("event_id", eventId)
+      .eq("status", "scheduled")
+      .in("visitor_profile_id", visitorIds);
+    for (const m of (vm ?? []) as Array<{ visitor_profile_id: string | null }>) {
+      const id = m.visitor_profile_id;
+      if (!id) continue;
+      counts.set(id, (counts.get(id) ?? 0) + 1);
+    }
+  }
+
+  if (exhibitorIds.length) {
+    const { data: tables } = await supabase
+      .from("event_tables")
+      .select("id, exhibitor_profile_id")
+      .eq("event_id", eventId)
+      .in("exhibitor_profile_id", exhibitorIds);
+    const tableToProfile = new Map<string, string>();
+    for (const t of (tables ?? []) as Array<{
+      id: string;
+      exhibitor_profile_id: string | null;
+    }>) {
+      if (t.exhibitor_profile_id) tableToProfile.set(t.id, t.exhibitor_profile_id);
+    }
+    const tableIds = Array.from(tableToProfile.keys());
+    if (tableIds.length) {
+      const { data: em } = await supabase
+        .from("meetings")
+        .select("table_id")
+        .eq("event_id", eventId)
+        .eq("status", "scheduled")
+        .in("table_id", tableIds);
+      for (const m of (em ?? []) as Array<{ table_id: string | null }>) {
+        const pid = m.table_id ? tableToProfile.get(m.table_id) : null;
+        if (!pid) continue;
+        counts.set(pid, (counts.get(pid) ?? 0) + 1);
+      }
+    }
+  }
+
+  for (const r of rows) {
+    r.profile_meetings_count = counts.get(r.profile_id) ?? 0;
+  }
+}
+
 export const listEventRegistrants = createServerFn({ method: "POST" })
   .inputValidator((input) =>
     z
