@@ -128,7 +128,7 @@ export function ClienteOverview() {
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Kpi label={t("cliente.overview.kpi.companies")} value={kpis.inscritas} />
         <Kpi label={t("cliente.overview.kpi.scheduled")} value={kpis.comAgendamento} />
-        <Kpi label={t("cliente.overview.kpi.meetings")} value={kpis.totalReunioes} />
+        <Kpi label={t("cliente.overview.kpi.meetings")} value={breakdown.visitantesMeetings} />
         <Kpi
           label={t("cliente.overview.kpi.percentScheduled")}
           value={`${kpis.percentComAgendamento}%`}
