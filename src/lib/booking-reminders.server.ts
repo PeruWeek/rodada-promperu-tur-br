@@ -255,6 +255,26 @@ export async function runBookingReminders(
     const meetingsCount = meetingCountByProfile.get(pid) ?? 0;
     if (meetingsCount > 0 || withMeeting.has(pid)) {
       summary.skipped_has_meeting += 1;
+      const language = (p.preferred_language as string | null) === "es" ? "es" : "pt-BR";
+      await supabaseAdmin.from("booking_reminder_log").insert({
+        run_id: runId,
+        event_id: eventId,
+        profile_id: pid,
+        recipient_email: p.email as string,
+        reminder_type: "booking-reminder",
+        idempotency_key: `skip-has-meeting-${options.mode}-${eventId}-${pid}-${new Date().toISOString()}`,
+        status: "skipped",
+        mode: options.mode,
+        language,
+        skip_reason: "has_scheduled_meeting",
+        metadata: {
+          run_id: runId,
+          mode: options.mode,
+          language,
+          reason: "has_scheduled_meeting",
+          scheduled_meetings_count: meetingsCount,
+        },
+      });
       continue;
     }
     const hist = historyByProfile.get(pid);
