@@ -56,6 +56,48 @@ async function getActorProfileId(userId: string): Promise<string | null> {
   return data?.id ?? null;
 }
 
+function normalizeCompanySearchValue(value: unknown): string {
+  return (value ?? "")
+    .toString()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+type SearchableCompany = {
+  trade_name: string | null;
+  legal_name?: string | null;
+  tax_id?: string | null;
+};
+
+function companySearchRank(company: SearchableCompany, rawNeedle: string): number {
+  const needle = normalizeCompanySearchValue(rawNeedle);
+  if (!needle) return 0;
+  const fields = [
+    normalizeCompanySearchValue(company.trade_name),
+    normalizeCompanySearchValue(company.legal_name),
+    normalizeCompanySearchValue(company.tax_id),
+  ];
+  if (fields.some((f) => f === needle)) return 0;
+  if (fields.some((f) => f.startsWith(needle))) return 1;
+  if (fields.some((f) => f.includes(needle))) return 2;
+  return 3;
+}
+
+function filterAndRankCompanies<T extends SearchableCompany>(rows: T[], rawNeedle?: string | null): T[] {
+  const needle = rawNeedle?.trim();
+  if (!needle) return rows;
+  return rows
+    .map((row) => ({ row, rank: companySearchRank(row, needle) }))
+    .filter(({ rank }) => rank < 3)
+    .sort((a, b) => {
+      if (a.rank !== b.rank) return a.rank - b.rank;
+      return (a.row.trade_name ?? "").localeCompare(b.row.trade_name ?? "", "pt-BR");
+    })
+    .map(({ row }) => row);
+}
+
 export const assignExhibitorToTable = createServerFn({ method: "POST" })
   .inputValidator((input) =>
     z
@@ -210,26 +252,15 @@ export const listAdminCompanies = createServerFn({ method: "POST" })
 
     let q = supabaseAdmin
       .from("companies")
-      .select("id, trade_name, legal_name, country_code, state_code, city, whatsapp, phone, general_phone, created_at, is_active, inactivated_at, inactivated_reason")
+      .select("id, trade_name, legal_name, tax_id, country_code, state_code, city, whatsapp, phone, general_phone, created_at, is_active, inactivated_at, inactivated_reason")
       .order("trade_name", { ascending: true });
     if (data.status === "active") q = q.eq("is_active", true);
     else if (data.status === "inactive") q = q.eq("is_active", false);
-    if (data.search?.trim()) {
-      const s = data.search.trim();
-      // Search ONLY company-owned fields. Matching against `profiles.full_name`
-      // or `profiles.email` produced false positives (e.g. searching `copastur`
-      // returned any company whose contact had an `@copastur` email but worked
-      // elsewhere). Ranking/normalization (case + accent insensitive, exact >
-      // prefix > partial) is applied post-query below.
-      const orParts = [
-        `trade_name.ilike.%${s}%`,
-        `legal_name.ilike.%${s}%`,
-        `tax_id.ilike.%${s}%`,
-      ];
-      q = q.or(orParts.join(","));
-    }
     // Fetch all matching companies; role/confirmed are computed post-query,
     // so DB-level pagination would produce empty pages when most rows are filtered out.
+    // Search is post-query too: the single source of truth is normalized
+    // (trim + lowercase + accent-insensitive) matching against company-owned
+    // fields only: trade_name, legal_name and tax_id.
     q = q.limit(5000);
     const { data: companiesRaw, error } = await q;
     if (error) throw new Error(error.message);
@@ -241,28 +272,7 @@ export const listAdminCompanies = createServerFn({ method: "POST" })
     // every returned company genuinely contains the needle in trade_name,
     // legal_name or tax_id — no leakage via contact name/email.
     if (data.search?.trim()) {
-      const norm = (v: unknown) =>
-        (v ?? "")
-          .toString()
-          .normalize("NFD")
-          .replace(/[\u0300-\u036f]/g, "")
-          .toLowerCase()
-          .trim();
-      const needle = norm(data.search);
-      const rank = (c: { trade_name: string | null; legal_name: string | null; tax_id?: string | null }) => {
-        const fields = [norm(c.trade_name), norm(c.legal_name), norm((c as any).tax_id)];
-        if (fields.some((f) => f === needle)) return 0;
-        if (fields.some((f) => f.startsWith(needle))) return 1;
-        if (fields.some((f) => f.includes(needle))) return 2;
-        return 3;
-      };
-      companies = companies
-        .filter((c) => rank(c as any) < 3)
-        .sort((a, b) => {
-          const r = rank(a as any) - rank(b as any);
-          if (r !== 0) return r;
-          return (a.trade_name ?? "").localeCompare(b.trade_name ?? "");
-        });
+      companies = filterAndRankCompanies(companies, data.search);
       if (companies.length === 0) return { rows: [], total: 0 };
     }
 
@@ -344,6 +354,7 @@ export const listAdminCompanies = createServerFn({ method: "POST" })
         id: c.id,
         trade_name: c.trade_name,
         legal_name: c.legal_name,
+        tax_id: (c as { tax_id?: string | null }).tax_id ?? null,
         country_code: c.country_code,
         state_code: c.state_code,
         city: c.city,
@@ -848,19 +859,18 @@ export const searchCompaniesForLink = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
     await assertAdminOrStaffRead(context.userId);
-    const s = data.query;
     const { data: companies, error } = await context.supabase
       .from("companies")
-      .select("id, trade_name, country_code, state_code, city")
-      .or(`trade_name.ilike.%${s}%,legal_name.ilike.%${s}%`)
+      .select("id, trade_name, legal_name, tax_id, country_code, state_code, city")
       .eq("is_active", true)
       .order("trade_name", { ascending: true })
-      .limit(data.limit);
+      .limit(5000);
     if (error) throw new Error(error.message);
-    if (!companies || companies.length === 0) return { rows: [] };
+    const rankedCompanies = filterAndRankCompanies(companies ?? [], data.query).slice(0, data.limit);
+    if (rankedCompanies.length === 0) return { rows: [] };
 
     // Compute role_hint for each candidate: 'exhibitor' | 'visitor' | 'mixed' | 'empty'
-    const ids = companies.map((c) => c.id);
+    const ids = rankedCompanies.map((c) => c.id);
     const { data: profs } = await context.supabase
       .from("profiles")
       .select("id, auth_user_id, company_id")
@@ -883,7 +893,7 @@ export const searchCompaniesForLink = createServerFn({ method: "POST" })
       rolesByAuth.set(r.user_id, set);
     }
 
-    const rows = companies.map((c) => {
+    const rows = rankedCompanies.map((c) => {
       const owners = (profs ?? []).filter((p) => p.company_id === c.id);
       const hasExh = owners.some(
         (p) =>
