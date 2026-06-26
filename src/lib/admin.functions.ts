@@ -216,24 +216,16 @@ export const listAdminCompanies = createServerFn({ method: "POST" })
     else if (data.status === "inactive") q = q.eq("is_active", false);
     if (data.search?.trim()) {
       const s = data.search.trim();
-      // Also match by contact name/email by resolving company_ids from profiles first.
-      const { data: matchedProfiles } = await supabaseAdmin
-        .from("profiles")
-        .select("company_id")
-        .or(`full_name.ilike.%${s}%,email.ilike.%${s}%`)
-        .not("company_id", "is", null)
-        .limit(500);
-      const matchedCompanyIds = Array.from(
-        new Set((matchedProfiles ?? []).map((p) => p.company_id).filter(Boolean) as string[]),
-      );
+      // Search ONLY company-owned fields. Matching against `profiles.full_name`
+      // or `profiles.email` produced false positives (e.g. searching `copastur`
+      // returned any company whose contact had an `@copastur` email but worked
+      // elsewhere). Ranking/normalization (case + accent insensitive, exact >
+      // prefix > partial) is applied post-query below.
       const orParts = [
         `trade_name.ilike.%${s}%`,
         `legal_name.ilike.%${s}%`,
         `tax_id.ilike.%${s}%`,
       ];
-      if (matchedCompanyIds.length > 0) {
-        orParts.push(`id.in.(${matchedCompanyIds.join(",")})`);
-      }
       q = q.or(orParts.join(","));
     }
     // Fetch all matching companies; role/confirmed are computed post-query,
@@ -242,6 +234,38 @@ export const listAdminCompanies = createServerFn({ method: "POST" })
     const { data: companies, error } = await q;
     if (error) throw new Error(error.message);
     if (!companies || companies.length === 0) return { rows: [], total: 0 };
+
+    // Post-query strict filter + ranking by match quality on normalized values.
+    let companiesFiltered = companies;
+    if (data.search?.trim()) {
+      const norm = (v: unknown) =>
+        (v ?? "")
+          .toString()
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .toLowerCase()
+          .trim();
+      const needle = norm(data.search);
+      const rank = (c: { trade_name: string | null; legal_name: string | null; tax_id?: string | null }) => {
+        const fields = [norm(c.trade_name), norm(c.legal_name), norm((c as any).tax_id)];
+        if (fields.some((f) => f === needle)) return 0;
+        if (fields.some((f) => f.startsWith(needle))) return 1;
+        if (fields.some((f) => f.includes(needle))) return 2;
+        return 3;
+      };
+      companiesFiltered = companies
+        .filter((c) => rank(c as any) < 3)
+        .sort((a, b) => {
+          const r = rank(a as any) - rank(b as any);
+          if (r !== 0) return r;
+          return (a.trade_name ?? "").localeCompare(b.trade_name ?? "");
+        });
+      if (companiesFiltered.length === 0) return { rows: [], total: 0 };
+    }
+    const _orig = companies;
+    void _orig;
+    // From here on, use the filtered/ranked set.
+    const companiesUsed = companiesFiltered;
 
     const ids = companies.map((c) => c.id);
     const [{ data: profs }, { data: exhProfs }] = await Promise.all([
