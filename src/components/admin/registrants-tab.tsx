@@ -144,8 +144,8 @@ export function RegistrantsTab({
   const [welcomeSending, setWelcomeSending] = useState(false);
 
   const { data, isLoading } = useQuery({
-    queryKey: ["registrants", role, search],
-    queryFn: () => listFn({ data: { role, search } }),
+    queryKey: ["registrants", role, search, sort],
+    queryFn: () => listFn({ data: { role, search, sort } }),
   });
 
   const rows = useMemo(() => {
