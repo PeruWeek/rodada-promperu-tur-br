@@ -354,11 +354,14 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Agendamento: todos</SelectItem>
-            <SelectItem value="scheduled">Já agendaram</SelectItem>
-            <SelectItem value="not_scheduled">Ainda não agendaram</SelectItem>
+            <SelectItem value="all">Todas</SelectItem>
+            <SelectItem value="scheduled">Com agendamento</SelectItem>
+            <SelectItem value="not_scheduled">Sem agendamento</SelectItem>
           </SelectContent>
         </Select>
+        <Badge variant="secondary" className="h-9 px-3">
+          {displayTotal} {displayTotal === 1 ? "empresa" : "empresas"}
+        </Badge>
         {!readOnly && <Select
           value={role}
           onValueChange={(v) => {
