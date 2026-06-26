@@ -575,9 +575,11 @@ export const listClienteOverviewBase = createServerFn({ method: "POST" })
           registration_status: r.registration_status ?? null,
           scheduling_status: r.scheduling_status ?? null,
           scheduled_meetings_count: Number(r.scheduled_meetings_count ?? 0),
+          profile_meetings_count: 0,
           created_at: r.created_at ?? null,
         };
       });
+    await annotateProfileMeetingCounts(supabaseAdmin, eventId, out);
     return { eventId, rows: out };
   });
 
