@@ -467,7 +467,9 @@
         "registrationStatus": "Estado",
         "scheduledMeetings": "Reuniones",
         "createdAt": "Registrado el"
-      }
+      },
+      "sortName": "Orden alfabético",
+      "sortRecent": "Últimas inscripciones"
     },
     "checkin": {
       "title": "Acreditación",
