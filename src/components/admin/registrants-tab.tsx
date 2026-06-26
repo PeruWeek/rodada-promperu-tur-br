@@ -104,6 +104,7 @@ function buildExportArrays(rows: RegistrantRow[], t: (k: string) => string) {
     t("admin.registrants.cols.registrationStatus"),
     t("admin.registrants.cols.scheduledMeetings"),
     t("admin.registrants.cols.createdAt"),
+    "Almoço de networking",
   ];
   const data = rows.map((r) => [
     r.company_trade_name,
@@ -123,6 +124,11 @@ function buildExportArrays(rows: RegistrantRow[], t: (k: string) => string) {
     r.registration_status ?? "",
     r.scheduled_meetings_count,
     fmtDate(r.created_at),
+    r.networking_lunch_participation === true
+      ? "Sim"
+      : r.networking_lunch_participation === false
+        ? "Não"
+        : "Não informado",
   ]);
   return { headers, data };
 }

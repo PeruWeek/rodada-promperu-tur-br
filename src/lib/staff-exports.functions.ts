@@ -60,6 +60,14 @@ export type RegistrantRow = {
    */
   profile_meetings_count: number;
   created_at: string | null;
+  /**
+   * Networking lunch participation — sourced from `visitor_profiles`
+   * (canonical). Only set for visitor rows; null when unknown or for
+   * exhibitor rows. Populated by `annotateLunchParticipation` after the
+   * main query so exports (XLSX/CSV/PDF) can render "Sim/Não/Não informado"
+   * consistently with the `Empresas` tab.
+   */
+  networking_lunch_participation: boolean | null;
 };
 
 const SCHEDULING_STATUS_VALUES = [
@@ -318,9 +326,11 @@ export async function _listEventRegistrantsImpl(
           scheduled_meetings_count: Number(r.scheduled_meetings_count ?? 0),
           profile_meetings_count: 0,
           created_at: (p?.created_at ?? r.created_at) as string | null,
+          networking_lunch_participation: null,
         };
       });
   await annotateProfileMeetingCounts(ctx.supabase, eventId, out);
+  await annotateLunchParticipation(ctx.supabase, out);
   if (data.sort === "recent") {
     out.sort((a, b) => {
       const da = a.created_at ?? "";
@@ -411,6 +421,44 @@ async function annotateProfileMeetingCounts(
 
   for (const r of rows) {
     r.profile_meetings_count = counts.get(r.profile_id) ?? 0;
+  }
+}
+
+/**
+ * Populates `networking_lunch_participation` on visitor rows by fetching
+ * `visitor_profiles.networking_lunch_participation` for the relevant
+ * profile ids. Single source of truth for "Almoço de networking" across
+ * Inscritos and Visão Geral exports — same field used by the Empresas tab
+ * (`src/lib/admin.functions.ts`).
+ */
+async function annotateLunchParticipation(
+  supabase: any,
+  rows: RegistrantRow[],
+) {
+  if (rows.length === 0) return;
+  const visitorIds = Array.from(
+    new Set(
+      rows
+        .filter((r) => r.role === "visitor")
+        .map((r) => r.profile_id)
+        .filter(Boolean) as string[],
+    ),
+  );
+  if (visitorIds.length === 0) return;
+  const { data } = await supabase
+    .from("visitor_profiles")
+    .select("profile_id, networking_lunch_participation")
+    .in("profile_id", visitorIds);
+  const byProfile = new Map<string, boolean | null>();
+  for (const v of (data ?? []) as Array<{
+    profile_id: string;
+    networking_lunch_participation: boolean | null;
+  }>) {
+    byProfile.set(v.profile_id, v.networking_lunch_participation ?? null);
+  }
+  for (const r of rows) {
+    if (r.role !== "visitor") continue;
+    r.networking_lunch_participation = byProfile.get(r.profile_id) ?? null;
   }
 }
 
@@ -612,9 +660,11 @@ export const listClienteOverviewBase = createServerFn({ method: "POST" })
           scheduled_meetings_count: Number(r.scheduled_meetings_count ?? 0),
           profile_meetings_count: 0,
           created_at: r.created_at ?? null,
+          networking_lunch_participation: null,
         };
       });
     await annotateProfileMeetingCounts(supabaseAdmin, eventId, out);
+    await annotateLunchParticipation(supabaseAdmin, out);
     return { eventId, rows: out };
   });
 

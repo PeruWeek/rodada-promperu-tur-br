@@ -147,6 +147,7 @@ export function ClienteOverview() {
     "E-mail",
     "Telefone",
     "WhatsApp",
+    "Almoço de networking",
   ];
 
   const typeLabel = (role: string) =>
@@ -173,6 +174,11 @@ export function ClienteOverview() {
         r.email ?? "",
         r.phone ?? "",
         r.whatsapp ?? "",
+        r.networking_lunch_participation === true
+          ? "Sim"
+          : r.networking_lunch_participation === false
+            ? "Não"
+            : "Não informado",
       ];
     });
 
