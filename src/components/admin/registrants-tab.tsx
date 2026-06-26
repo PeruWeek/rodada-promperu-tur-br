@@ -131,6 +131,7 @@ export function RegistrantsTab({
   const isStaffOnly = hasRole(me?.roles, "staff") && !hasRole(me?.roles, "admin");
   const initialRole: RoleFilter = defaultRole ?? (isStaffOnly ? "visitor" : "all");
   const [role, setRole] = useState<RoleFilter>(initialRole);
+  const [sort, setSort] = useState<"name" | "recent">("name");
   const [search, setSearch] = useState("");
   const [agendaLoadingId, setAgendaLoadingId] = useState<string | null>(null);
   const [bulkLoading, setBulkLoading] = useState<null | "pdf" | "zip">(null);
