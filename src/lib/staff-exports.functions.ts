@@ -60,6 +60,14 @@ export type RegistrantRow = {
    */
   profile_meetings_count: number;
   created_at: string | null;
+  /**
+   * Networking lunch participation — sourced from `visitor_profiles`
+   * (canonical). Only set for visitor rows; null when unknown or for
+   * exhibitor rows. Populated by `annotateLunchParticipation` after the
+   * main query so exports (XLSX/CSV/PDF) can render "Sim/Não/Não informado"
+   * consistently with the `Empresas` tab.
+   */
+  networking_lunch_participation: boolean | null;
 };
 
 const SCHEDULING_STATUS_VALUES = [
