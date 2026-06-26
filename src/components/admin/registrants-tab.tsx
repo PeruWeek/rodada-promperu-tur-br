@@ -468,6 +468,7 @@ export function RegistrantsTab({
                   {[r.city, r.state_code, r.country_code].filter(Boolean).length > 0
                     ? ` · ${[r.city, r.state_code, r.country_code].filter(Boolean).join(" / ")}`
                     : ""}
+                  {r.created_at ? ` · ${fmtDateTime(r.created_at, i18n.language)}` : ""}
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
