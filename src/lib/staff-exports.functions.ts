@@ -47,6 +47,17 @@ export type RegistrantRow = {
   registration_status: string | null;
   scheduling_status: string | null;
   scheduled_meetings_count: number;
+  /**
+   * Per-PROFILE scheduled meetings count for the current event.
+   *
+   * Distinct from `scheduled_meetings_count`, which is COMPANY-aggregate
+   * (sourced from `v_company_event_pipeline`). When a company has multiple
+   * contacts (e.g. 2 buyer profiles), the company total may exceed any
+   * single profile's agenda. The "Agenda (PDF)" button in the Inscritos
+   * tab exports a single profile's agenda, so the per-contact badge MUST
+   * use this field to match the PDF, not the company aggregate.
+   */
+  profile_meetings_count: number;
   created_at: string | null;
 };
 
