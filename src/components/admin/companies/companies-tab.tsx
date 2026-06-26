@@ -495,6 +495,22 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
                       {t("admin.companies.orphanBadge")}
                     </Badge>
                   )}
+                  {(() => {
+                    const count = (c as { scheduled_meetings_count?: number })
+                      .scheduled_meetings_count ?? 0;
+                    if (count > 0) {
+                      return (
+                        <Badge variant="default" title={`${count} reunião(ões)`}>
+                          Agendado
+                        </Badge>
+                      );
+                    }
+                    return (
+                      <Badge variant="outline" className="text-muted-foreground">
+                        Sem agendamento
+                      </Badge>
+                    );
+                  })()}
                 </div>
                 <p className="truncate text-xs text-muted-foreground">
                   {[c.city, c.state_code, c.country_code].filter(Boolean).join(" / ")}
@@ -504,7 +520,7 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
                     ? ` · WhatsApp: ${c.primary_contact?.whatsapp ?? c.whatsapp}`
                     : ""}
                 </p>
-                {c.role === "visitor" && c.primary_contact?.id && (
+                {!readOnly && c.role === "visitor" && c.primary_contact?.id && (
                   <div className="mt-2 flex items-center gap-2 text-xs">
                     <span className="text-muted-foreground">Almoço de networking:</span>
                     <Select
