@@ -71,6 +71,21 @@ function fmtDate(iso: string | null): string {
   }
 }
 
+function fmtDateTime(iso: string | null, locale: string): string {
+  if (!iso) return "";
+  try {
+    return new Date(iso).toLocaleString(locale === "es" ? "es" : "pt-BR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return "";
+  }
+}
+
 function buildExportArrays(rows: RegistrantRow[], t: (k: string) => string) {
   const headers = [
     t("admin.registrants.cols.company"),
@@ -453,6 +468,7 @@ export function RegistrantsTab({
                   {[r.city, r.state_code, r.country_code].filter(Boolean).length > 0
                     ? ` · ${[r.city, r.state_code, r.country_code].filter(Boolean).join(" / ")}`
                     : ""}
+                  {r.created_at ? ` · ${fmtDateTime(r.created_at, i18n.language)}` : ""}
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
