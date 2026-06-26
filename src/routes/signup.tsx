@@ -290,30 +290,16 @@ function SignupPage() {
           return;
         }
         if (availability.cnpj_status === "claimed") {
-          toast.error(
-            t("signup.cnpjClaimed.title", {
-              defaultValue: "Este CNPJ já possui uma conta ativa",
+          // Múltiplos contatos por empresa são permitidos. Apenas
+          // informamos que o cadastro será vinculado à empresa existente
+          // como contato adicional — cada pessoa mantém login e agenda
+          // individuais. Não bloqueia o fluxo.
+          toast.info(
+            t("signup.notices.cnpjSharedCompany", {
+              defaultValue:
+                "Este CNPJ já está cadastrado. Você será adicionado como um novo contato desta empresa, com seu próprio login e agenda.",
             }),
-            {
-              description: t("signup.cnpjClaimed.body", {
-                defaultValue:
-                  "Se você faz parte desta empresa, solicite acesso ao responsável ou recupere a senha. Se não souber quem cadastrou, contate o suporte.",
-              }),
-            },
           );
-          trackMauticEvent(
-            "signup_duplicate_cnpj",
-            {
-              page_url: `${window.location.origin}/signup`,
-              page_title: "signup_duplicate_cnpj",
-              email: data.email,
-              tax_id: data.tax_id,
-            },
-            { dedupeKey: `${emailKey}:${data.tax_id}` },
-          );
-          setErrors((e) => ({ ...e, tax_id: "signup.errors.cnpjClaimed" }));
-          setStep(2);
-          return;
         }
         if (availability.cnpj_status === "pending_other_email") {
           toast.info(
