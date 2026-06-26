@@ -622,9 +622,11 @@ export const listClienteOverviewBase = createServerFn({ method: "POST" })
           scheduled_meetings_count: Number(r.scheduled_meetings_count ?? 0),
           profile_meetings_count: 0,
           created_at: r.created_at ?? null,
+          networking_lunch_participation: null,
         };
       });
     await annotateProfileMeetingCounts(supabaseAdmin, eventId, out);
+    await annotateLunchParticipation(supabaseAdmin, out);
     return { eventId, rows: out };
   });
 
