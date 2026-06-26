@@ -50,7 +50,25 @@ const STATUS_LABEL: Record<string, string> = {
 
 function describeRow(r: any): string {
   if (r.error_reason) return r.error_reason;
-  if (r.skip_reason) return SKIP_REASON_LABEL[r.skip_reason] ?? r.skip_reason;
+  if (r.skip_reason) {
+    const base = SKIP_REASON_LABEL[r.skip_reason] ?? r.skip_reason;
+    if (r.skip_reason === "min_interval_not_elapsed") {
+      const meta = r.metadata ?? {};
+      const next = meta.next_eligible_at
+        ? new Date(meta.next_eligible_at).toLocaleString("pt-BR")
+        : null;
+      const last = meta.last_sent_at
+        ? new Date(meta.last_sent_at).toLocaleString("pt-BR")
+        : null;
+      const hours = meta.min_interval_hours;
+      const extras: string[] = [];
+      if (next) extras.push(`Próximo envio liberado em ${next}`);
+      if (last) extras.push(`último envio em ${last}`);
+      if (hours != null) extras.push(`intervalo mínimo ${hours}h`);
+      return extras.length ? `${base}. ${extras.join(" · ")}.` : base;
+    }
+    return base;
+  }
   if (r.status === "sent") return "Lembrete enviado";
   if (r.status === "queued") return "Aguardando processamento";
   return "—";
