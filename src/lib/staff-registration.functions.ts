@@ -283,7 +283,7 @@ export const staffCompleteRegistration = createServerFn({ method: "POST" })
     // Read current state to know companyId and kind
     const { data: profile } = await supabaseAdmin
       .from("profiles")
-      .select("id, company_id")
+      .select("id, company_id, preferred_language")
       .eq("id", data.profileId)
       .maybeSingle();
     if (!profile) throw new Error("Perfil não encontrado.");
@@ -296,12 +296,42 @@ export const staffCompleteRegistration = createServerFn({ method: "POST" })
       if (error) throw new Error(`profiles: ${error.message}`);
     }
 
-    if (data.company && profile.company_id && Object.keys(data.company).length > 0) {
-      const { error } = await supabaseAdmin
-        .from("companies")
-        .update(data.company)
-        .eq("id", profile.company_id);
-      if (error) throw new Error(`companies: ${error.message}`);
+    // Persist company. If profile has no company_id yet (imported stub),
+    // create the company first and link the profile. This is REQUIRED so
+    // that `tax_id`/`city`/`state_code`/`trade_name` actually persist —
+    // otherwise the trigger blocks `signup_completed_at` with
+    // `company_required` / `tax_id_required` and the user sees the modal
+    // staying "incompleto" even after filling every field.
+    let companyId = profile.company_id as string | null;
+    if (data.company && Object.keys(data.company).length > 0) {
+      if (companyId) {
+        const { error } = await supabaseAdmin
+          .from("companies")
+          .update(data.company)
+          .eq("id", companyId);
+        if (error) throw new Error(`companies: ${error.message}`);
+      } else {
+        const insertPayload = {
+          trade_name: data.company.trade_name ?? "(sem nome)",
+          legal_name: data.company.legal_name ?? null,
+          tax_id: data.company.tax_id ?? null,
+          city: data.company.city ?? null,
+          state_code: data.company.state_code ?? null,
+          country_code: "BR",
+        };
+        const { data: created, error } = await supabaseAdmin
+          .from("companies")
+          .insert(insertPayload)
+          .select("id")
+          .single();
+        if (error) throw new Error(`companies (insert): ${error.message}`);
+        companyId = created.id;
+        const { error: linkErr } = await supabaseAdmin
+          .from("profiles")
+          .update({ company_id: companyId })
+          .eq("id", data.profileId);
+        if (linkErr) throw new Error(`profiles.company_id: ${linkErr.message}`);
+      }
     }
 
     if (data.visitor) {
@@ -345,14 +375,28 @@ export const staffCompleteRegistration = createServerFn({ method: "POST" })
       }
     }
 
-    // Mark visitor signup_completed_at when newly complete.
+    // Mark visitor signup_completed_at when newly complete. We check the
+    // update error explicitly and re-read so we never report "completo"
+    // when the trigger silently rejected the timestamp write (which used
+    // to leave users stuck as "incompleto" forever).
     const fresh = await loadDetails(data.profileId);
     if (fresh.status === "completo" && fresh.kind === "visitor") {
-      await supabaseAdmin
+      const { error: completeErr } = await supabaseAdmin
         .from("visitor_profiles")
         .update({ signup_completed_at: new Date().toISOString() })
         .eq("profile_id", data.profileId)
         .is("signup_completed_at", null);
+      if (completeErr) {
+        throw new Error(
+          `Não foi possível concluir o cadastro: ${completeErr.message}`,
+        );
+      }
+      // Re-load so the dialog reflects the new signup_completed_at state.
+      const confirmed = await loadDetails(data.profileId);
+      console.log(
+        `[staff-registration] staff=${context.userId} completed profile=${data.profileId} status=${confirmed.status}`,
+      );
+      return confirmed;
     }
 
     console.log(
