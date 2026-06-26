@@ -221,7 +221,7 @@ export function ClienteOverview() {
         timeZone: "America/Sao_Paulo",
       });
       doc.text(
-        `Gerado em ${generated} · ${filtered.length} empresa(s)`,
+        `Gerado em ${generated} · ${filteredCompanies.length} empresa(s)`,
         W - 40,
         40,
         { align: "right" },
@@ -362,7 +362,7 @@ export function ClienteOverview() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {isLoading ? null : filtered.length === 0 ? (
+              {isLoading ? null : filteredCompanies.length === 0 ? (
                 <TableRow>
                   <TableCell
                     colSpan={hasUpdatedAt ? 6 : 5}
@@ -372,7 +372,7 @@ export function ClienteOverview() {
                   </TableCell>
                 </TableRow>
               ) : (
-                filtered.map((r) => {
+                filteredCompanies.map((r) => {
                   const count = r.scheduled_meetings_count ?? 0;
                   const group = bucketGroupFromMeetings(count);
                   const anyRow = r as unknown as Record<string, unknown>;
@@ -380,7 +380,7 @@ export function ClienteOverview() {
                     (anyRow.updated_at as string | undefined) ??
                     (anyRow.pipeline_updated_at as string | undefined);
                   return (
-                    <TableRow key={`${r.company_id}-${r.profile_id}`}>
+                    <TableRow key={r.company_id}>
                       <TableCell className="font-medium">
                         {r.company_trade_name}
                       </TableCell>
