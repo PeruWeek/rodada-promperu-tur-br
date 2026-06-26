@@ -261,19 +261,31 @@ export async function _listEventRegistrantsImpl(
         if (!isCliente) return true;
         return Number(r.scheduled_meetings_count ?? 0) > 0;
       })
-      .map((r) => {
-        // Promote a confirmed active participant contact when the pipeline's
-        // primary_profile_id is a stub without auth_user_id (mirrors
-        // listClienteOverviewBase). Otherwise keep the pipeline's primary.
+      .flatMap((r) => {
+        // Expand to ONE ROW PER ELIGIBLE PARTICIPANT PROFILE of the company.
+        // The pipeline view emits one row per company, but the Inscritos
+        // listing/export must list every person inscribed for that company
+        // (e.g. COPASTUR has 2 confirmed buyers — both must appear). We
+        // de-duplicate by profile.id across the pipeline primary and the
+        // by-company fetch, then keep only participant profiles (active,
+        // with auth_user_id, not internal admin/staff/cliente).
+        const candidates: ProfileFullRow[] = [];
+        const seen = new Set<string>();
         const pipelinePrimary = profById.get(r.primary_profile_id as string);
-        const company = profsByCompany.get(r.company_id as string) ?? [];
-        const sibling = company.find(isParticipantProfile);
-        const p = isParticipantProfile(pipelinePrimary) ? pipelinePrimary : sibling ?? null;
-        return { r, p };
+        if (pipelinePrimary) {
+          candidates.push(pipelinePrimary);
+          seen.add(pipelinePrimary.id);
+        }
+        for (const sibling of profsByCompany.get(r.company_id as string) ?? []) {
+          if (seen.has(sibling.id)) continue;
+          candidates.push(sibling);
+          seen.add(sibling.id);
+        }
+        const eligible = candidates.filter(isParticipantProfile);
+        if (eligible.length === 0) return [] as Array<{ r: PipelineRow; p: ProfileFullRow }>;
+        return eligible.map((p) => ({ r, p }));
       })
-      .filter(({ p }) => !!p)
-      .map(({ r, p: pSel }) => {
-        const p = pSel as ProfileFullRow;
+      .map(({ r, p }) => {
         return {
           profile_id: p.id,
           auth_user_id: (p?.auth_user_id ?? "") as string,
