@@ -4,7 +4,35 @@ import {
   computeClienteKpis,
   computeClienteTypeBreakdown,
   formatLocation,
+  dedupeByCompany,
 } from "@/lib/cliente-overview";
+
+describe("dedupeByCompany — collapses per-profile expansion to unique companies", () => {
+  it("keeps unique company_ids, preserving first occurrence", () => {
+    const out = dedupeByCompany([
+      { company_id: "a", scheduled_meetings_count: 3 },
+      { company_id: "a", scheduled_meetings_count: 3 },
+      { company_id: "b", scheduled_meetings_count: 0 },
+    ]);
+    expect(out).toHaveLength(2);
+    expect(out.map((r) => r.company_id)).toEqual(["a", "b"]);
+  });
+
+  it("two profiles on the same company count as 1 in KPIs and breakdown", () => {
+    const rows = [
+      { company_id: "copastur", role: "visitor" as const, scheduled_meetings_count: 9 },
+      { company_id: "copastur", role: "visitor" as const, scheduled_meetings_count: 9 },
+      { company_id: "blux", role: "visitor" as const, scheduled_meetings_count: 4 },
+    ];
+    const k = computeClienteKpis(rows);
+    expect(k.inscritas).toBe(2);
+    expect(k.totalReunioes).toBe(13);
+    expect(k.comAgendamento).toBe(2);
+    const b = computeClienteTypeBreakdown(rows);
+    expect(b.visitantesCount).toBe(2);
+    expect(b.visitantesMeetings).toBe(13);
+  });
+});
 
 describe("computeClienteKpis — derives all KPIs from scheduled_meetings_count", () => {
   it("empty list → all zeros, percent = 0", () => {
