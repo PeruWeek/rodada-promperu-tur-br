@@ -599,6 +599,11 @@ export type BulkAgendaEntry = {
   rows: ParticipantAgendaRow[];
 };
 
+export type CompanyAgendaRow = ParticipantAgendaRow & {
+  contactName: string;
+  contactRole: "exhibitor" | "visitor";
+};
+
 export const getParticipantAgenda = createServerFn({ method: "POST" })
   .inputValidator((input) =>
     z
