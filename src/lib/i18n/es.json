@@ -241,7 +241,9 @@
     },
     "pdfTitle": "Mi Agenda — PERU MICE Networking Evento",
     "pdfGenerated": "Generado el {{date}}",
-    "downloadPdf": "Descargar PDF"
+    "downloadPdf": "Descargar PDF",
+    "companyPdfTitle": "Agenda de la Empresa — PERU MICE Networking Evento",
+    "companyPdfTotal": "{{meetings}} reunión(es) · {{contacts}} contacto(s)"
   },
   "tableAgenda": {
     "title": "Agenda de la Mesa",
@@ -410,6 +412,7 @@
       "searchPlaceholder": "Buscar por empresa, contacto o correo...",
       "empty": "No se encontraron inscritos.",
       "downloadAgenda": "Agenda del contacto (PDF)",
+      "downloadCompanyAgenda": "Agenda de la empresa (PDF)",
       "noAgenda": "Este participante no tiene reuniones agendadas.",
       "inactiveBadge": "Inactivo",
       "actions": {

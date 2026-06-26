@@ -599,6 +599,11 @@ export type BulkAgendaEntry = {
   rows: ParticipantAgendaRow[];
 };
 
+export type CompanyAgendaRow = ParticipantAgendaRow & {
+  contactName: string;
+  contactRole: "exhibitor" | "visitor";
+};
+
 export const getParticipantAgenda = createServerFn({ method: "POST" })
   .inputValidator((input) =>
     z
@@ -895,4 +900,222 @@ export const listBulkAgendas = createServerFn({ method: "POST" })
     });
 
     return { eventId, entries };
+  });
+
+/**
+ * Company-consolidated agenda for the `cliente` PDF export.
+ *
+ * Root cause fix for divergence between the per-row "Agenda" button and the
+ * company total shown in the cards: when the `cliente` profile downloads an
+ * agenda for a row, they expect the FULL COMPANY agenda (all contacts'
+ * meetings combined), not the single contact's slice.
+ *
+ * Scope:
+ *  - finds every active profile linked to `companyId`
+ *  - collects their `scheduled` meetings in the current event
+ *    (visitor meetings via `visitor_profile_id`, exhibitor meetings via
+ *    the tables they own)
+ *  - returns ONE flat list ordered by start time, tagged with the contact
+ *    that owns each meeting
+ *
+ * Deduplication: meetings are keyed by `meeting.id` so an exhibitor table
+ * shared across multiple owners (rare) does not duplicate rows.
+ */
+export const getCompanyAgenda = createServerFn({ method: "POST" })
+  .inputValidator((input) =>
+    z
+      .object({
+        companyId: z.string().uuid(),
+        eventId: z.string().uuid().optional(),
+      })
+      .parse(input),
+  )
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    await assertAdminOrStaff(context.userId);
+    const eventId = await getCurrentEventId(data.eventId);
+    if (!eventId) {
+      return {
+        eventId: null,
+        companyId: data.companyId,
+        companyName: null as string | null,
+        contactCount: 0,
+        rows: [] as CompanyAgendaRow[],
+      };
+    }
+
+    const { data: company } = await supabaseAdmin
+      .from("companies")
+      .select("id, trade_name")
+      .eq("id", data.companyId)
+      .maybeSingle();
+
+    const { data: companyProfiles } = await supabaseAdmin
+      .from("profiles")
+      .select("id, full_name, is_active")
+      .eq("company_id", data.companyId);
+    const activeProfiles = (companyProfiles ?? []).filter((p) => p.is_active !== false);
+    const profileIds = activeProfiles.map((p) => p.id);
+
+    if (profileIds.length === 0) {
+      return {
+        eventId,
+        companyId: data.companyId,
+        companyName: company?.trade_name ?? null,
+        contactCount: 0,
+        rows: [],
+      };
+    }
+
+    // Tables owned by any contact of this company (= exhibitor side).
+    const { data: ownedTables } = await supabaseAdmin
+      .from("event_tables")
+      .select("id, table_number, exhibitor_profile_id")
+      .eq("event_id", eventId)
+      .in("exhibitor_profile_id", profileIds);
+    const tableOwnerByTableId = new Map<string, string>();
+    for (const t of ownedTables ?? []) {
+      if (t.exhibitor_profile_id) tableOwnerByTableId.set(t.id, t.exhibitor_profile_id);
+    }
+    const ownedTableIds = Array.from(tableOwnerByTableId.keys());
+
+    const meetingsById = new Map<
+      string,
+      { id: string; table_id: string; slot_id: string; visitor_profile_id: string }
+    >();
+
+    const { data: mv } = await supabaseAdmin
+      .from("meetings")
+      .select("id, table_id, slot_id, visitor_profile_id")
+      .eq("event_id", eventId)
+      .eq("status", "scheduled")
+      .in("visitor_profile_id", profileIds);
+    for (const m of mv ?? []) meetingsById.set(m.id, m);
+
+    if (ownedTableIds.length) {
+      const { data: mt } = await supabaseAdmin
+        .from("meetings")
+        .select("id, table_id, slot_id, visitor_profile_id")
+        .eq("event_id", eventId)
+        .eq("status", "scheduled")
+        .in("table_id", ownedTableIds);
+      for (const m of mt ?? []) meetingsById.set(m.id, m);
+    }
+
+    const meetings = Array.from(meetingsById.values());
+    if (meetings.length === 0) {
+      return {
+        eventId,
+        companyId: data.companyId,
+        companyName: company?.trade_name ?? null,
+        contactCount: profileIds.length,
+        rows: [],
+      };
+    }
+
+    const slotIds = Array.from(new Set(meetings.map((m) => m.slot_id)));
+    const allTableIds = Array.from(new Set(meetings.map((m) => m.table_id)));
+    const allVisitorIds = Array.from(new Set(meetings.map((m) => m.visitor_profile_id)));
+
+    const [{ data: slots }, { data: tables }, { data: visitorProfs }] = await Promise.all([
+      supabaseAdmin.from("time_slots").select("id, start_at, end_at").in("id", slotIds),
+      supabaseAdmin
+        .from("event_tables")
+        .select("id, table_number, exhibitor_profile_id")
+        .in("id", allTableIds),
+      supabaseAdmin
+        .from("profiles")
+        .select("id, full_name, company_id")
+        .in("id", allVisitorIds),
+    ]);
+
+    const exhProfileIds = Array.from(
+      new Set(((tables ?? []).map((t) => t.exhibitor_profile_id).filter(Boolean) as string[])),
+    );
+    const { data: exhProfs } = exhProfileIds.length
+      ? await supabaseAdmin
+          .from("profiles")
+          .select("id, full_name, company_id")
+          .in("id", exhProfileIds)
+      : { data: [] as Array<{ id: string; full_name: string; company_id: string | null }> };
+
+    const otherCompanyIds = Array.from(
+      new Set(
+        [
+          ...((visitorProfs ?? []).map((v) => v.company_id).filter(Boolean) as string[]),
+          ...((exhProfs ?? []).map((p) => p.company_id).filter(Boolean) as string[]),
+        ],
+      ),
+    );
+    const { data: otherCompanies } = otherCompanyIds.length
+      ? await supabaseAdmin
+          .from("companies")
+          .select("id, trade_name")
+          .in("id", otherCompanyIds)
+      : { data: [] as Array<{ id: string; trade_name: string }> };
+    const compName = (id: string | null | undefined) =>
+      id ? (otherCompanies ?? []).find((c) => c.id === id)?.trade_name ?? "—" : "—";
+
+    const fmt = (iso: string) =>
+      iso
+        ? new Date(iso).toLocaleTimeString("pt-BR", {
+            hour: "2-digit",
+            minute: "2-digit",
+            timeZone: "America/Sao_Paulo",
+          })
+        : "";
+
+    const ownProfileName = (id: string) =>
+      activeProfiles.find((p) => p.id === id)?.full_name ?? "—";
+
+    const rows: Array<CompanyAgendaRow & { _start: string }> = meetings.map((m) => {
+      const ownerProfileId = tableOwnerByTableId.get(m.table_id);
+      const isExhibitorMeeting = !!ownerProfileId;
+      const slot = (slots ?? []).find((s) => s.id === m.slot_id);
+      const tbl = (tables ?? []).find((t) => t.id === m.table_id);
+      let contactName: string;
+      let withName: string;
+      let contactRole: "exhibitor" | "visitor";
+      if (isExhibitorMeeting) {
+        contactRole = "exhibitor";
+        contactName = ownProfileName(ownerProfileId!);
+        const v = (visitorProfs ?? []).find((x) => x.id === m.visitor_profile_id);
+        withName = v ? `${v.full_name} · ${compName(v.company_id)}` : "—";
+      } else {
+        contactRole = "visitor";
+        contactName = ownProfileName(m.visitor_profile_id);
+        const exh = (exhProfs ?? []).find((p) => p.id === tbl?.exhibitor_profile_id);
+        withName = exh ? `${compName(exh.company_id)} (${exh.full_name})` : "—";
+      }
+      const startStr = slot?.start_at ?? "";
+      const endStr = slot?.end_at ?? "";
+      return {
+        _start: startStr,
+        time: `${fmt(startStr)} - ${fmt(endStr)}`,
+        withName,
+        table: tbl?.table_number ? String(tbl.table_number) : "—",
+        location: "",
+        contactName,
+        contactRole,
+      };
+    });
+    rows.sort((a, b) => {
+      if (a._start !== b._start) return a._start.localeCompare(b._start);
+      return a.contactName.localeCompare(b.contactName);
+    });
+
+    return {
+      eventId,
+      companyId: data.companyId,
+      companyName: company?.trade_name ?? null,
+      contactCount: profileIds.length,
+      rows: rows.map(({ time, withName, table, location, contactName, contactRole }) => ({
+        time,
+        withName,
+        table,
+        location,
+        contactName,
+        contactRole,
+      })),
+    };
   });
