@@ -412,6 +412,7 @@
       "searchPlaceholder": "Buscar por empresa, contacto o correo...",
       "empty": "No se encontraron inscritos.",
       "downloadAgenda": "Agenda del contacto (PDF)",
+      "downloadCompanyAgenda": "Agenda de la empresa (PDF)",
       "noAgenda": "Este participante no tiene reuniones agendadas.",
       "inactiveBadge": "Inactivo",
       "actions": {
