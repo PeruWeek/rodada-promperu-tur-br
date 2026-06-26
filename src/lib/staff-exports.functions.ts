@@ -326,9 +326,11 @@ export async function _listEventRegistrantsImpl(
           scheduled_meetings_count: Number(r.scheduled_meetings_count ?? 0),
           profile_meetings_count: 0,
           created_at: (p?.created_at ?? r.created_at) as string | null,
+          networking_lunch_participation: null,
         };
       });
   await annotateProfileMeetingCounts(ctx.supabase, eventId, out);
+  await annotateLunchParticipation(ctx.supabase, out);
   if (data.sort === "recent") {
     out.sort((a, b) => {
       const da = a.created_at ?? "";
