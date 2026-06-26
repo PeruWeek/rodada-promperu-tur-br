@@ -47,6 +47,17 @@ export type RegistrantRow = {
   registration_status: string | null;
   scheduling_status: string | null;
   scheduled_meetings_count: number;
+  /**
+   * Per-PROFILE scheduled meetings count for the current event.
+   *
+   * Distinct from `scheduled_meetings_count`, which is COMPANY-aggregate
+   * (sourced from `v_company_event_pipeline`). When a company has multiple
+   * contacts (e.g. 2 buyer profiles), the company total may exceed any
+   * single profile's agenda. The "Agenda (PDF)" button in the Inscritos
+   * tab exports a single profile's agenda, so the per-contact badge MUST
+   * use this field to match the PDF, not the company aggregate.
+   */
+  profile_meetings_count: number;
   created_at: string | null;
 };
 
@@ -283,9 +294,11 @@ export async function _listEventRegistrantsImpl(
           registration_status: (r.registration_status as string | null) ?? null,
           scheduling_status: (r.scheduling_status as string | null) ?? null,
           scheduled_meetings_count: Number(r.scheduled_meetings_count ?? 0),
+          profile_meetings_count: 0,
           created_at: (p?.created_at ?? r.created_at) as string | null,
         };
       });
+  await annotateProfileMeetingCounts(ctx.supabase, eventId, out);
   if (data.sort === "recent") {
     out.sort((a, b) => {
       const da = a.created_at ?? "";
@@ -306,6 +319,77 @@ async function getCurrentEventIdWith(supabase: any, explicit?: string) {
     .limit(1)
     .maybeSingle();
   return data?.id ?? null;
+}
+
+/**
+ * Computes per-PROFILE scheduled meeting counts (visitor side via
+ * `meetings.visitor_profile_id`; exhibitor side via tables they own) for
+ * the given event and mutates each row's `profile_meetings_count`.
+ *
+ * Source of truth for the per-contact "Com agendamento · N" badge in the
+ * Inscritos tab, mirroring `getParticipantAgenda` and the per-row "Agenda
+ * (PDF)" export.
+ */
+async function annotateProfileMeetingCounts(
+  supabase: any,
+  eventId: string,
+  rows: RegistrantRow[],
+) {
+  if (rows.length === 0) return;
+  const visitorIds = Array.from(
+    new Set(rows.filter((r) => r.role === "visitor").map((r) => r.profile_id)),
+  );
+  const exhibitorIds = Array.from(
+    new Set(rows.filter((r) => r.role === "exhibitor").map((r) => r.profile_id)),
+  );
+  const counts = new Map<string, number>();
+
+  if (visitorIds.length) {
+    const { data: vm } = await supabase
+      .from("meetings")
+      .select("visitor_profile_id")
+      .eq("event_id", eventId)
+      .eq("status", "scheduled")
+      .in("visitor_profile_id", visitorIds);
+    for (const m of (vm ?? []) as Array<{ visitor_profile_id: string | null }>) {
+      const id = m.visitor_profile_id;
+      if (!id) continue;
+      counts.set(id, (counts.get(id) ?? 0) + 1);
+    }
+  }
+
+  if (exhibitorIds.length) {
+    const { data: tables } = await supabase
+      .from("event_tables")
+      .select("id, exhibitor_profile_id")
+      .eq("event_id", eventId)
+      .in("exhibitor_profile_id", exhibitorIds);
+    const tableToProfile = new Map<string, string>();
+    for (const t of (tables ?? []) as Array<{
+      id: string;
+      exhibitor_profile_id: string | null;
+    }>) {
+      if (t.exhibitor_profile_id) tableToProfile.set(t.id, t.exhibitor_profile_id);
+    }
+    const tableIds = Array.from(tableToProfile.keys());
+    if (tableIds.length) {
+      const { data: em } = await supabase
+        .from("meetings")
+        .select("table_id")
+        .eq("event_id", eventId)
+        .eq("status", "scheduled")
+        .in("table_id", tableIds);
+      for (const m of (em ?? []) as Array<{ table_id: string | null }>) {
+        const pid = m.table_id ? tableToProfile.get(m.table_id) : null;
+        if (!pid) continue;
+        counts.set(pid, (counts.get(pid) ?? 0) + 1);
+      }
+    }
+  }
+
+  for (const r of rows) {
+    r.profile_meetings_count = counts.get(r.profile_id) ?? 0;
+  }
 }
 
 export const listEventRegistrants = createServerFn({ method: "POST" })
@@ -491,9 +575,11 @@ export const listClienteOverviewBase = createServerFn({ method: "POST" })
           registration_status: r.registration_status ?? null,
           scheduling_status: r.scheduling_status ?? null,
           scheduled_meetings_count: Number(r.scheduled_meetings_count ?? 0),
+          profile_meetings_count: 0,
           created_at: r.created_at ?? null,
         };
       });
+    await annotateProfileMeetingCounts(supabaseAdmin, eventId, out);
     return { eventId, rows: out };
   });
 
