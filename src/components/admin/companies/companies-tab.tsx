@@ -48,6 +48,7 @@ type ConfirmedFilter = "all" | "yes" | "no";
 type LunchFilter = "all" | "yes" | "no";
 type StatusFilter = "active" | "inactive" | "all";
 type ClienteTypeFilter = "all" | "visitor" | "exhibitor";
+type SchedulingFilter = "all" | "scheduled" | "not_scheduled";
 
 // Centralized filter used by the table AND every export (XLSX/CSV/PDF) so the
 // active type selector always matches the exported dataset. Classification is
@@ -73,6 +74,7 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
   const [status, setStatus] = useState<StatusFilter>(readOnly ? "active" : "all");
   const [page, setPage] = useState(1);
   const [clienteTypeFilter, setClienteTypeFilter] = useState<ClienteTypeFilter>("all");
+  const [schedulingFilter, setSchedulingFilter] = useState<SchedulingFilter>("all");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [exporting, setExporting] = useState<null | "xlsx" | "csv" | "pdf">(null);
   const [savingLunchId, setSavingLunchId] = useState<string | null>(null);
@@ -111,6 +113,7 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
       effectiveStatus,
       page,
       readOnly,
+      schedulingFilter,
     ],
     queryFn: () =>
       listFn({
@@ -124,6 +127,7 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
           activeOnly: readOnly,
           status: effectiveStatus,
           excludeCliente: readOnly,
+          scheduling: schedulingFilter,
         },
       }),
   });
@@ -173,6 +177,7 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
         activeOnly: readOnly,
         status: effectiveStatus,
         excludeCliente: readOnly,
+        scheduling: schedulingFilter,
       },
     });
     // In readOnly (cliente) mode the server returns the full universe and the
@@ -338,6 +343,22 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
             </SelectContent>
           </Select>
         )}
+        <Select
+          value={schedulingFilter}
+          onValueChange={(v) => {
+            setPage(1);
+            setSchedulingFilter(v as SchedulingFilter);
+          }}
+        >
+          <SelectTrigger className="w-full sm:w-56">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Agendamento: todos</SelectItem>
+            <SelectItem value="scheduled">Já agendaram</SelectItem>
+            <SelectItem value="not_scheduled">Ainda não agendaram</SelectItem>
+          </SelectContent>
+        </Select>
         {!readOnly && <Select
           value={role}
           onValueChange={(v) => {
@@ -416,16 +437,18 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
         <Button variant="outline" size="sm" onClick={exportPdf} disabled={exporting !== null}>
           <Files size={14} /> {exporting === "pdf" ? t("common.loading") : "PDF"}
         </Button>
-        <Button
-          variant="default"
-          size="sm"
-          onClick={() => {
-            setContactDialogCompany(null);
-            setContactDialogOpen(true);
-          }}
-        >
-          <UserPlus size={14} /> {t("admin.companies.addContact", { defaultValue: "Adicionar contato" })}
-        </Button>
+        {!readOnly && (
+          <Button
+            variant="default"
+            size="sm"
+            onClick={() => {
+              setContactDialogCompany(null);
+              setContactDialogOpen(true);
+            }}
+          >
+            <UserPlus size={14} /> {t("admin.companies.addContact", { defaultValue: "Adicionar contato" })}
+          </Button>
+        )}
         {!readOnly && (
           <Button
             variant="outline"
@@ -472,6 +495,22 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
                       {t("admin.companies.orphanBadge")}
                     </Badge>
                   )}
+                  {(() => {
+                    const count = (c as { scheduled_meetings_count?: number })
+                      .scheduled_meetings_count ?? 0;
+                    if (count > 0) {
+                      return (
+                        <Badge variant="default" title={`${count} reunião(ões)`}>
+                          Agendado
+                        </Badge>
+                      );
+                    }
+                    return (
+                      <Badge variant="outline" className="text-muted-foreground">
+                        Sem agendamento
+                      </Badge>
+                    );
+                  })()}
                 </div>
                 <p className="truncate text-xs text-muted-foreground">
                   {[c.city, c.state_code, c.country_code].filter(Boolean).join(" / ")}
@@ -481,7 +520,7 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
                     ? ` · WhatsApp: ${c.primary_contact?.whatsapp ?? c.whatsapp}`
                     : ""}
                 </p>
-                {c.role === "visitor" && c.primary_contact?.id && (
+                {!readOnly && c.role === "visitor" && c.primary_contact?.id && (
                   <div className="mt-2 flex items-center gap-2 text-xs">
                     <span className="text-muted-foreground">Almoço de networking:</span>
                     <Select

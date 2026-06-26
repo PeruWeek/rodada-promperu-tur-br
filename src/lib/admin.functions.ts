@@ -197,6 +197,10 @@ export const listAdminCompanies = createServerFn({ method: "POST" })
         lunch: z.enum(["all", "yes", "no"]).optional().default("all"),
         status: z.enum(["active", "inactive", "all"]).optional().default("active"),
         excludeCliente: z.boolean().optional().default(false),
+        scheduling: z
+          .enum(["all", "scheduled", "not_scheduled"]) // cliente-facing accompaniment filter
+          .optional()
+          .default("all"),
       })
       .parse(input),
   )
@@ -341,7 +345,39 @@ export const listAdminCompanies = createServerFn({ method: "POST" })
       };
     });
 
-    let filtered = rows;
+    // Attach scheduling info per company from the current event's pipeline.
+    // This powers the cliente "Empresas" accompaniment view (badges + filter).
+    // Source of truth: `scheduled_meetings_count` (see scheduling-status.ts).
+    const { data: currentEvent } = await supabaseAdmin
+      .from("events")
+      .select("id")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const eventId = currentEvent?.id ?? null;
+    const schedByCompany = new Map<string, number>();
+    if (eventId) {
+      const { data: pipeRows } = await supabaseAdmin
+        .from("v_company_event_pipeline")
+        .select("company_id, scheduled_meetings_count")
+        .eq("event_id", eventId)
+        .in("company_id", ids);
+      for (const p of (pipeRows ?? []) as Array<{
+        company_id: string | null;
+        scheduled_meetings_count: number | null;
+      }>) {
+        if (!p.company_id) continue;
+        schedByCompany.set(p.company_id, Number(p.scheduled_meetings_count ?? 0));
+      }
+    }
+    const enriched = rows.map((r) => {
+      const count = schedByCompany.get(r.id) ?? 0;
+      const bucket: "com_agendamento" | "sem_agendamento" =
+        count > 0 ? "com_agendamento" : "sem_agendamento";
+      return { ...r, scheduled_meetings_count: count, scheduling_bucket: bucket };
+    });
+
+    let filtered = enriched;
     if (data.activeOnly) filtered = filtered.filter((r) => r.hasActiveOwner);
     // Exclude internal `cliente`-owned companies from cliente-facing views so
     // the summary buckets (Visitantes + Expositoras) match Total exactly.
@@ -351,6 +387,10 @@ export const listAdminCompanies = createServerFn({ method: "POST" })
     else if (data.confirmed === "no") filtered = filtered.filter((r) => !r.confirmed);
     if (data.lunch === "yes") filtered = filtered.filter((r) => r.networking_lunch_participation === true);
     else if (data.lunch === "no") filtered = filtered.filter((r) => r.networking_lunch_participation === false);
+    if (data.scheduling === "scheduled")
+      filtered = filtered.filter((r) => r.scheduled_meetings_count > 0);
+    else if (data.scheduling === "not_scheduled")
+      filtered = filtered.filter((r) => r.scheduled_meetings_count === 0);
     const total = filtered.length;
     const from = (data.page - 1) * data.pageSize;
     const paged = filtered.slice(from, from + data.pageSize);
