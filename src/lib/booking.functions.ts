@@ -82,6 +82,23 @@ export const bookMeeting = createServerFn({ method: "POST" })
       throw new Error("Conflito: você já tem reunião agendada neste horário.");
     }
 
+    // Same-exhibitor guard: a visitor can have at most ONE scheduled meeting
+    // per table (one meeting per exhibitor). The DB also enforces this via
+    // a unique partial index (uq_meetings_visitor_table_scheduled), so this
+    // check is the friendly error path; the index is the hard guarantee.
+    const { data: sameTable } = await supabaseAdmin
+      .from("meetings")
+      .select("id")
+      .eq("visitor_profile_id", profile.id)
+      .eq("table_id", data.tableId)
+      .eq("status", "scheduled")
+      .maybeSingle();
+    if (sameTable) {
+      throw new Error(
+        "Você já tem uma reunião agendada com este expositor. Cada participante pode ter no máximo 1 reunião por mesa.",
+      );
+    }
+
     const { data: meeting, error: mErr } = await supabase
       .from("meetings")
       .insert({
