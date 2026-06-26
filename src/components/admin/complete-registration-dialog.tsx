@@ -195,7 +195,7 @@ export function CompleteRegistrationDialog({
                   />
                 </Field>
               </div>
-              <Field label="Idioma preferido *" missing={isMissing("profile.preferred_language")}>
+              <Field label="Idioma preferido" missing={false}>
                 <Select
                   value={form.profile.preferred_language}
                   onValueChange={(v) =>
