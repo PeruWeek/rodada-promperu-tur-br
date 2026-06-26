@@ -437,16 +437,18 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
         <Button variant="outline" size="sm" onClick={exportPdf} disabled={exporting !== null}>
           <Files size={14} /> {exporting === "pdf" ? t("common.loading") : "PDF"}
         </Button>
-        <Button
-          variant="default"
-          size="sm"
-          onClick={() => {
-            setContactDialogCompany(null);
-            setContactDialogOpen(true);
-          }}
-        >
-          <UserPlus size={14} /> {t("admin.companies.addContact", { defaultValue: "Adicionar contato" })}
-        </Button>
+        {!readOnly && (
+          <Button
+            variant="default"
+            size="sm"
+            onClick={() => {
+              setContactDialogCompany(null);
+              setContactDialogOpen(true);
+            }}
+          >
+            <UserPlus size={14} /> {t("admin.companies.addContact", { defaultValue: "Adicionar contato" })}
+          </Button>
+        )}
         {!readOnly && (
           <Button
             variant="outline"
