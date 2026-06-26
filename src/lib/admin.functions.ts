@@ -231,12 +231,15 @@ export const listAdminCompanies = createServerFn({ method: "POST" })
     // Fetch all matching companies; role/confirmed are computed post-query,
     // so DB-level pagination would produce empty pages when most rows are filtered out.
     q = q.limit(5000);
-    const { data: companies, error } = await q;
+    const { data: companiesRaw, error } = await q;
     if (error) throw new Error(error.message);
-    if (!companies || companies.length === 0) return { rows: [], total: 0 };
+    let companies = companiesRaw ?? [];
+    if (companies.length === 0) return { rows: [], total: 0 };
 
-    // Post-query strict filter + ranking by match quality on normalized values.
-    let companiesFiltered = companies;
+    // Post-query strict filter + ranking by match quality on normalized values
+    // (case + accent insensitive; exact > prefix > partial). Guarantees that
+    // every returned company genuinely contains the needle in trade_name,
+    // legal_name or tax_id — no leakage via contact name/email.
     if (data.search?.trim()) {
       const norm = (v: unknown) =>
         (v ?? "")
@@ -253,19 +256,15 @@ export const listAdminCompanies = createServerFn({ method: "POST" })
         if (fields.some((f) => f.includes(needle))) return 2;
         return 3;
       };
-      companiesFiltered = companies
+      companies = companies
         .filter((c) => rank(c as any) < 3)
         .sort((a, b) => {
           const r = rank(a as any) - rank(b as any);
           if (r !== 0) return r;
           return (a.trade_name ?? "").localeCompare(b.trade_name ?? "");
         });
-      if (companiesFiltered.length === 0) return { rows: [], total: 0 };
+      if (companies.length === 0) return { rows: [], total: 0 };
     }
-    const _orig = companies;
-    void _orig;
-    // From here on, use the filtered/ranked set.
-    const companiesUsed = companiesFiltered;
 
     const ids = companies.map((c) => c.id);
     const [{ data: profs }, { data: exhProfs }] = await Promise.all([
