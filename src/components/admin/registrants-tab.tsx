@@ -425,7 +425,13 @@ export function RegistrantsTab({
                     </Badge>
                   )}
                   {(() => {
-                    const count = r.scheduled_meetings_count ?? 0;
+                    // Per-CONTACT count — matches what the per-row
+                    // "Agenda do contato (PDF)" button exports. Using the
+                    // company-aggregate here previously inflated the badge
+                    // for companies with 2+ contacts (e.g. COPASTUR
+                    // showed 20 while Naline's PDF returned 9).
+                    const count = r.profile_meetings_count ?? 0;
+                    const companyCount = r.scheduled_meetings_count ?? 0;
                     const group = bucketGroupFromMeetings(count);
                     const op = operationalStatusFromMeetings(count);
                     return (
@@ -437,10 +443,20 @@ export function RegistrantsTab({
                               ? "border-emerald-500 text-emerald-700 dark:text-emerald-400"
                               : "border-muted-foreground/40 text-muted-foreground"
                           }
+                          title="Reuniões agendadas deste contato (mesma contagem do PDF individual)"
                         >
                           {labelForGroup(group, t)}
                           {count > 0 ? ` · ${count}` : ""}
                         </Badge>
+                        {companyCount > count && (
+                          <Badge
+                            variant="outline"
+                            className="border-muted-foreground/40 text-muted-foreground"
+                            title="Total de reuniões agendadas da empresa (somando todos os contatos)"
+                          >
+                            Empresa · {companyCount}
+                          </Badge>
+                        )}
                         {isStaffOrAdmin && op && (
                           <Badge variant="secondary" className="text-xs">
                             {labelForOperational(op, t)}
