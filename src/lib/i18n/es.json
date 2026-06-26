@@ -409,7 +409,7 @@
       "help": "Lista de inscritos al evento. Usa los botones para exportar en XLSX/CSV o descargar la agenda individual en PDF.",
       "searchPlaceholder": "Buscar por empresa, contacto o correo...",
       "empty": "No se encontraron inscritos.",
-      "downloadAgenda": "Agenda (PDF)",
+      "downloadAgenda": "Agenda del contacto (PDF)",
       "noAgenda": "Este participante no tiene reuniones agendadas.",
       "inactiveBadge": "Inactivo",
       "actions": {
