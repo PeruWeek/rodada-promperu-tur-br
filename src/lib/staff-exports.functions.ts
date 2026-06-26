@@ -161,14 +161,52 @@ export async function _listEventRegistrantsImpl(
     const profileIds = Array.from(
       new Set(rowsTyped.map((r) => r.primary_profile_id).filter(Boolean) as string[]),
     );
-    const { data: profs } = profileIds.length
+    // Pull ALL profiles by company_id (not just pipeline's primary_profile_id).
+    // The pipeline view frequently points primary at a pre-registration stub
+    // without `auth_user_id`; the same company may already have a confirmed
+    // active participant contact. Promoting that sibling here keeps this
+    // function aligned with `listClienteOverviewBase` and the Empresas tab
+    // (a company visible "Com agendamento" in Visão Geral must also be
+    // visible in Agendamentos).
+    type ProfileFullRow = ProfileRow & {
+      company_id: string | null;
+      full_name: string | null;
+      email: string | null;
+      created_at: string | null;
+    };
+    const { data: profsByPrimary } = profileIds.length
       ? await ctx.supabase
           .from("profiles")
-          .select("id, job_title, phone, whatsapp, auth_user_id, is_active")
+          .select(
+            "id, company_id, full_name, email, job_title, phone, whatsapp, auth_user_id, is_active, created_at",
+          )
           .in("id", profileIds)
-      : { data: [] as ProfileRow[] };
-    const profsTyped = (profs ?? []) as ProfileRow[];
-    const profById = new Map(profsTyped.map((p) => [p.id, p]));
+      : { data: [] as ProfileFullRow[] };
+    const companyIdsForPromotion = Array.from(
+      new Set(rowsTyped.map((r) => r.company_id).filter(Boolean) as string[]),
+    );
+    const { data: profsByCompanyData } = companyIdsForPromotion.length
+      ? await ctx.supabase
+          .from("profiles")
+          .select(
+            "id, company_id, full_name, email, job_title, phone, whatsapp, auth_user_id, is_active, created_at",
+          )
+          .in("company_id", companyIdsForPromotion)
+          .order("created_at", { ascending: true })
+      : { data: [] as ProfileFullRow[] };
+    const profsByCompany = new Map<string, ProfileFullRow[]>();
+    for (const p of (profsByCompanyData ?? []) as ProfileFullRow[]) {
+      if (!p.company_id) continue;
+      const arr = profsByCompany.get(p.company_id) ?? [];
+      arr.push(p);
+      profsByCompany.set(p.company_id, arr);
+    }
+    const profsTyped = [
+      ...((profsByPrimary ?? []) as ProfileFullRow[]),
+      ...((profsByCompanyData ?? []) as ProfileFullRow[]),
+    ];
+    const profById = new Map<string, ProfileFullRow>();
+    for (const p of profsTyped) profById.set(p.id, p);
 
     // Exclude profiles whose owner is not actually a participant role
     // (exhibitor/visitor). `cliente`, `admin`, and `staff` are internal /
@@ -195,6 +233,13 @@ export async function _listEventRegistrantsImpl(
         ineligibleAuthIds.add(uid);
       }
     }
+    const isParticipantProfile = (p: ProfileFullRow | undefined | null) => {
+      if (!p) return false;
+      if (p.is_active === false) return false;
+      if (!p.auth_user_id) return false;
+      if (ineligibleAuthIds.has(p.auth_user_id)) return false;
+      return true;
+    };
 
     const out: RegistrantRow[] = rowsTyped
       .filter((r) => r.company_id && r.primary_profile_id)
@@ -204,20 +249,25 @@ export async function _listEventRegistrantsImpl(
         if (!isCliente) return true;
         return Number(r.scheduled_meetings_count ?? 0) > 0;
       })
-      .filter((r) => {
-        const p = profById.get(r.primary_profile_id as string);
-        if (!p?.auth_user_id || p?.is_active === false) return false;
-        if (ineligibleAuthIds.has(p.auth_user_id)) return false;
-        return true;
-      })
       .map((r) => {
-        const p = profById.get(r.primary_profile_id as string);
+        // Promote a confirmed active participant contact when the pipeline's
+        // primary_profile_id is a stub without auth_user_id (mirrors
+        // listClienteOverviewBase). Otherwise keep the pipeline's primary.
+        const pipelinePrimary = profById.get(r.primary_profile_id as string);
+        const company = profsByCompany.get(r.company_id as string) ?? [];
+        const sibling = company.find(isParticipantProfile);
+        const p = isParticipantProfile(pipelinePrimary) ? pipelinePrimary : sibling ?? null;
+        return { r, p };
+      })
+      .filter(({ p }) => !!p)
+      .map(({ r, p: pSel }) => {
+        const p = pSel as ProfileFullRow;
         return {
-          profile_id: r.primary_profile_id as string,
+          profile_id: p.id,
           auth_user_id: (p?.auth_user_id ?? "") as string,
           is_active: p?.is_active !== false,
-          full_name: r.primary_contact_name ?? "—",
-          email: r.primary_contact_email ?? null,
+          full_name: p?.full_name ?? r.primary_contact_name ?? "—",
+          email: p?.email ?? r.primary_contact_email ?? null,
           phone: p?.phone ?? r.primary_contact_phone ?? null,
           whatsapp: p?.whatsapp ?? r.primary_contact_whatsapp ?? null,
           job_title: p?.job_title ?? null,
