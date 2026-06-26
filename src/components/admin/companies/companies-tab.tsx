@@ -186,28 +186,55 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
     return readOnly ? filterRowsByType(res.rows, clienteTypeFilter) : res.rows;
   };
 
+  // Exports expand to ONE ROW PER ELIGIBLE CONTACT (active + auth_user_id +
+  // participant role visitor/exhibitor) using the unified rule shared with
+  // `listClienteOverviewBase` and `_listEventRegistrantsImpl`. This keeps
+  // XLSX, CSV and PDF aligned with the consolidated agenda views: e.g. a
+  // company with 2 confirmed buyers exports 2 rows, not 1. Companies with
+  // no eligible contact (pre-registration only) still emit a single
+  // company-level row so they don't disappear from the export.
   const buildRows = (rows: Awaited<ReturnType<typeof fetchAll>>) =>
-    rows.map((c) => [
-      c.trade_name,
-      c.legal_name ?? "",
-      c.role === "exhibitor"
-        ? t("admin.companies.roleExhibitor")
-        : c.role === "cliente"
-          ? t("admin.companies.roleCliente")
-          : t("admin.companies.roleVisitor"),
-      c.confirmed ? "Confirmado" : "Pré-cadastro",
-      c.city ?? "",
-      c.state_code ?? "",
-      c.country_code ?? "",
-      c.primary_contact?.full_name ?? "",
-      c.primary_contact?.email ?? "",
-      c.primary_contact?.whatsapp ?? c.whatsapp ?? "",
-      c.networking_lunch_participation === true
-        ? "Sim"
-        : c.networking_lunch_participation === false
-          ? "Não"
-          : "Não informado",
-    ]);
+    rows.flatMap((c) => {
+      const roleLabel =
+        c.role === "exhibitor"
+          ? t("admin.companies.roleExhibitor")
+          : c.role === "cliente"
+            ? t("admin.companies.roleCliente")
+            : t("admin.companies.roleVisitor");
+      const statusLabel = c.confirmed ? "Confirmado" : "Pré-cadastro";
+      const eligible = (c as { eligible_contacts?: Array<{ id: string; full_name: string; email: string; whatsapp: string | null; phone: string | null }> }).eligible_contacts ?? [];
+      const contacts: Array<{ full_name: string; email: string; whatsapp: string | null }> =
+        eligible.length > 0
+          ? eligible.map((p) => ({
+              full_name: p.full_name,
+              email: p.email,
+              whatsapp: p.whatsapp ?? c.whatsapp ?? null,
+            }))
+          : [
+              {
+                full_name: c.primary_contact?.full_name ?? "",
+                email: c.primary_contact?.email ?? "",
+                whatsapp: c.primary_contact?.whatsapp ?? c.whatsapp ?? null,
+              },
+            ];
+      return contacts.map((p) => [
+        c.trade_name,
+        c.legal_name ?? "",
+        roleLabel,
+        statusLabel,
+        c.city ?? "",
+        c.state_code ?? "",
+        c.country_code ?? "",
+        p.full_name ?? "",
+        p.email ?? "",
+        p.whatsapp ?? "",
+        c.networking_lunch_participation === true
+          ? "Sim"
+          : c.networking_lunch_participation === false
+            ? "Não"
+            : "Não informado",
+      ]);
+    });
 
   const stamp = () => new Date().toISOString().slice(0, 10);
 
