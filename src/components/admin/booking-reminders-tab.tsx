@@ -438,10 +438,10 @@ export function BookingRemindersTab() {
                         : r.status === "error" ? "destructive"
                         : r.status === "skipped" ? "secondary"
                         : "outline"
-                      }>{r.status}</Badge>
+                      }>{STATUS_LABEL[r.status] ?? r.status}</Badge>
                     </TableCell>
                     <TableCell className="max-w-[220px] truncate text-xs text-muted-foreground">
-                      {r.error_reason ?? r.skip_reason ?? "—"}
+                      <span title={r.skip_reason ?? r.error_reason ?? ""}>{describeRow(r)}</span>
                     </TableCell>
                     <TableCell className="text-right">{r.sent_count_for_user_event}</TableCell>
                   </TableRow>
