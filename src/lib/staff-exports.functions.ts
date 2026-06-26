@@ -294,9 +294,11 @@ export async function _listEventRegistrantsImpl(
           registration_status: (r.registration_status as string | null) ?? null,
           scheduling_status: (r.scheduling_status as string | null) ?? null,
           scheduled_meetings_count: Number(r.scheduled_meetings_count ?? 0),
+          profile_meetings_count: 0,
           created_at: (p?.created_at ?? r.created_at) as string | null,
         };
       });
+  await annotateProfileMeetingCounts(ctx.supabase, eventId, out);
   if (data.sort === "recent") {
     out.sort((a, b) => {
       const da = a.created_at ?? "";
