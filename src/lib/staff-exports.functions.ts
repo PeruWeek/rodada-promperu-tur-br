@@ -546,25 +546,38 @@ export const listClienteOverviewBase = createServerFn({ method: "POST" })
     };
     const out: RegistrantRow[] = rowsTyped
       .filter((r) => !!r.company_id)
-      .map((r) => {
+      .flatMap((r) => {
+        // Expand to ONE ROW PER ELIGIBLE PARTICIPANT PROFILE of the company,
+        // matching `_listEventRegistrantsImpl`. The pipeline view emits one
+        // row per company, but the cliente listing/export must list every
+        // inscribed person (e.g. COPASTUR has 2 confirmed buyers — both must
+        // appear in Visão Geral and its XLSX/PDF export, not just the
+        // "primary" representative).
         const companyProfiles = profsByCompany.get(r.company_id as string) ?? [];
-        // Promote a confirmed, active participant contact when the pipeline's
-        // `primary_profile_id` is a pre-registration with no auth_user_id.
+        const seen = new Set<string>();
+        const eligible: typeof companyProfiles = [];
+        // Pipeline primary first (kept as "responsável principal" in summary).
         const pipelinePrimary = companyProfiles.find(
           (p) => p.id === r.primary_profile_id,
         );
-        const confirmedParticipant = companyProfiles.find(
-          (p) => p.is_active !== false && isParticipantAuth(p.auth_user_id),
-        );
-        const p =
+        if (
           pipelinePrimary &&
           pipelinePrimary.is_active !== false &&
           isParticipantAuth(pipelinePrimary.auth_user_id)
-            ? pipelinePrimary
-            : confirmedParticipant ?? null;
-        return { r, p };
+        ) {
+          eligible.push(pipelinePrimary);
+          seen.add(pipelinePrimary.id);
+        }
+        for (const p of companyProfiles) {
+          if (seen.has(p.id)) continue;
+          if (p.is_active === false) continue;
+          if (!isParticipantAuth(p.auth_user_id)) continue;
+          eligible.push(p);
+          seen.add(p.id);
+        }
+        if (eligible.length === 0) return [] as Array<{ r: PipelineRow; p: typeof companyProfiles[number] }>;
+        return eligible.map((p) => ({ r, p }));
       })
-      .filter(({ p }) => !!p)
       .map(({ r, p }) => {
         const prof = p!;
         return {
