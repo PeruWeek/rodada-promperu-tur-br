@@ -345,6 +345,18 @@ export function RegistrantsTab({
             <SelectItem value="visitor">{t("admin.companies.roleVisitor")}</SelectItem>
           </SelectContent>
         </Select>
+        {isStaffOrAdmin && (
+          <Select value={sort} onValueChange={(v) => setSort(v as "name" | "recent")}>
+            <SelectTrigger className="w-full sm:w-48">
+              <ArrowUpDown size={14} className="mr-2 text-muted-foreground" />
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="name">{t("admin.registrants.sortName")}</SelectItem>
+              <SelectItem value="recent">{t("admin.registrants.sortRecent")}</SelectItem>
+            </SelectContent>
+          </Select>
+        )}
         <Button variant="outline" size="sm" onClick={exportXlsx} disabled={rows.length === 0}>
           <FileSpreadsheet size={14} /> XLSX
         </Button>
