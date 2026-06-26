@@ -30,6 +30,7 @@ import {
   computeClienteKpis,
   computeClienteTypeBreakdown,
   formatLocation,
+  dedupeByCompany,
   type ClienteOverviewRow,
 } from "@/lib/cliente-overview";
 import { listClienteOverviewBase, type RegistrantRow } from "@/lib/staff-exports.functions";
@@ -123,6 +124,16 @@ export function ClienteOverview() {
       );
   }, [rows, search, status, typeFilter]);
 
+  // Per-profile expansion (`filtered`) drives EXPORTS only — XLSX/PDF must
+  // list every contact of a company (e.g. COPASTUR has 2 buyers).
+  // KPIs, badge counter and the on-screen table all talk about EMPRESAS,
+  // so they consume the deduped-by-company view. Single source of truth:
+  // `dedupeByCompany` in `src/lib/cliente-overview.ts`.
+  const filteredCompanies = useMemo(
+    () => dedupeByCompany(filtered as ClienteOverviewRow[]) as typeof filtered,
+    [filtered],
+  );
+
   const exportHeaders = [
     "Nome Fantasia",
     "Razão social",
@@ -210,7 +221,7 @@ export function ClienteOverview() {
         timeZone: "America/Sao_Paulo",
       });
       doc.text(
-        `Gerado em ${generated} · ${filtered.length} empresa(s)`,
+        `Gerado em ${generated} · ${filteredCompanies.length} empresa(s)`,
         W - 40,
         40,
         { align: "right" },
@@ -311,8 +322,8 @@ export function ClienteOverview() {
                 </SelectContent>
               </Select>
               <Badge variant="secondary" className="h-9 px-3">
-                {filtered.length}{" "}
-                {filtered.length === 1 ? "empresa" : "empresas"}
+                {filteredCompanies.length}{" "}
+                {filteredCompanies.length === 1 ? "empresa" : "empresas"}
               </Badge>
             </>
           )}
@@ -351,7 +362,7 @@ export function ClienteOverview() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {isLoading ? null : filtered.length === 0 ? (
+              {isLoading ? null : filteredCompanies.length === 0 ? (
                 <TableRow>
                   <TableCell
                     colSpan={hasUpdatedAt ? 6 : 5}
@@ -361,7 +372,7 @@ export function ClienteOverview() {
                   </TableCell>
                 </TableRow>
               ) : (
-                filtered.map((r) => {
+                filteredCompanies.map((r) => {
                   const count = r.scheduled_meetings_count ?? 0;
                   const group = bucketGroupFromMeetings(count);
                   const anyRow = r as unknown as Record<string, unknown>;
@@ -369,7 +380,7 @@ export function ClienteOverview() {
                     (anyRow.updated_at as string | undefined) ??
                     (anyRow.pipeline_updated_at as string | undefined);
                   return (
-                    <TableRow key={`${r.company_id}-${r.profile_id}`}>
+                    <TableRow key={r.company_id}>
                       <TableCell className="font-medium">
                         {r.company_trade_name}
                       </TableCell>

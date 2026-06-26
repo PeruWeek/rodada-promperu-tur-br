@@ -11,6 +11,11 @@ import { bucketGroupFromMeetings } from "./scheduling-status";
 export type ClienteOverviewRow = {
   scheduled_meetings_count: number | null;
   role?: "visitor" | "exhibitor" | null;
+  /**
+   * Used to dedupe per-profile expansions back to unique companies. When
+   * omitted, the row is treated as its own unique entity (legacy inputs).
+   */
+  company_id?: string | null;
   // Other fields exist but are irrelevant for KPIs.
 };
 
@@ -21,11 +26,34 @@ export type ClienteKpis = {
   percentComAgendamento: number;
 };
 
+/**
+ * Collapses a per-profile expanded list down to one entry per `company_id`.
+ * Server functions (`_listEventRegistrantsImpl`, `listClienteOverviewBase`)
+ * emit one row per eligible participant so exports can list every contact;
+ * KPIs / counters that talk about EMPRESAS must consume the deduped view.
+ */
+export function dedupeByCompany<T extends ClienteOverviewRow>(rows: T[]): T[] {
+  const seen = new Set<string>();
+  const out: T[] = [];
+  for (const r of rows) {
+    const key = r.company_id ?? null;
+    if (key == null) {
+      out.push(r);
+      continue;
+    }
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(r);
+  }
+  return out;
+}
+
 export function computeClienteKpis(rows: ClienteOverviewRow[]): ClienteKpis {
-  const inscritas = rows.length;
+  const unique = dedupeByCompany(rows);
+  const inscritas = unique.length;
   let comAgendamento = 0;
   let totalReunioes = 0;
-  for (const r of rows) {
+  for (const r of unique) {
     const count = Number(r.scheduled_meetings_count ?? 0);
     totalReunioes += count;
     if (bucketGroupFromMeetings(count) === "com_agendamento") {
@@ -59,7 +87,7 @@ export function computeClienteTypeBreakdown(
   let expositoresCount = 0;
   let visitantesMeetings = 0;
   let expositoresMeetings = 0;
-  for (const r of rows) {
+  for (const r of dedupeByCompany(rows)) {
     const count = Number(r.scheduled_meetings_count ?? 0);
     if (r.role === "visitor") {
       visitantesCount += 1;
