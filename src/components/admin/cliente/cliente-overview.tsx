@@ -2,8 +2,13 @@ import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { FileSpreadsheet, Files } from "lucide-react";
+import { toast } from "sonner";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
@@ -33,6 +38,7 @@ import {
   labelForGroup,
   type SchedulingGroup,
 } from "@/lib/scheduling-status";
+import { downloadXlsx } from "@/lib/exports/xlsx";
 
 type StatusFilter = "any" | SchedulingGroup;
 type TypeFilter = "all" | "visitor" | "exhibitor";
@@ -49,11 +55,12 @@ type TypeFilter = "all" | "visitor" | "exhibitor";
  * - No mutations, no exports, no per-row actions.
  */
 export function ClienteOverview() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const listFn = useServerFn(listClienteOverviewBase);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<StatusFilter>("any");
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
+  const [exporting, setExporting] = useState<null | "xlsx" | "pdf">(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ["cliente-overview-base"],
@@ -115,6 +122,115 @@ export function ClienteOverview() {
         (a.company_trade_name ?? "").localeCompare(b.company_trade_name ?? ""),
       );
   }, [rows, search, status, typeFilter]);
+
+  const exportHeaders = [
+    "Nome Fantasia",
+    "Razão social",
+    "Tipo",
+    "Cidade",
+    "UF",
+    "País",
+    "Status da agenda",
+    "Reuniões agendadas",
+    "Responsável",
+    "E-mail",
+    "Telefone",
+    "WhatsApp",
+  ];
+
+  const typeLabel = (role: string) =>
+    role === "exhibitor"
+      ? t("cliente.overview.type.exhibitor")
+      : role === "visitor"
+        ? t("cliente.overview.type.visitor")
+        : "—";
+
+  const buildExportRows = () =>
+    filtered.map((r) => {
+      const count = r.scheduled_meetings_count ?? 0;
+      const group = bucketGroupFromMeetings(count);
+      return [
+        r.company_trade_name ?? "",
+        r.company_legal_name ?? "",
+        typeLabel(r.role),
+        r.city ?? "",
+        r.state_code ?? "",
+        r.country_code ?? "",
+        labelForGroup(group, t),
+        count,
+        r.full_name ?? "",
+        r.email ?? "",
+        r.phone ?? "",
+        r.whatsapp ?? "",
+      ];
+    });
+
+  const fileSuffix = () => {
+    const parts: string[] = [];
+    if (typeFilter === "visitor") parts.push("visitantes");
+    else if (typeFilter === "exhibitor") parts.push("expositoras");
+    if (status === "com_agendamento") parts.push("com-agendamento");
+    else if (status === "sem_agendamento") parts.push("sem-agendamento");
+    if (parts.length === 0) parts.push("todas");
+    const stamp = new Date().toISOString().slice(0, 10);
+    return `${parts.join("-")}-${stamp}`;
+  };
+
+  const exportXlsx = () => {
+    if (filtered.length === 0) {
+      toast.info(t("cliente.overview.empty"));
+      return;
+    }
+    setExporting("xlsx");
+    try {
+      downloadXlsx(`empresas-${fileSuffix()}.xlsx`, "Empresas", exportHeaders, buildExportRows());
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setExporting(null);
+    }
+  };
+
+  const exportPdf = () => {
+    if (filtered.length === 0) {
+      toast.info(t("cliente.overview.empty"));
+      return;
+    }
+    setExporting("pdf");
+    try {
+      const doc = new jsPDF({ unit: "pt", format: "a4", orientation: "landscape" });
+      const W = doc.internal.pageSize.getWidth();
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(16);
+      doc.text("Empresas — Visão geral", 40, 40);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      doc.setTextColor(110);
+      const generated = new Date().toLocaleString(i18n.language === "es" ? "es" : "pt-BR", {
+        timeZone: "America/Sao_Paulo",
+      });
+      doc.text(
+        `Gerado em ${generated} · ${filtered.length} empresa(s)`,
+        W - 40,
+        40,
+        { align: "right" },
+      );
+      doc.setTextColor(0);
+      autoTable(doc, {
+        startY: 60,
+        head: [exportHeaders],
+        body: buildExportRows().map((r) => r.map((v) => String(v ?? ""))),
+        styles: { fontSize: 8, cellPadding: 4 },
+        headStyles: { fillColor: [30, 30, 30], textColor: 255 },
+        alternateRowStyles: { fillColor: [245, 245, 245] },
+      });
+      doc.save(`empresas-${fileSuffix()}.pdf`);
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setExporting(null);
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -200,6 +316,22 @@ export function ClienteOverview() {
               </Badge>
             </>
           )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={exportXlsx}
+            disabled={exporting !== null || filtered.length === 0}
+          >
+            <FileSpreadsheet size={14} /> {exporting === "xlsx" ? t("common.loading") : "XLSX"}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={exportPdf}
+            disabled={exporting !== null || filtered.length === 0}
+          >
+            <Files size={14} /> {exporting === "pdf" ? t("common.loading") : "PDF"}
+          </Button>
         </div>
 
         <div className="overflow-x-auto">
