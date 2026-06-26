@@ -197,6 +197,10 @@ export const listAdminCompanies = createServerFn({ method: "POST" })
         lunch: z.enum(["all", "yes", "no"]).optional().default("all"),
         status: z.enum(["active", "inactive", "all"]).optional().default("active"),
         excludeCliente: z.boolean().optional().default(false),
+        scheduling: z
+          .enum(["all", "scheduled", "not_scheduled"]) // cliente-facing accompaniment filter
+          .optional()
+          .default("all"),
       })
       .parse(input),
   )
