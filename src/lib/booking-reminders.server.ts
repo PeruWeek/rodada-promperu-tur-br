@@ -406,6 +406,6 @@ async function persistSummary(
   };
   await supabaseAdmin
     .from("booking_reminder_settings")
-    .update({ last_run_at: new Date().toISOString(), last_run_summary: trimmed })
+    .update({ last_run_at: summary.finished_at, last_run_summary: trimmed })
     .eq("id", 1);
 }
