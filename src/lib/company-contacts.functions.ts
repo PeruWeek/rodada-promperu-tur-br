@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { filterAndRankCompanies, normalizeCompanySearchValue } from "@/lib/company-search";
 
 async function assertAdmin(userId: string) {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -188,27 +189,29 @@ export const findCompanyForContact = createServerFn({ method: "POST" })
     const select = "id, trade_name, legal_name, tax_id, city, state_code";
 
     if (looksLikeCnpj) {
-      // Match by digits-only tax_id (ignores formatting).
+      // Match by digits-only tax_id (ignores formatting). We fetch then filter
+      // because tax_id can be stored formatted.
       const { data: rows, error } = await supabaseAdmin
         .from("companies")
         .select(select)
-        .filter("tax_id", "ilike", `%${digits}%`)
-        .limit(limit);
+        .limit(5000);
       if (error) throw new Error(error.message);
       const filtered = (rows ?? []).filter(
         (r) => (r.tax_id ?? "").replace(/\D+/g, "").includes(digits),
       );
-      if (filtered.length > 0) return { rows: filtered };
+      if (filtered.length > 0) return { rows: filtered.slice(0, limit) };
     }
 
-    const term = `%${data.query.trim()}%`;
     const { data: rows, error } = await supabaseAdmin
       .from("companies")
       .select(select)
-      .or(`trade_name.ilike.${term},legal_name.ilike.${term}`)
-      .limit(limit);
+      .limit(5000);
     if (error) throw new Error(error.message);
-    return { rows: rows ?? [] };
+    const ranked = filterAndRankCompanies(
+      rows ?? [],
+      normalizeCompanySearchValue(data.query),
+    ).slice(0, limit);
+    return { rows: ranked };
   });
 
 const lookupInput = z.object({

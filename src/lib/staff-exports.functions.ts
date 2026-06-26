@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { filterAndRankCompanies } from "@/lib/company-search";
 import { getPrimaryRoleServer } from "@/lib/role-server";
 
 async function assertAdminOrStaff(userId: string) {
@@ -117,12 +118,6 @@ export async function _listEventRegistrantsImpl(
     if (schedulingStatuses && schedulingStatuses.length > 0) {
       q = q.in("scheduling_status", schedulingStatuses);
     }
-    if (data.search) {
-      const s = data.search;
-      q = q.or(
-        `company_trade_name.ilike.%${s}%,company_legal_name.ilike.%${s}%,primary_contact_name.ilike.%${s}%,primary_contact_email.ilike.%${s}%`,
-      );
-    }
     const { data: rows, error } = await q.order("company_trade_name", { ascending: true });
     if (error) throw new Error(error.message);
 
@@ -156,7 +151,7 @@ export async function _listEventRegistrantsImpl(
       is_active: boolean | null;
     };
     type UserRoleRow = { user_id: string; role: string };
-    const rowsTyped = (rows ?? []) as PipelineRow[];
+    let rowsTyped = (rows ?? []) as PipelineRow[];
     const companyIds = Array.from(
       new Set(rowsTyped.map((r) => r.company_id).filter(Boolean) as string[]),
     );
@@ -169,6 +164,19 @@ export async function _listEventRegistrantsImpl(
     const taxById = new Map(
       ((companies ?? []) as CompanyTaxRow[]).map((c) => [c.id, c.tax_id]),
     );
+    if (data.search?.trim()) {
+      // Search is company-scoped only: trade_name, legal_name, tax_id.
+      // Do not include primary_contact_name/email or any profile fields.
+      rowsTyped = filterAndRankCompanies(
+        rowsTyped.map((r) => ({
+          ...r,
+          trade_name: r.company_trade_name,
+          legal_name: r.company_legal_name,
+          tax_id: r.company_id ? taxById.get(r.company_id) ?? null : null,
+        })),
+        data.search,
+      );
+    }
 
     const profileIds = Array.from(
       new Set(rowsTyped.map((r) => r.primary_profile_id).filter(Boolean) as string[]),
@@ -769,16 +777,53 @@ export const listBulkAgendas = createServerFn({ method: "POST" })
     const eventId = await getCurrentEventId(data.eventId);
     if (!eventId) return { eventId: null, entries: [] as BulkAgendaEntry[] };
 
-    const profileIds = Array.from(new Set(data.profileIds));
+    const seedProfileIds = Array.from(new Set(data.profileIds));
 
     // Profiles + companies
     const { data: profs } = await supabaseAdmin
       .from("profiles")
-      .select("id, full_name, company_id")
-      .in("id", profileIds);
+      .select("id, full_name, company_id, auth_user_id, is_active")
+      .in("id", seedProfileIds);
     const baseCompanyIds = Array.from(
       new Set((profs ?? []).map((p) => p.company_id).filter(Boolean) as string[]),
     );
+    const { data: companyProfiles } = baseCompanyIds.length
+      ? await supabaseAdmin
+          .from("profiles")
+          .select("id, full_name, company_id, auth_user_id, is_active")
+          .in("company_id", baseCompanyIds)
+          .order("created_at", { ascending: true })
+      : { data: [] as Array<{ id: string; full_name: string | null; company_id: string | null; auth_user_id: string | null; is_active: boolean | null }> };
+    const authIds = Array.from(
+      new Set((companyProfiles ?? []).map((p) => p.auth_user_id).filter(Boolean) as string[]),
+    );
+    const { data: roleRows } = authIds.length
+      ? await supabaseAdmin.from("user_roles").select("user_id, role").in("user_id", authIds)
+      : { data: [] as Array<{ user_id: string; role: string }> };
+    const rolesByAuth = new Map<string, Set<string>>();
+    for (const r of roleRows ?? []) {
+      const set = rolesByAuth.get(r.user_id) ?? new Set<string>();
+      set.add(String(r.role));
+      rolesByAuth.set(r.user_id, set);
+    }
+    const isEligibleParticipant = (p: { auth_user_id: string | null; is_active: boolean | null }) => {
+      if (p.is_active === false) return false;
+      if (!p.auth_user_id) return false;
+      const roles = rolesByAuth.get(p.auth_user_id);
+      if (!roles) return false;
+      if (roles.has("admin") || roles.has("staff") || roles.has("cliente")) return false;
+      return roles.has("visitor") || roles.has("exhibitor");
+    };
+    const seededCompanies = new Set(baseCompanyIds);
+    const profileIds = Array.from(
+      new Set(
+        (companyProfiles ?? [])
+          .filter((p) => p.company_id && seededCompanies.has(p.company_id) && isEligibleParticipant(p))
+          .map((p) => p.id),
+      ),
+    );
+    if (profileIds.length === 0) return { eventId, entries: [] as BulkAgendaEntry[] };
+    const agendaProfiles = (companyProfiles ?? []).filter((p) => profileIds.includes(p.id));
 
     // Tables owned by any of these profiles (exhibitors)
     const { data: ownedTables } = await supabaseAdmin
@@ -879,7 +924,7 @@ export const listBulkAgendas = createServerFn({ method: "POST" })
         : "";
 
     const entries: BulkAgendaEntry[] = profileIds.map((pid) => {
-      const prof = (profs ?? []).find((p) => p.id === pid);
+      const prof = agendaProfiles.find((p) => p.id === pid) ?? (profs ?? []).find((p) => p.id === pid);
       const isExh = exhTableByProfile.has(pid);
       const ownTbl = exhTableByProfile.get(pid) ?? null;
       const mine = meetingsArr.filter((m) =>

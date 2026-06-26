@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { filterAndRankCompanies } from "./company-search";
 import {
   COMPANY_CATEGORIES,
   COMPANY_ROLES,
@@ -149,25 +150,49 @@ export const listPipeline = createServerFn({ method: "POST" })
       const since = new Date(Date.now() - data.periodDays * 24 * 60 * 60 * 1000).toISOString();
       q = q.gte("created_at", since);
     }
-    if (data.search?.trim()) {
-      const term = `%${data.search.trim()}%`;
-      q = q.or(`company_trade_name.ilike.${term},primary_contact_name.ilike.${term},primary_contact_email.ilike.${term}`);
-    }
-
     const from = (data.page - 1) * data.pageSize;
     const to = from + data.pageSize - 1;
-    q = q.order("updated_at", { ascending: false }).range(from, to);
+
+    if (!data.search?.trim()) {
+      q = q.order("updated_at", { ascending: false }).range(from, to);
+    } else {
+      // Search must be scoped to company-owned fields only. We intentionally
+      // avoid the pipeline view's primary_contact_* fields here; those caused
+      // companies to appear because a contact name/email matched the term.
+      q = q.order("updated_at", { ascending: false }).limit(5000);
+    }
 
     const { data: rows, count, error } = await q;
     if (error) throw new Error(error.message);
+    let resultRows = rows ?? [];
+
+    if (data.search?.trim()) {
+      const companyIds = Array.from(
+        new Set(resultRows.map((r) => r.company_id as string | null).filter(Boolean) as string[]),
+      );
+      const { data: companyRows } = companyIds.length
+        ? await supabaseAdmin.from("companies").select("id, tax_id").in("id", companyIds)
+        : { data: [] as Array<{ id: string; tax_id: string | null }> };
+      const taxByCompany = new Map((companyRows ?? []).map((c) => [c.id, c.tax_id]));
+      resultRows = filterAndRankCompanies(
+        resultRows.map((r) => ({
+          ...r,
+          trade_name: (r.company_trade_name as string | null) ?? null,
+          legal_name: (r.company_legal_name as string | null) ?? null,
+          tax_id: r.company_id ? taxByCompany.get(r.company_id as string) ?? null : null,
+        })),
+        data.search,
+      );
+    }
     const ineligible = await getIneligibleProfileIds(
-      ((rows ?? []).map((r) => r.primary_profile_id as string | null).filter(Boolean) as string[]),
+      (resultRows.map((r) => r.primary_profile_id as string | null).filter(Boolean) as string[]),
     );
-    const filtered = (rows ?? []).filter(
+    let filtered = resultRows.filter(
       (r) => !ineligible.has(r.primary_profile_id as string),
     );
-    const removed = (rows?.length ?? 0) - filtered.length;
-    return { rows: filtered, total: Math.max(0, (count ?? 0) - removed), eventId };
+    const total = data.search?.trim() ? filtered.length : Math.max(0, (count ?? 0) - ((rows?.length ?? 0) - filtered.length));
+    if (data.search?.trim()) filtered = filtered.slice(from, to + 1);
+    return { rows: filtered, total, eventId };
   });
 
 export const getPipelineKpis = createServerFn({ method: "POST" })
