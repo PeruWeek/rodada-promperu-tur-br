@@ -71,7 +71,7 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
   const [role, setRole] = useState<RoleFilter>(readOnly ? "visitor" : "all");
   const [confirmed, setConfirmed] = useState<ConfirmedFilter>(readOnly ? "yes" : "all");
   const [lunch, setLunch] = useState<LunchFilter>("all");
-  const [status, setStatus] = useState<StatusFilter>(readOnly ? "active" : "all");
+  const [status, setStatus] = useState<StatusFilter>("active");
   const [page, setPage] = useState(1);
   const [clienteTypeFilter, setClienteTypeFilter] = useState<ClienteTypeFilter>("all");
   const [schedulingFilter, setSchedulingFilter] = useState<SchedulingFilter>("all");

@@ -254,7 +254,7 @@ export async function _listEventRegistrantsImpl(
     };
 
     const out: RegistrantRow[] = rowsTyped
-      .filter((r) => r.company_id && r.primary_profile_id)
+      .filter((r) => r.company_id)
       .filter((r) => {
         // Defensive post-filter: cliente NEVER sees rows whose real count is
         // <= 0, even if scheduling_status text incorrectly says agendado_ok.
@@ -271,7 +271,9 @@ export async function _listEventRegistrantsImpl(
         // with auth_user_id, not internal admin/staff/cliente).
         const candidates: ProfileFullRow[] = [];
         const seen = new Set<string>();
-        const pipelinePrimary = profById.get(r.primary_profile_id as string);
+        const pipelinePrimary = r.primary_profile_id
+          ? profById.get(r.primary_profile_id as string)
+          : undefined;
         if (pipelinePrimary) {
           candidates.push(pipelinePrimary);
           seen.add(pipelinePrimary.id);
@@ -977,9 +979,30 @@ export const getCompanyAgenda = createServerFn({ method: "POST" })
 
     const { data: companyProfiles } = await supabaseAdmin
       .from("profiles")
-      .select("id, full_name, is_active")
+      .select("id, full_name, auth_user_id, is_active")
       .eq("company_id", data.companyId);
-    const activeProfiles = (companyProfiles ?? []).filter((p) => p.is_active !== false);
+
+    const authIds = Array.from(
+      new Set((companyProfiles ?? []).map((p) => p.auth_user_id).filter(Boolean) as string[]),
+    );
+    const { data: roleRows } = authIds.length
+      ? await supabaseAdmin.from("user_roles").select("user_id, role").in("user_id", authIds)
+      : { data: [] as Array<{ user_id: string; role: string }> };
+    const rolesByAuth = new Map<string, Set<string>>();
+    for (const r of roleRows ?? []) {
+      const set = rolesByAuth.get(r.user_id) ?? new Set<string>();
+      set.add(String(r.role));
+      rolesByAuth.set(r.user_id, set);
+    }
+    const isEligibleParticipant = (p: { auth_user_id: string | null; is_active: boolean | null }) => {
+      if (p.is_active === false) return false;
+      if (!p.auth_user_id) return false;
+      const roles = rolesByAuth.get(p.auth_user_id);
+      if (!roles) return false;
+      if (roles.has("admin") || roles.has("staff") || roles.has("cliente")) return false;
+      return roles.has("visitor") || roles.has("exhibitor");
+    };
+    const activeProfiles = (companyProfiles ?? []).filter(isEligibleParticipant);
     const profileIds = activeProfiles.map((p) => p.id);
 
     if (profileIds.length === 0) {
