@@ -413,6 +413,9 @@ export function RegistrantsTab({
             </SelectContent>
           </Select>
         )}
+        <Badge variant="secondary" className="h-9 px-3">
+          {rows.length} {rows.length === 1 ? "inscrito" : "inscritos"}
+        </Badge>
         <Button variant="outline" size="sm" onClick={exportXlsx} disabled={rows.length === 0}>
           <FileSpreadsheet size={14} /> XLSX
         </Button>
