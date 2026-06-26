@@ -55,6 +55,7 @@ export function BookingRemindersTab() {
   const [filters, setFilters] = useState({
     from: "",
     to: "",
+    runId: "",
     eventId: "",
     status: "",
     mode: "",
@@ -68,6 +69,7 @@ export function BookingRemindersTab() {
         data: {
           from: filters.from ? new Date(filters.from).toISOString() : undefined,
           to: filters.to ? new Date(filters.to).toISOString() : undefined,
+          runId: filters.runId.trim() || undefined,
           eventId: filters.eventId || undefined,
           status: (filters.status || undefined) as any,
           mode: (filters.mode || undefined) as any,
@@ -126,6 +128,9 @@ export function BookingRemindersTab() {
       );
       qc.invalidateQueries({ queryKey: ["booking-reminder-settings"] });
       qc.invalidateQueries({ queryKey: ["booking-reminder-history"] });
+      if (!s.dry_run && s.run_id) {
+        setFilters((f) => ({ ...f, runId: s.run_id }));
+      }
     },
     onError: (e: any) => toast.error(e?.message ?? "Falha ao executar"),
   });
@@ -248,6 +253,28 @@ export function BookingRemindersTab() {
               <strong>Quando:</strong>{" "}
               {new Date(data.last_run_at).toLocaleString("pt-BR")}
             </div>
+            {lastSummary?.run_id && (
+              <div className="flex flex-wrap items-center gap-2">
+                <strong>Run ID:</strong>
+                <code className="text-xs bg-muted px-2 py-1 rounded">
+                  {lastSummary.run_id}
+                </code>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() =>
+                    setFilters((f) => ({
+                      ...f,
+                      runId: lastSummary.run_id,
+                      mode: lastSummary.mode ?? f.mode,
+                    }))
+                  }
+                >
+                  Ver no histórico
+                </Button>
+              </div>
+            )}
             {lastSummary && (
               <pre className="text-xs bg-muted p-3 rounded overflow-auto">
 {JSON.stringify(lastSummary, null, 2)}
@@ -266,7 +293,7 @@ export function BookingRemindersTab() {
             Envios, skips e erros registrados pela rotina (automática e manual).
           </p>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-6 gap-2 text-sm">
+        <div className="grid grid-cols-1 md:grid-cols-7 gap-2 text-sm">
           <div>
             <Label>De</Label>
             <Input
@@ -281,6 +308,14 @@ export function BookingRemindersTab() {
               type="datetime-local"
               value={filters.to}
               onChange={(e) => setFilters((f) => ({ ...f, to: e.target.value }))}
+            />
+          </div>
+          <div>
+            <Label>Run ID</Label>
+            <Input
+              placeholder="UUID da execução"
+              value={filters.runId}
+              onChange={(e) => setFilters((f) => ({ ...f, runId: e.target.value }))}
             />
           </div>
           <div>
@@ -349,6 +384,7 @@ export function BookingRemindersTab() {
             <TableHeader>
               <TableRow>
                 <TableHead>Data/hora</TableHead>
+                <TableHead>Run ID</TableHead>
                 <TableHead>Evento</TableHead>
                 <TableHead>Usuário</TableHead>
                 <TableHead>E-mail</TableHead>
@@ -361,13 +397,14 @@ export function BookingRemindersTab() {
             </TableHeader>
             <TableBody>
               {historyQuery.isLoading ? (
-                <TableRow><TableCell colSpan={9}><Skeleton className="h-24 w-full" /></TableCell></TableRow>
+                <TableRow><TableCell colSpan={10}><Skeleton className="h-24 w-full" /></TableCell></TableRow>
               ) : (historyQuery.data?.items ?? []).length === 0 ? (
-                <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground py-6">Nenhum registro</TableCell></TableRow>
+                <TableRow><TableCell colSpan={10} className="text-center text-muted-foreground py-6">Nenhum registro</TableCell></TableRow>
               ) : (
                 (historyQuery.data?.items ?? []).map((r: any) => (
                   <TableRow key={r.id}>
                     <TableCell>{new Date(r.sent_at).toLocaleString("pt-BR")}</TableCell>
+                    <TableCell className="max-w-[120px] truncate font-mono text-xs">{r.run_id ?? "—"}</TableCell>
                     <TableCell className="max-w-[140px] truncate">{r.event_name ?? r.event_id}</TableCell>
                     <TableCell className="max-w-[160px] truncate">{r.user_name ?? "—"}</TableCell>
                     <TableCell className="max-w-[200px] truncate">{r.recipient_email}</TableCell>
