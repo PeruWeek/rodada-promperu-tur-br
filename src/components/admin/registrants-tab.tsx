@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { AlertCircle, Ban, ClipboardCheck, Download, FileArchive, FileSpreadsheet, FileText, Files, Mail, Search, UserCog, UserCheck } from "lucide-react";
+import { AlertCircle, ArrowUpDown, Ban, ClipboardCheck, Download, FileArchive, FileSpreadsheet, FileText, Files, Mail, Search, UserCog, UserCheck } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -131,6 +131,7 @@ export function RegistrantsTab({
   const isStaffOnly = hasRole(me?.roles, "staff") && !hasRole(me?.roles, "admin");
   const initialRole: RoleFilter = defaultRole ?? (isStaffOnly ? "visitor" : "all");
   const [role, setRole] = useState<RoleFilter>(initialRole);
+  const [sort, setSort] = useState<"name" | "recent">("name");
   const [search, setSearch] = useState("");
   const [agendaLoadingId, setAgendaLoadingId] = useState<string | null>(null);
   const [bulkLoading, setBulkLoading] = useState<null | "pdf" | "zip">(null);
@@ -143,8 +144,8 @@ export function RegistrantsTab({
   const [welcomeSending, setWelcomeSending] = useState(false);
 
   const { data, isLoading } = useQuery({
-    queryKey: ["registrants", role, search],
-    queryFn: () => listFn({ data: { role, search } }),
+    queryKey: ["registrants", role, search, sort],
+    queryFn: () => listFn({ data: { role, search, sort } }),
   });
 
   const rows = useMemo(() => {
@@ -344,6 +345,18 @@ export function RegistrantsTab({
             <SelectItem value="visitor">{t("admin.companies.roleVisitor")}</SelectItem>
           </SelectContent>
         </Select>
+        {isStaffOrAdmin && (
+          <Select value={sort} onValueChange={(v) => setSort(v as "name" | "recent")}>
+            <SelectTrigger className="w-full sm:w-48">
+              <ArrowUpDown size={14} className="mr-2 text-muted-foreground" />
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="name">{t("admin.registrants.sortName")}</SelectItem>
+              <SelectItem value="recent">{t("admin.registrants.sortRecent")}</SelectItem>
+            </SelectContent>
+          </Select>
+        )}
         <Button variant="outline" size="sm" onClick={exportXlsx} disabled={rows.length === 0}>
           <FileSpreadsheet size={14} /> XLSX
         </Button>

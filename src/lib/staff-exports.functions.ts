@@ -61,6 +61,7 @@ export type ListEventRegistrantsInput = {
   role: "all" | "exhibitor" | "visitor";
   search?: string;
   schedulingStatuses?: Array<(typeof SCHEDULING_STATUS_VALUES)[number] | string>;
+  sort?: "name" | "recent";
 };
 
 /**
@@ -282,9 +283,17 @@ export async function _listEventRegistrantsImpl(
           registration_status: (r.registration_status as string | null) ?? null,
           scheduling_status: (r.scheduling_status as string | null) ?? null,
           scheduled_meetings_count: Number(r.scheduled_meetings_count ?? 0),
-          created_at: r.created_at as string | null,
+          created_at: (p?.created_at ?? r.created_at) as string | null,
         };
       });
+  if (data.sort === "recent") {
+    out.sort((a, b) => {
+      const da = a.created_at ?? "";
+      const db = b.created_at ?? "";
+      if (da !== db) return db.localeCompare(da);
+      return a.company_trade_name.localeCompare(b.company_trade_name);
+    });
+  }
   return { eventId, rows: out };
 }
 
@@ -310,6 +319,7 @@ export const listEventRegistrants = createServerFn({ method: "POST" })
           .array(z.enum(SCHEDULING_STATUS_VALUES))
           .max(SCHEDULING_STATUS_VALUES.length)
           .optional(),
+        sort: z.enum(["name", "recent"]).default("name"),
       })
       .parse(input ?? {}),
   )
