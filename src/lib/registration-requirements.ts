@@ -23,8 +23,8 @@
  */
 
 export const VISITOR_REQUIRED_FIELDS = {
-  // Contato
-  profile: ["full_name", "job_title", "whatsapp", "preferred_language"] as const,
+  // Contato (idioma é OPCIONAL — não bloqueia conclusão)
+  profile: ["full_name", "job_title", "whatsapp"] as const,
   // Empresa (CNPJ + cidade + UF obrigatórios para visitor BR)
   company: ["trade_name", "city", "state_code", "tax_id"] as const,
   // Operacionais / consentimentos
@@ -36,7 +36,7 @@ export const VISITOR_REQUIRED_FIELDS = {
 } as const;
 
 export const EXHIBITOR_REQUIRED_FIELDS = {
-  profile: ["full_name", "job_title", "whatsapp", "preferred_language"] as const,
+  profile: ["full_name", "job_title", "whatsapp"] as const,
   company: ["trade_name", "city"] as const,
   exhibitor: ["segments", "services"] as const,
 } as const;
@@ -48,7 +48,6 @@ export const REGISTRATION_FIELD_LABEL: Record<string, string> = {
   "profile.full_name": "Nome do contato",
   "profile.job_title": "Cargo",
   "profile.whatsapp": "WhatsApp",
-  "profile.preferred_language": "Idioma preferido",
   "company.trade_name": "Nome fantasia",
   "company.tax_id": "CNPJ",
   "company.city": "Cidade",
