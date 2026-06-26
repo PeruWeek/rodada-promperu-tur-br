@@ -241,7 +241,9 @@
     },
     "pdfTitle": "Minha Agenda — PERU MICE Networking Evento",
     "pdfGenerated": "Gerado em {{date}}",
-    "downloadPdf": "Baixar PDF"
+    "downloadPdf": "Baixar PDF",
+    "companyPdfTitle": "Agenda da Empresa — PERU MICE Networking Evento",
+    "companyPdfTotal": "{{meetings}} reunião(ões) · {{contacts}} contato(s)"
   },
   "tableAgenda": {
     "title": "Agenda da Mesa",
