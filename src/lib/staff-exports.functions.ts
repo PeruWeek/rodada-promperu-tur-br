@@ -319,6 +319,7 @@ export const listEventRegistrants = createServerFn({ method: "POST" })
           .array(z.enum(SCHEDULING_STATUS_VALUES))
           .max(SCHEDULING_STATUS_VALUES.length)
           .optional(),
+        sort: z.enum(["name", "recent"]).default("name"),
       })
       .parse(input ?? {}),
   )
