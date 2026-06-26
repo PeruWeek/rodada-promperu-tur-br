@@ -309,6 +309,28 @@ export const listAdminCompanies = createServerFn({ method: "POST" })
       const role: "cliente" | "exhibitor" | "visitor" = pickPrimary(owners);
       const confirmed = owners.some((p) => !!p.auth_user_id);
       const lunch = primary ? lunchByProfile.get(primary.id) ?? null : null;
+      // Eligible contacts for company exports (XLSX/CSV/PDF) and any
+      // listing that needs the FULL human-readable contact roster.
+      // Unified rule, same as `listClienteOverviewBase` /
+      // `_listEventRegistrantsImpl`: active profile + has auth_user_id +
+      // user role is participant (visitor/exhibitor), excluding internal
+      // cliente/admin/staff. Stubs without `auth_user_id` (e.g. legacy
+      // pre-registration siblings) are filtered out.
+      const eligibleContacts = activeOwners
+        .filter((p) => {
+          if (!p.auth_user_id) return false;
+          const set = rolesByAuth.get(p.auth_user_id);
+          if (!set) return false;
+          if (set.has("cliente") || set.has("admin") || set.has("staff")) return false;
+          return set.has("visitor") || set.has("exhibitor");
+        })
+        .map((p) => ({
+          id: p.id,
+          full_name: p.full_name,
+          email: p.email,
+          whatsapp: p.whatsapp ?? null,
+          phone: p.phone ?? null,
+        }));
       return {
         id: c.id,
         trade_name: c.trade_name,
@@ -327,6 +349,7 @@ export const listAdminCompanies = createServerFn({ method: "POST" })
               phone: primary.phone ?? null,
             }
           : null,
+        eligible_contacts: eligibleContacts,
         role,
         confirmed,
         hasActiveOwner: activeOwners.length > 0,
