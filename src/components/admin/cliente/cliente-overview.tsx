@@ -176,23 +176,29 @@ export function ClienteOverview() {
             </SelectContent>
           </Select>
           {showStatusFilter && (
-            <Select
-              value={status}
-              onValueChange={(v) => setStatus(v as StatusFilter)}
-            >
-              <SelectTrigger className="w-56">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="any">—</SelectItem>
-                <SelectItem value="com_agendamento">
-                  {labelForGroup("com_agendamento", t)}
-                </SelectItem>
-                <SelectItem value="sem_agendamento">
-                  {labelForGroup("sem_agendamento", t)}
-                </SelectItem>
-              </SelectContent>
-            </Select>
+            <>
+              <Select
+                value={status}
+                onValueChange={(v) => setStatus(v as StatusFilter)}
+              >
+                <SelectTrigger className="w-56">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="any">Todas</SelectItem>
+                  <SelectItem value="com_agendamento">
+                    {labelForGroup("com_agendamento", t)}
+                  </SelectItem>
+                  <SelectItem value="sem_agendamento">
+                    {labelForGroup("sem_agendamento", t)}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              <Badge variant="secondary" className="h-9 px-3">
+                {filtered.length}{" "}
+                {filtered.length === 1 ? "empresa" : "empresas"}
+              </Badge>
+            </>
           )}
         </div>
 
