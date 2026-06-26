@@ -8,6 +8,7 @@ const MIN_SIGNUP_AGE_HOURS = 24;
 export type BookingReminderMode = "auto" | "manual";
 
 export interface BookingReminderSummary {
+  run_id: string;
   event_id: string | null;
   mode: BookingReminderMode;
   evaluated: number;
@@ -128,6 +129,7 @@ export async function runBookingReminders(
   supabaseAdmin: SupabaseClient<any>,
   options: RunOptions,
 ): Promise<BookingReminderSummary> {
+  const runId = crypto.randomUUID();
   const persisted = (await getSettings(supabaseAdmin)) ?? ({
     enabled: true,
     run_hour: 10,
@@ -139,6 +141,7 @@ export async function runBookingReminders(
   const settings: SettingsRow = { ...persisted, ...(options.overrideSettings ?? {}) };
 
   const summary: BookingReminderSummary = {
+    run_id: runId,
     event_id: null,
     mode: options.mode,
     evaluated: 0,
@@ -261,6 +264,7 @@ export async function runBookingReminders(
       if (hist.count >= settings.max_reminders_per_event) {
         summary.skipped_limit += 1;
         await supabaseAdmin.from("booking_reminder_log").insert({
+          run_id: runId,
           event_id: eventId,
           profile_id: pid,
           recipient_email: p.email as string,
@@ -270,13 +274,14 @@ export async function runBookingReminders(
           mode: options.mode,
           language,
           skip_reason: "max_reminders_reached",
-          metadata: { mode: options.mode, language, reason: "max_reminders_reached" },
+          metadata: { run_id: runId, mode: options.mode, language, reason: "max_reminders_reached" },
         });
         continue;
       }
       if (nowTs - hist.lastSent < minIntervalMs) {
         summary.skipped_interval += 1;
         await supabaseAdmin.from("booking_reminder_log").insert({
+          run_id: runId,
           event_id: eventId,
           profile_id: pid,
           recipient_email: p.email as string,
@@ -286,7 +291,7 @@ export async function runBookingReminders(
           mode: options.mode,
           language,
           skip_reason: "min_interval_not_elapsed",
-          metadata: { mode: options.mode, language, reason: "min_interval_not_elapsed" },
+          metadata: { run_id: runId, mode: options.mode, language, reason: "min_interval_not_elapsed" },
         });
         continue;
       }
@@ -304,6 +309,7 @@ export async function runBookingReminders(
     const { error: logErr } = await supabaseAdmin
       .from("booking_reminder_log")
       .insert({
+        run_id: runId,
         event_id: eventId,
         profile_id: pid,
         recipient_email: p.email as string,
@@ -312,7 +318,7 @@ export async function runBookingReminders(
         status: "queued",
         mode: options.mode,
         language,
-        metadata: { mode: options.mode, language },
+        metadata: { run_id: runId, mode: options.mode, language },
       });
     if (logErr) {
       // Duplicate idempotency = already processed today.
@@ -320,6 +326,7 @@ export async function runBookingReminders(
       if ((logErr as any).code === "23505") {
         summary.skipped_interval += 1;
         await supabaseAdmin.from("booking_reminder_log").insert({
+          run_id: runId,
           event_id: eventId,
           profile_id: pid,
           recipient_email: p.email as string,
@@ -329,7 +336,7 @@ export async function runBookingReminders(
           mode: options.mode,
           language,
           skip_reason: "already_processed_today",
-          metadata: { mode: options.mode, language, reason: "already_processed_today" },
+          metadata: { run_id: runId, mode: options.mode, language, reason: "already_processed_today" },
         });
         continue;
       }
@@ -399,6 +406,6 @@ async function persistSummary(
   };
   await supabaseAdmin
     .from("booking_reminder_settings")
-    .update({ last_run_at: new Date().toISOString(), last_run_summary: trimmed })
+    .update({ last_run_at: summary.finished_at, last_run_summary: trimmed })
     .eq("id", 1);
 }

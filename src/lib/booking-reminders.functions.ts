@@ -73,6 +73,7 @@ export const runBookingRemindersNow = createServerFn({ method: "POST" })
 const HistorySchema = z.object({
   from: z.string().datetime().optional(),
   to: z.string().datetime().optional(),
+  runId: z.string().uuid().optional(),
   eventId: z.string().uuid().optional(),
   status: z.enum(["sent", "queued", "skipped", "error"]).optional(),
   mode: z.enum(["auto", "manual"]).optional(),
@@ -90,11 +91,12 @@ export const listBookingReminderHistory = createServerFn({ method: "POST" })
     let q = supabaseAdmin
       .from("booking_reminder_log")
       .select(
-        "id, event_id, profile_id, recipient_email, sent_at, status, mode, language, error_reason, skip_reason, idempotency_key",
+        "id, run_id, event_id, profile_id, recipient_email, sent_at, status, mode, language, error_reason, skip_reason, idempotency_key",
       )
       .order("sent_at", { ascending: false })
       .limit(data.limit ?? 200);
 
+    if (data.runId) q = q.eq("run_id", data.runId);
     if (data.from) q = q.gte("sent_at", data.from);
     if (data.to) q = q.lte("sent_at", data.to);
     if (data.eventId) q = q.eq("event_id", data.eventId);
@@ -143,6 +145,7 @@ export const listBookingReminderHistory = createServerFn({ method: "POST" })
       const ev = r.event_id ? eventMap.get(r.event_id) : null;
       return {
         id: r.id,
+        run_id: r.run_id ?? null,
         sent_at: r.sent_at,
         event_id: r.event_id,
         event_name: ev?.name ?? null,

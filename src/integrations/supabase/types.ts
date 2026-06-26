@@ -158,6 +158,7 @@ export type Database = {
           profile_id: string
           recipient_email: string
           reminder_type: string
+          run_id: string | null
           sent_at: string
           skip_reason: string | null
           status: string
@@ -174,6 +175,7 @@ export type Database = {
           profile_id: string
           recipient_email: string
           reminder_type?: string
+          run_id?: string | null
           sent_at?: string
           skip_reason?: string | null
           status?: string
@@ -190,6 +192,7 @@ export type Database = {
           profile_id?: string
           recipient_email?: string
           reminder_type?: string
+          run_id?: string | null
           sent_at?: string
           skip_reason?: string | null
           status?: string
