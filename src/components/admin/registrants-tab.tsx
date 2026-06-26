@@ -288,8 +288,8 @@ export function RegistrantsTab({
    *
    * Root cause of the prior bug: this flow was reusing `downloadAgendaPdf`,
    * which exports a single profile's slice. For companies with multiple
-   * contacts (e.g. COPASTUR — Naline 9, wellika 11), that surfaced only
-   * one contact's meetings, not the company's 20. We now hit
+     * contacts (e.g. COPASTUR — Naline + wellika), that surfaced only
+     * one contact's meetings, not the company's full total. We now hit
    * `getCompanyAgenda` which loads every active contact of the company.
    */
   const downloadCompanyAgendaPdf = async (r: RegistrantRow) => {

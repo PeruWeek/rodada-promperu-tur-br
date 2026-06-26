@@ -822,6 +822,7 @@ export const listBulkAgendas = createServerFn({ method: "POST" })
           .map((p) => p.id),
       ),
     );
+    if (profileIds.length === 0) return { eventId, entries: [] as BulkAgendaEntry[] };
     const agendaProfiles = (companyProfiles ?? []).filter((p) => profileIds.includes(p.id));
 
     // Tables owned by any of these profiles (exhibitors)
