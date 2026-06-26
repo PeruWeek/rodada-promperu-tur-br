@@ -486,7 +486,9 @@
         "registrationStatus": "Status",
         "scheduledMeetings": "Reuniões",
         "createdAt": "Cadastrado em"
-      }
+      },
+      "sortName": "Ordem alfabética",
+      "sortRecent": "Últimas inscrições"
     },
     "checkin": {
       "title": "Credenciamento",
