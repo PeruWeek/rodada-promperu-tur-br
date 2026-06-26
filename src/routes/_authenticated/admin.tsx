@@ -658,6 +658,12 @@ function CheckinTab() {
           className="pl-9"
         />
       </div>
+      <div className="mt-3">
+        <Badge variant="secondary" className="h-9 px-3">
+          {(data?.profiles ?? []).length}{" "}
+          {(data?.profiles ?? []).length === 1 ? "participante" : "participantes"}
+        </Badge>
+      </div>
       <div className="mt-3 space-y-1.5">
         {isLoading ? (
           <Skeleton className="h-40 w-full" />
