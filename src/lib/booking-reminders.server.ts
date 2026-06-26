@@ -315,8 +315,24 @@ export async function runBookingReminders(
         metadata: { mode: options.mode, language },
       });
     if (logErr) {
-      // Duplicate idempotency = already processed; treat as skipped silently.
-      if ((logErr as any).code === "23505") continue;
+      // Duplicate idempotency = already processed today.
+      // Leave a visible audit row so manual re-runs show up in the history.
+      if ((logErr as any).code === "23505") {
+        summary.skipped_interval += 1;
+        await supabaseAdmin.from("booking_reminder_log").insert({
+          event_id: eventId,
+          profile_id: pid,
+          recipient_email: p.email as string,
+          reminder_type: "booking-reminder",
+          idempotency_key: `skip-dup-${options.mode}-${eventId}-${pid}-${new Date().toISOString()}`,
+          status: "skipped",
+          mode: options.mode,
+          language,
+          skip_reason: "already_processed_today",
+          metadata: { mode: options.mode, language, reason: "already_processed_today" },
+        });
+        continue;
+      }
       summary.errors += 1;
       summary.error_details!.push({ profile_id: pid, reason: logErr.message });
       continue;
