@@ -91,7 +91,7 @@ export const listBookingReminderHistory = createServerFn({ method: "POST" })
     let q = supabaseAdmin
       .from("booking_reminder_log")
       .select(
-        "id, run_id, event_id, profile_id, recipient_email, sent_at, status, mode, language, error_reason, skip_reason, idempotency_key",
+        "id, run_id, event_id, profile_id, recipient_email, sent_at, status, mode, language, error_reason, skip_reason, idempotency_key, metadata",
       )
       .order("sent_at", { ascending: false })
       .limit(data.limit ?? 200);
@@ -157,6 +157,7 @@ export const listBookingReminderHistory = createServerFn({ method: "POST" })
         status: r.status ?? "sent",
         skip_reason: r.skip_reason ?? null,
         error_reason: r.error_reason ?? null,
+        metadata: (r as any).metadata ?? null,
         sent_count_for_user_event:
           sentCount.get(`${r.profile_id}::${r.event_id}`) ?? 0,
       };
