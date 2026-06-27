@@ -177,8 +177,6 @@ export function BookingRemindersTab() {
 
   if (isLoading) return <Skeleton className="h-64 w-full" />;
 
-  const lastSummary = (data?.last_run_summary as any) ?? null;
-
   return (
     <div className="space-y-4">
       <Card className="p-4 space-y-4">
