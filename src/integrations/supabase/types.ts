@@ -219,6 +219,8 @@ export type Database = {
           enabled: boolean
           event_scope: string | null
           id: number
+          last_manual_run_at: string | null
+          last_manual_run_summary: Json | null
           last_run_at: string | null
           last_run_summary: Json | null
           max_reminders_per_event: number
@@ -232,6 +234,8 @@ export type Database = {
           enabled?: boolean
           event_scope?: string | null
           id?: number
+          last_manual_run_at?: string | null
+          last_manual_run_summary?: Json | null
           last_run_at?: string | null
           last_run_summary?: Json | null
           max_reminders_per_event?: number
@@ -245,6 +249,8 @@ export type Database = {
           enabled?: boolean
           event_scope?: string | null
           id?: number
+          last_manual_run_at?: string | null
+          last_manual_run_summary?: Json | null
           last_run_at?: string | null
           last_run_summary?: Json | null
           max_reminders_per_event?: number

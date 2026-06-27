@@ -434,13 +434,18 @@ async function persistSummary(
     ...summary,
     error_details: (summary.error_details ?? []).slice(0, 25),
   };
-  // IMPORTANT: only auto runs update `last_run_at`. The cron's idempotent
-  // "already ran today" guard (`shouldRunNow`) keys off `last_run_at`; if a
-  // manual trigger from Admin > Lembretes overwrote it, the next auto cron
-  // would silently skip with `already_ran_today` and never produce auto rows.
-  const patch: Record<string, unknown> = { last_run_summary: trimmed };
+  // IMPORTANT: keep auto and manual executions in separate columns so the UI
+  // can show both unambiguously. `last_run_at` / `last_run_summary` = cron
+  // only; `last_manual_run_at` / `last_manual_run_summary` = admin trigger
+  // only. This prevents a manual run from overwriting the auto timestamp and
+  // making the operator think the cron ran today.
+  const patch: Record<string, unknown> = {};
   if (summary.mode === "auto") {
     patch.last_run_at = summary.finished_at;
+    patch.last_run_summary = trimmed;
+  } else {
+    patch.last_manual_run_at = summary.finished_at;
+    patch.last_manual_run_summary = trimmed;
   }
   await supabaseAdmin
     .from("booking_reminder_settings")

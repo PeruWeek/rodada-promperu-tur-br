@@ -177,8 +177,6 @@ export function BookingRemindersTab() {
 
   if (isLoading) return <Skeleton className="h-64 w-full" />;
 
-  const lastSummary = (data?.last_run_summary as any) ?? null;
-
   return (
     <div className="space-y-4">
       <Card className="p-4 space-y-4">
@@ -285,46 +283,91 @@ export function BookingRemindersTab() {
         </div>
       </Card>
 
-      <Card className="p-4">
-        <h4 className="font-semibold mb-2">Última execução</h4>
-        {data?.last_run_at ? (
-          <div className="text-sm space-y-1">
-            <div>
-              <strong>Quando:</strong>{" "}
-              {new Date(data.last_run_at).toLocaleString("pt-BR")}
-            </div>
-            {lastSummary?.run_id && (
-              <div className="flex flex-wrap items-center gap-2">
-                <strong>Run ID:</strong>
-                <code className="text-xs bg-muted px-2 py-1 rounded">
-                  {lastSummary.run_id}
-                </code>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() =>
-                    setFilters((f) => ({
-                      ...f,
-                      runId: lastSummary.run_id,
-                      mode: lastSummary.mode ?? f.mode,
-                    }))
-                  }
-                >
-                  Ver no histórico
-                </Button>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card className="p-4">
+          <h4 className="font-semibold mb-2">Última execução automática</h4>
+          {data?.last_run_at ? (
+            <div className="text-sm space-y-1">
+              <div>
+                <strong>Quando:</strong>{" "}
+                {new Date(data.last_run_at).toLocaleString("pt-BR")}
               </div>
-            )}
-            {lastSummary && (
-              <pre className="text-xs bg-muted p-3 rounded overflow-auto">
-{JSON.stringify(lastSummary, null, 2)}
-              </pre>
-            )}
-          </div>
-        ) : (
-          <p className="text-sm text-muted-foreground">Nenhuma execução registrada ainda.</p>
-        )}
-      </Card>
+              {(data.last_run_summary as any)?.run_id && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <strong>Run ID:</strong>
+                  <code className="text-xs bg-muted px-2 py-1 rounded">
+                    {(data.last_run_summary as any).run_id}
+                  </code>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() =>
+                      setFilters((f) => ({
+                        ...f,
+                        runId: (data.last_run_summary as any).run_id,
+                        mode: "auto",
+                      }))
+                    }
+                  >
+                    Ver no histórico
+                  </Button>
+                </div>
+              )}
+              <Badge variant="outline" className="mt-1">Automático</Badge>
+              {data.last_run_summary && (
+                <pre className="text-xs bg-muted p-3 rounded overflow-auto mt-2">
+{JSON.stringify(data.last_run_summary, null, 2)}
+                </pre>
+              )}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">Nenhuma execução automática registrada ainda.</p>
+          )}
+        </Card>
+
+        <Card className="p-4">
+          <h4 className="font-semibold mb-2">Última execução manual</h4>
+          {data?.last_manual_run_at ? (
+            <div className="text-sm space-y-1">
+              <div>
+                <strong>Quando:</strong>{" "}
+                {new Date(data.last_manual_run_at).toLocaleString("pt-BR")}
+              </div>
+              {(data.last_manual_run_summary as any)?.run_id && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <strong>Run ID:</strong>
+                  <code className="text-xs bg-muted px-2 py-1 rounded">
+                    {(data.last_manual_run_summary as any).run_id}
+                  </code>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() =>
+                      setFilters((f) => ({
+                        ...f,
+                        runId: (data.last_manual_run_summary as any).run_id,
+                        mode: "manual",
+                      }))
+                    }
+                  >
+                    Ver no histórico
+                  </Button>
+                </div>
+              )}
+              <Badge variant="secondary" className="mt-1">Manual</Badge>
+              {data.last_manual_run_summary && (
+                <pre className="text-xs bg-muted p-3 rounded overflow-auto mt-2">
+{JSON.stringify(data.last_manual_run_summary, null, 2)}
+                </pre>
+              )}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">Nenhuma execução manual registrada ainda.</p>
+          )}
+        </Card>
+      </div>
 
       <Card className="p-4 space-y-4">
         <div>
