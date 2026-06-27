@@ -218,7 +218,7 @@
     "taken": "Horário ocupado",
     "alreadyBookedSelf": "Você já tem reunião neste horário",
     "success": "Reunião agendada!",
-    "conflict": "Conflito: este horário já está ocupado.",
+    "conflict": "Conflito: este horário já está ocupado por outra empresa.",
     "selfConflict": "Conflito: você já tem reunião agendada neste horário.",
     "error": "Não foi possível agendar. Tente novamente."
   },
