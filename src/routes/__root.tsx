@@ -131,6 +131,12 @@ function RootShell({ children }: { children: ReactNode }) {
             __html: `(function(w,d,t,u,n,a,m){w['MauticTrackingObject']=n;w[n]=w[n]||function(){(w[n].q=w[n].q||[]).push(arguments)},a=d.createElement(t),m=d.getElementsByTagName(t)[0];a.async=1;a.src=u;m.parentNode.insertBefore(a,m)})(window,document,'script','https://rsvp.kronedesign.com.br/mtc.js','mt');`,
           }}
         />
+        <script
+          // Microsoft Clarity — session replay & heatmaps (project xe9u3g88qj).
+          dangerouslySetInnerHTML={{
+            __html: `(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);})(window, document, "clarity", "script", "xe9u3g88qj");`,
+          }}
+        />
         <Scripts />
       </body>
     </html>
