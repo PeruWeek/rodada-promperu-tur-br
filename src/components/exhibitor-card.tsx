@@ -55,7 +55,7 @@ export function ExhibitorCard({ item }: { item: ExhibitorListItem }) {
       )}
 
       <div className="mt-auto pt-2">
-        <Button asChild size="sm" variant="outline" className="w-full">
+        <Button asChild size="sm" className="w-full bg-primary text-primary-foreground shadow-sm hover:bg-primary/90">
           <Link to="/exhibitor/$id" params={{ id: item.profile_id }}>
             {t("explore.viewDetails")}
           </Link>
