@@ -11,6 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { ExhibitorCard, type ExhibitorListItem } from "@/components/exhibitor-card";
 import { MultiSelectChips } from "@/components/multi-select-chips";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/explore")({
   component: ExplorePage,
