@@ -117,10 +117,12 @@ function AdminPage() {
           <TabsList className="flex flex-wrap h-auto">
             <TabsTrigger value="overview">{t("cliente.overview.title")}</TabsTrigger>
             <TabsTrigger value="companies">{t("admin.tabs.companies")}</TabsTrigger>
+            <TabsTrigger value="registrants">{t("admin.tabs.registrants")}</TabsTrigger>
             <TabsTrigger value="meetings">{t("admin.tabs.meetings", { defaultValue: "Agendamentos" })}</TabsTrigger>
           </TabsList>
           <TabsContent value="overview" className="mt-4"><ClienteOverview /></TabsContent>
           <TabsContent value="companies" className="mt-4"><CompaniesTab readOnly /></TabsContent>
+          <TabsContent value="registrants" className="mt-4"><RegistrantsTab readOnly unrestrictedCliente defaultRole="visitor" /></TabsContent>
           <TabsContent value="meetings" className="mt-4"><RegistrantsTab readOnly onlyWithMeetings /></TabsContent>
         </Tabs>
       ) : isStaffOnly ? (

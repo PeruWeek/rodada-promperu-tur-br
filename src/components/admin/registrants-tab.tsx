@@ -137,7 +137,18 @@ export function RegistrantsTab({
   readOnly = false,
   onlyWithMeetings = false,
   defaultRole,
-}: { readOnly?: boolean; onlyWithMeetings?: boolean; defaultRole?: RoleFilter } = {}) {
+  unrestrictedCliente = false,
+}: {
+  readOnly?: boolean;
+  onlyWithMeetings?: boolean;
+  defaultRole?: RoleFilter;
+  /**
+   * When true, lifts the cliente count>0 server restriction and skips the
+   * read-only registration-status pre-filter, so the cliente "Inscritos"
+   * tab mirrors the staff listing exactly (same query, same totals).
+   */
+  unrestrictedCliente?: boolean;
+} = {}) {
   const { t, i18n } = useTranslation();
   const qc = useQueryClient();
   const { data: me } = useProfile();
@@ -167,8 +178,9 @@ export function RegistrantsTab({
   const [welcomeSending, setWelcomeSending] = useState(false);
 
   const { data, isLoading } = useQuery({
-    queryKey: ["registrants", role, search, sort],
-    queryFn: () => listFn({ data: { role, search, sort } }),
+    queryKey: ["registrants", role, search, sort, unrestrictedCliente],
+    queryFn: () =>
+      listFn({ data: { role, search, sort, unrestrictedCliente } }),
   });
 
   const rows = useMemo(() => {
@@ -180,7 +192,7 @@ export function RegistrantsTab({
     // that are validly booked but still have registration in "em_preenchimento"
     // (a common state) disappear from the list. Keep only the auth_user_id
     // sanity check to hide ghost rows without an actual account.
-    if (readOnly && !onlyWithMeetings) {
+    if (readOnly && !onlyWithMeetings && !unrestrictedCliente) {
       const preStatuses = new Set(["nao_iniciado", "em_preenchimento", "aguardando_aprovacao"]);
       filtered = filtered.filter(
         (r) => !!r.auth_user_id && !preStatuses.has(r.registration_status ?? ""),
@@ -189,7 +201,7 @@ export function RegistrantsTab({
       filtered = filtered.filter((r) => !!r.auth_user_id);
     }
     return filtered;
-  }, [data, onlyWithMeetings, readOnly]);
+  }, [data, onlyWithMeetings, readOnly, unrestrictedCliente]);
 
   const profileIds = useMemo(() => rows.map((r) => r.profile_id), [rows]);
 
