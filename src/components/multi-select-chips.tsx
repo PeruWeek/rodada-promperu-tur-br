@@ -32,11 +32,12 @@ export function MultiSelectChips({ taxonomyKey, value, onChange, disabled }: Pro
             onClick={() => toggle(item.value)}
             disabled={disabled}
             className={cn(
-              "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm transition-colors",
+              "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
               active
-                ? "border-primary bg-primary text-primary-foreground"
-                : "border-border bg-background hover:border-primary/50",
-              disabled && "opacity-60 cursor-not-allowed"
+                ? "border-primary bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 hover:border-primary"
+                : "border-border bg-background text-foreground hover:border-primary hover:bg-primary/5 hover:text-primary",
+              disabled && "opacity-60 cursor-not-allowed hover:bg-background hover:text-foreground hover:border-border"
             )}
           >
             {active && <Check size={14} />}
