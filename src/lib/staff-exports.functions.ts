@@ -106,8 +106,13 @@ export async function _listEventRegistrantsImpl(
     throw new Error("Forbidden");
   }
   const isCliente = role === "cliente";
-  // Cliente: ignore client-supplied filter; canonical rule (count > 0).
-  const schedulingStatuses = isCliente ? undefined : data.schedulingStatuses;
+  // When `unrestrictedCliente` is set, the cliente caller is requesting the
+  // full "Inscritos" listing (parity with staff/admin) instead of the
+  // restricted "Agendamentos" view. In that mode we do NOT apply the
+  // count>0 restriction nor the defensive post-filter, and we respect any
+  // client-supplied scheduling filter exactly like staff/admin.
+  const restrictCliente = isCliente && !data.unrestrictedCliente;
+  const schedulingStatuses = restrictCliente ? undefined : data.schedulingStatuses;
 
   const eventId = await getCurrentEventIdWith(ctx.supabase, data.eventId);
     if (!eventId) return { eventId: null, rows: [] as RegistrantRow[] };
@@ -119,7 +124,7 @@ export async function _listEventRegistrantsImpl(
       )
       .eq("event_id", eventId);
     if (data.role !== "all") q = q.eq("company_role", data.role);
-    if (isCliente) {
+    if (restrictCliente) {
       // Canonical "com agendamento" bucket = count > 0. Source of truth.
       q = q.gt("scheduled_meetings_count", 0);
     }
@@ -274,7 +279,7 @@ export async function _listEventRegistrantsImpl(
       .filter((r) => {
         // Defensive post-filter: cliente NEVER sees rows whose real count is
         // <= 0, even if scheduling_status text incorrectly says agendado_ok.
-        if (!isCliente) return true;
+        if (!restrictCliente) return true;
         return Number(r.scheduled_meetings_count ?? 0) > 0;
       })
       .flatMap((r) => {
