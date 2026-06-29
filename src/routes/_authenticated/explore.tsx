@@ -11,6 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { ExhibitorCard, type ExhibitorListItem } from "@/components/exhibitor-card";
 import { MultiSelectChips } from "@/components/multi-select-chips";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/explore")({
   component: ExplorePage,
@@ -84,11 +85,23 @@ function ExplorePage() {
             className="pl-9"
           />
         </div>
-        <Button variant="outline" onClick={() => setFiltersOpen((v) => !v)}>
+        <Button
+          variant={activeFilterCount > 0 || filtersOpen ? "default" : "outline"}
+          onClick={() => setFiltersOpen((v) => !v)}
+          aria-expanded={filtersOpen}
+          className={cn(
+            activeFilterCount === 0 && filtersOpen && "border-primary text-primary hover:bg-primary/5 bg-background",
+          )}
+        >
           <SlidersHorizontal size={16} />
           {t("explore.filters")}
           {activeFilterCount > 0 && (
-            <Badge variant="secondary" className="ml-1">{activeFilterCount}</Badge>
+            <Badge
+              variant="secondary"
+              className="ml-1 bg-primary-foreground text-primary"
+            >
+              {activeFilterCount}
+            </Badge>
           )}
         </Button>
       </div>
