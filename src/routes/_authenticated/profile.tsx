@@ -484,6 +484,20 @@ function ProfilePage() {
               </label>
             </div>
           </div>
+          <div className="flex items-start gap-2 rounded-md border p-3">
+            <Checkbox
+              id="profile_consent_data_sharing"
+              checked={vConsent}
+              onCheckedChange={(v) => setVConsent(v === true)}
+              className="mt-0.5"
+            />
+            <Label
+              htmlFor="profile_consent_data_sharing"
+              className="text-sm leading-snug"
+            >
+              {t("signup.consentDataSharing")} *
+            </Label>
+          </div>
         </Card>
       )}
 
