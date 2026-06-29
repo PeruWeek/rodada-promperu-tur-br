@@ -82,6 +82,11 @@ export type ListEventRegistrantsInput = {
   search?: string;
   schedulingStatuses?: Array<(typeof SCHEDULING_STATUS_VALUES)[number] | string>;
   sort?: "name" | "recent";
+  /**
+   * Cliente-only escape hatch: when true, lifts the count>0 restriction so
+   * the cliente "Inscritos" tab can mirror the staff/admin listing.
+   */
+  unrestrictedCliente?: boolean;
 };
 
 /**
