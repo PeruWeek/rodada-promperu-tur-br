@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Checkbox } from "@/components/ui/checkbox";
 import { MultiSelectChips } from "@/components/multi-select-chips";
 import { COUNTRIES } from "@/lib/taxonomy";
 import { trackMauticEvent } from "@/lib/mautic";
@@ -74,6 +75,7 @@ function ProfilePage() {
   const [vNotes, setVNotes] = useState("");
   const [vLunch, setVLunch] = useState<"yes" | "no" | "">("");
   const [vImageAuth, setVImageAuth] = useState<"yes" | "no" | "">("");
+  const [vConsent, setVConsent] = useState<boolean>(false);
   // Exhibitor
   const [eSegments, setESegments] = useState<string[]>([]);
   const [eServices, setEServices] = useState<string[]>([]);
@@ -132,6 +134,7 @@ function ProfilePage() {
             ? "no"
             : "",
       );
+      setVConsent(extra.vis.consent_data_sharing === true);
     }
     if (extra.exh) {
       setESegments(extra.exh.segments ?? []);
@@ -158,6 +161,41 @@ function ProfilePage() {
           needsPt
             ? t("profile.pitchPtRequired", { defaultValue: "Informe o pitch em PT." })
             : t("profile.pitchEsRequired", { defaultValue: "Informa el pitch en ES." }),
+        );
+        return;
+      }
+    }
+    // Paridade com /signup: visitante (não staff/admin) precisa responder
+    // almoço, autorização de imagem e aceitar consentimento de dados
+    // ANTES de qualquer persistência. Sem isto o trigger
+    // `enforce_visitor_signup_completion_fields` aceitaria o save parcial
+    // sem nunca marcar `signup_completed_at`, deixando o usuário em
+    // estado "pendente" silencioso.
+    if (isVisitor && !isExhibitor && !hasRole(profile?.roles, "staff", "admin")) {
+      const hasLunch = vLunch === "yes" || vLunch === "no";
+      const hasImage = vImageAuth === "yes" || vImageAuth === "no";
+      if (!hasLunch) {
+        toast.error(
+          t("profile.lunchRequired", {
+            defaultValue: "Informe a participação no almoço de networking.",
+          }),
+        );
+        return;
+      }
+      if (!hasImage) {
+        toast.error(
+          t("profile.imageAuthRequired", {
+            defaultValue: "Informe a autorização de uso de imagem.",
+          }),
+        );
+        return;
+      }
+      if (!vConsent) {
+        toast.error(
+          t("profile.consentRequired", {
+            defaultValue:
+              "Você precisa aceitar o compartilhamento dos seus dados para concluir o cadastro.",
+          }),
         );
         return;
       }
@@ -212,6 +250,7 @@ function ProfilePage() {
         if (hasImage) {
           upsertPayload.image_authorization = vImageAuth === "yes";
         }
+        upsertPayload.consent_data_sharing = vConsent;
         if (!previouslyCompleted) {
           const co = (extra?.company ?? {}) as Record<string, unknown>;
           const missing = computeRegistrationMissing({
@@ -231,7 +270,7 @@ function ProfilePage() {
             visitor: {
               networking_lunch_participation: hasLunch ? vLunch === "yes" : null,
               image_authorization: hasImage ? vImageAuth === "yes" : null,
-              consent_data_sharing: extra?.vis?.consent_data_sharing ?? false,
+              consent_data_sharing: vConsent,
             },
           });
           if (missing.length === 0) {
@@ -293,7 +332,7 @@ function ProfilePage() {
             visitor: {
               networking_lunch_participation: vLunch === "yes" ? true : vLunch === "no" ? false : null,
               image_authorization: vImageAuth === "yes" ? true : vImageAuth === "no" ? false : null,
-              consent_data_sharing: extra?.vis?.consent_data_sharing ?? false,
+              consent_data_sharing: vConsent,
             },
           }).length === 0;
         if (ready) {
