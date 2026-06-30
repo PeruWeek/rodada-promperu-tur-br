@@ -331,7 +331,12 @@ export const staffCompleteRegistration = createServerFn({ method: "POST" })
         if (existing) {
           companyId = existing.id;
           // Only fill empty complementary fields — never overwrite valid data.
-          const fillPatch: Record<string, string> = {};
+          const fillPatch: {
+            trade_name?: string;
+            legal_name?: string;
+            city?: string;
+            state_code?: string;
+          } = {};
           if (!existing.trade_name && data.company.trade_name) fillPatch.trade_name = data.company.trade_name;
           if (!existing.legal_name && data.company.legal_name) fillPatch.legal_name = data.company.legal_name;
           if (!existing.city && data.company.city) fillPatch.city = data.company.city;
