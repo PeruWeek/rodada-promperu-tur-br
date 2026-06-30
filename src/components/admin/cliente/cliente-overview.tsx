@@ -40,6 +40,7 @@ import {
   type SchedulingGroup,
 } from "@/lib/scheduling-status";
 import { downloadXlsx } from "@/lib/exports/xlsx";
+import { sortRowsForExport } from "@/lib/exports/sort";
 
 type StatusFilter = "any" | SchedulingGroup;
 type TypeFilter = "all" | "visitor" | "exhibitor";
@@ -174,7 +175,11 @@ export function ClienteOverview() {
         : "—";
 
   const buildExportRows = () =>
-    filtered.map((r) => {
+    sortRowsForExport(filtered, {
+      tradeName: (r) => r.company_trade_name,
+      fullName: (r) => r.full_name,
+      id: (r) => r.profile_id ?? r.company_id,
+    }).map((r) => {
       const count = r.scheduled_meetings_count ?? 0;
       const group = bucketGroupFromMeetings(count);
       return [
