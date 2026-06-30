@@ -4,7 +4,7 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { filterAndRankCompanies, filterAndRankParticipants } from "@/lib/company-search";
-import { dedupeCompanyRows } from "@/lib/companies-report";
+import { dedupeCompanyRows, groupCompaniesByCnpjRoot } from "@/lib/companies-report";
 
 type JsonValue = string | number | boolean | null | JsonValue[] | { [k: string]: JsonValue };
 type JsonObject = { [k: string]: JsonValue };
