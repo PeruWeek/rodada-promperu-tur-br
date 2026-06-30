@@ -283,6 +283,7 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
         toast.info(t("admin.companies.empty"));
         return;
       }
+      const body = buildRows(rows);
       const doc = new jsPDF({ unit: "pt", format: "a4", orientation: "landscape" });
       const W = doc.internal.pageSize.getWidth();
       doc.setFont("helvetica", "bold");
@@ -294,12 +295,12 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
       const generated = new Date().toLocaleString(i18n.language === "es" ? "es" : "pt-BR", {
         timeZone: "America/Sao_Paulo",
       });
-      doc.text(`Gerado em ${generated} · ${rows.length} empresa(s)`, W - 40, 40, { align: "right" });
+      doc.text(`Gerado em ${generated} · ${body.length} empresa(s)`, W - 40, 40, { align: "right" });
       doc.setTextColor(0);
       autoTable(doc, {
         startY: 60,
         head: [headers],
-        body: buildRows(rows).map((r) => r.map((v) => String(v ?? ""))),
+        body: body.map((r) => r.map((v) => String(v ?? ""))),
         styles: { fontSize: 8, cellPadding: 4 },
         headStyles: { fillColor: [30, 30, 30], textColor: 255 },
         alternateRowStyles: { fillColor: [245, 245, 245] },
