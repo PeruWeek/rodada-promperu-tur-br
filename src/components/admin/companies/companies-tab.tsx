@@ -297,7 +297,28 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
         toast.info(t("admin.companies.empty"));
         return;
       }
-      const body = buildRows(rows);
+      // Defensive: dedupe at the very last possible moment, right before
+      // rendering. `fetchAll` and `buildRows` already collapse by company_id,
+      // but we re-assert here so the PDF can NEVER diverge from the badge.
+      const uniqueRows = dedupeCompanyRows(rows);
+      const body = buildRows(uniqueRows);
+      const companyIds = uniqueRows.map((r) => r.id);
+      // Telemetry to make the export dataset auditable (see report below).
+      // eslint-disable-next-line no-console
+      console.info("[empresas-pdf] dataset", {
+        rowsFromServer: rows.length,
+        uniqueByCompanyId: uniqueRows.length,
+        bodyRows: body.length,
+        badgeTotal: displayTotal,
+        companyIds,
+      });
+      if (body.length !== displayTotal) {
+        // eslint-disable-next-line no-console
+        console.warn("[empresas-pdf] PDF count != badge", {
+          bodyRows: body.length,
+          badgeTotal: displayTotal,
+        });
+      }
       const doc = new jsPDF({ unit: "pt", format: "a4", orientation: "landscape" });
       const W = doc.internal.pageSize.getWidth();
       doc.setFont("helvetica", "bold");
