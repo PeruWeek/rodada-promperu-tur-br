@@ -469,6 +469,18 @@ export const staffCompleteRegistration = createServerFn({ method: "POST" })
           .update({ company_id: companyId })
           .eq("id", data.profileId);
         if (linkErr) throw new Error(`profiles.company_id: ${linkErr.message}`);
+        // Reconcile pipeline rows of the old stub company so that the
+        // relinked profile doesn't keep appearing as `primary_profile_id`
+        // of an orphan row — that was the root cause of the duplicate
+        // "Inscritos" entry after relink (e.g. Bárbara / Agaxtur).
+        const oldCompanyId = profile.company_id as string | null;
+        if (oldCompanyId) {
+          await reconcileStubPipelineAfterRelink({
+            profileId: data.profileId,
+            oldCompanyId,
+            newCompanyId: companyId,
+          });
+        }
       }
     }
 
