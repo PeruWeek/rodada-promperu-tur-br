@@ -12,32 +12,56 @@ export type CompanyAgendaPdfRow = AgendaPdfRow & {
   contactName: string;
 };
 
-const FOOTER_TEXT_PREFIX = "Sistema de Rodada de Negócios Promperu - ";
-const FOOTER_LINK_TEXT = "rodada.promperu.tur.br";
-const FOOTER_TEXT_SUFFIX = " - Suporte WhatsApp (11) 99367-0633";
-const FOOTER_LINK_URL = "https://rodada.promperu.tur.br";
+const FOOTER_LINKS = {
+  rodada: {
+    text: "rodada.tur.br",
+    url: "https://rodada.promperu.tur.br/",
+  },
+  iautonoma: {
+    text: "IAutonoma.com.br",
+    url: "https://iautonoma.com.br/",
+  },
+} as const;
 
 function drawFooterOnAllPages(doc: jsPDF) {
   const W = doc.internal.pageSize.getWidth();
   const H = doc.internal.pageSize.getHeight();
   const pageCount = doc.getNumberOfPages();
   const y = H - 24;
+
+  const prefix1 = "Sistema de Rodada de Negócios Promperu - ";
+  const mid = " - Suporte WhatsApp (11) 99367-0633 - by ";
+
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
+
   for (let i = 1; i <= pageCount; i++) {
     doc.setPage(i);
-    const prefixW = doc.getTextWidth(FOOTER_TEXT_PREFIX);
-    const linkW = doc.getTextWidth(FOOTER_LINK_TEXT);
-    const suffixW = doc.getTextWidth(FOOTER_TEXT_SUFFIX);
-    const totalW = prefixW + linkW + suffixW;
-    const startX = (W - totalW) / 2;
+
+    const w1 = doc.getTextWidth(prefix1);
+    const wLink1 = doc.getTextWidth(FOOTER_LINKS.rodada.text);
+    const w2 = doc.getTextWidth(mid);
+    const wLink2 = doc.getTextWidth(FOOTER_LINKS.iautonoma.text);
+
+    const totalW = w1 + wLink1 + w2 + wLink2;
+    let x = (W - totalW) / 2;
+
     doc.setTextColor(110);
-    doc.text(FOOTER_TEXT_PREFIX, startX, y);
+    doc.text(prefix1, x, y);
+    x += w1;
+
     doc.setTextColor(0, 102, 204);
-    doc.textWithLink(FOOTER_LINK_TEXT, startX + prefixW, y, { url: FOOTER_LINK_URL });
+    doc.textWithLink(FOOTER_LINKS.rodada.text, x, y, { url: FOOTER_LINKS.rodada.url });
+    x += wLink1;
+
     doc.setTextColor(110);
-    doc.text(FOOTER_TEXT_SUFFIX, startX + prefixW + linkW, y);
+    doc.text(mid, x, y);
+    x += w2;
+
+    doc.setTextColor(0, 102, 204);
+    doc.textWithLink(FOOTER_LINKS.iautonoma.text, x, y, { url: FOOTER_LINKS.iautonoma.url });
   }
+
   doc.setTextColor(0);
 }
 
@@ -141,9 +165,5 @@ export function buildCompanyAgendaPdf(opts: {
 }
 
 export const __pdfFooterInternals = {
-  FOOTER_TEXT_PREFIX,
-  FOOTER_LINK_TEXT,
-  FOOTER_TEXT_SUFFIX,
-  FOOTER_LINK_URL,
   drawFooterOnAllPages,
 };
