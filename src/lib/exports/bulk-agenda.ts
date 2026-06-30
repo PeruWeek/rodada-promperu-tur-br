@@ -3,6 +3,7 @@ import autoTable from "jspdf-autotable";
 import JSZip from "jszip";
 
 import { buildAgendaPdf } from "@/lib/pdf";
+import { __pdfFooterInternals } from "@/lib/pdf";
 import type { BulkAgendaEntry } from "@/lib/staff-exports.functions";
 import { downloadBlob } from "./csv";
 import { sortRowsForExport } from "./sort";
@@ -44,7 +45,7 @@ export function buildConsolidatedAgendaPdf(opts: {
     doc.setFontSize(10);
     doc.setTextColor(110);
     if (opts.subtitle) doc.text(opts.subtitle, 40, 66);
-    doc.text(opts.generatedLabel, W - 40, 40, { align: "right" });
+    doc.text(opts.generatedLabel, W - 40, 60, { align: "right" });
     doc.setTextColor(0);
 
     doc.setFont("helvetica", "bold");
@@ -54,11 +55,11 @@ export function buildConsolidatedAgendaPdf(opts: {
         ? `Mesa ${entry.tableNumber} · ${entry.companyName}`
         : entry.companyName;
     doc.text(headerLine, 40, 92);
-    doc.setFont("helvetica", "normal");
+    doc.setFont("helvetica", "bold");
     doc.setFontSize(10);
-    doc.setTextColor(110);
-    doc.text(entry.profileName, 40, 108);
     doc.setTextColor(0);
+    doc.text(entry.profileName, 40, 108);
+    doc.setFont("helvetica", "normal");
 
     if (entry.rows.length === 0) {
       doc.setFontSize(11);
@@ -80,6 +81,7 @@ export function buildConsolidatedAgendaPdf(opts: {
     });
   }
 
+  __pdfFooterInternals.drawFooterOnAllPages(doc);
   return doc;
 }
 
