@@ -311,21 +311,62 @@ export const staffCompleteRegistration = createServerFn({ method: "POST" })
           .eq("id", companyId);
         if (error) throw new Error(`companies: ${error.message}`);
       } else {
-        const insertPayload = {
-          trade_name: data.company.trade_name ?? "(sem nome)",
-          legal_name: data.company.legal_name ?? null,
-          tax_id: data.company.tax_id ?? null,
-          city: data.company.city ?? null,
-          state_code: data.company.state_code ?? null,
-          country_code: "BR",
-        };
-        const { data: created, error } = await supabaseAdmin
-          .from("companies")
-          .insert(insertPayload)
-          .select("id")
-          .single();
-        if (error) throw new Error(`companies (insert): ${error.message}`);
-        companyId = created.id;
+        // Reuse rule: 1 company per CNPJ. Before inserting, look up an
+        // existing company by normalized tax_id (digits-only) so staff
+        // completing a stub profile never trips the unique constraint.
+        const rawTaxId = data.company.tax_id ?? null;
+        const normalizedTaxId = rawTaxId ? rawTaxId.replace(/\D+/g, "") : "";
+        let existing: { id: string; trade_name: string | null; legal_name: string | null; city: string | null; state_code: string | null } | null = null;
+        if (normalizedTaxId.length > 0) {
+          const { data: matches, error: lookupErr } = await supabaseAdmin
+            .from("companies")
+            .select("id, trade_name, legal_name, tax_id, city, state_code")
+            .not("tax_id", "is", null);
+          if (lookupErr) throw new Error(`companies (lookup): ${lookupErr.message}`);
+          existing =
+            (matches ?? []).find(
+              (c) => (c.tax_id ?? "").replace(/\D+/g, "") === normalizedTaxId,
+            ) ?? null;
+        }
+        if (existing) {
+          companyId = existing.id;
+          // Only fill empty complementary fields — never overwrite valid data.
+          const fillPatch: Record<string, string> = {};
+          if (!existing.trade_name && data.company.trade_name) fillPatch.trade_name = data.company.trade_name;
+          if (!existing.legal_name && data.company.legal_name) fillPatch.legal_name = data.company.legal_name;
+          if (!existing.city && data.company.city) fillPatch.city = data.company.city;
+          if (!existing.state_code && data.company.state_code) fillPatch.state_code = data.company.state_code;
+          if (Object.keys(fillPatch).length > 0) {
+            const { error: fillErr } = await supabaseAdmin
+              .from("companies")
+              .update(fillPatch)
+              .eq("id", companyId);
+            if (fillErr) throw new Error(`companies (complement): ${fillErr.message}`);
+          }
+        } else {
+          const insertPayload = {
+            trade_name: data.company.trade_name ?? "(sem nome)",
+            legal_name: data.company.legal_name ?? null,
+            tax_id: data.company.tax_id ?? null,
+            city: data.company.city ?? null,
+            state_code: data.company.state_code ?? null,
+            country_code: "BR",
+          };
+          const { data: created, error } = await supabaseAdmin
+            .from("companies")
+            .insert(insertPayload)
+            .select("id")
+            .single();
+          if (error) {
+            if (/companies_tax_id_unique|duplicate key/i.test(error.message)) {
+              throw new Error(
+                "Este CNPJ já está cadastrado em outra empresa. Recarregue a página e tente novamente — o sistema deve reutilizar a empresa existente automaticamente.",
+              );
+            }
+            throw new Error(`companies (insert): ${error.message}`);
+          }
+          companyId = created.id;
+        }
         const { error: linkErr } = await supabaseAdmin
           .from("profiles")
           .update({ company_id: companyId })
