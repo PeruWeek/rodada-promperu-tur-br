@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { dedupeCompanyRows } from "@/lib/companies-report";
+import { cnpjRoot, dedupeCompanyRows, groupCompaniesByCnpjRoot } from "@/lib/companies-report";
 
 // Inline copy of the helper used in CompaniesTab to guarantee that every
 // exporter (XLSX/CSV/PDF) and the on-screen table share the exact same
@@ -64,5 +64,64 @@ describe("companies tab export filter", () => {
     expect(uniqueForPdf).toHaveLength(2);
     expect(uniqueForList.filter((r) => r.id === "incomum")).toHaveLength(1);
     expect(uniqueForPdf.filter((r) => r.id === "incomum")).toHaveLength(1);
+  });
+
+  it("extracts the 8-digit CNPJ root regardless of formatting", () => {
+    expect(cnpjRoot("02.558.529/0001-12")).toBe("02558529");
+    expect(cnpjRoot("02558529000231")).toBe("02558529");
+    expect(cnpjRoot("ABC")).toBeNull();
+    expect(cnpjRoot(null)).toBeNull();
+  });
+
+  it("groups matriz and filial sharing the same CNPJ root as ONE company", () => {
+    const rows = [
+      {
+        id: "incomum-matriz",
+        tax_id: "02.558.529/0001-12",
+        trade_name: "Incomum Viagens",
+        role: "visitor" as const,
+        confirmed: true,
+        hasActiveOwner: true,
+        is_active: true,
+        networking_lunch_participation: true,
+        scheduled_meetings_count: 2,
+        eligible_contacts: [{ id: "c1", full_name: "Marília" }],
+      },
+      {
+        id: "incomum-filial",
+        tax_id: "02.558.529/0002-31",
+        trade_name: "Incomum Viagens (Filial)",
+        role: "visitor" as const,
+        confirmed: false,
+        hasActiveOwner: true,
+        is_active: true,
+        networking_lunch_participation: null,
+        scheduled_meetings_count: 1,
+        eligible_contacts: [{ id: "c2", full_name: "Valéria" }],
+      },
+      {
+        id: "copastur",
+        tax_id: "11.111.111/0001-11",
+        trade_name: "Copastur",
+        role: "visitor" as const,
+        confirmed: true,
+        hasActiveOwner: true,
+        is_active: true,
+        networking_lunch_participation: false,
+        scheduled_meetings_count: 0,
+        eligible_contacts: [{ id: "c3", full_name: "Naline" }],
+      },
+    ];
+
+    const grouped = groupCompaniesByCnpjRoot(rows);
+    expect(grouped).toHaveLength(2);
+
+    const incomum = grouped.find((r) => r.trade_name?.startsWith("Incomum"))!;
+    // Matriz is picked as representative — trade_name from /0001 row.
+    expect(incomum.trade_name).toBe("Incomum Viagens");
+    expect(incomum.scheduled_meetings_count).toBe(3);
+    expect(incomum.eligible_contacts).toHaveLength(2);
+    expect(incomum.confirmed).toBe(true);
+    expect(incomum.networking_lunch_participation).toBe(true);
   });
 });

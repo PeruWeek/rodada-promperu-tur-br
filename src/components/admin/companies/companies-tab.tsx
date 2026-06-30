@@ -14,7 +14,7 @@ import {
 import { downloadBlob, toCsv } from "@/lib/exports/csv";
 import { downloadXlsx } from "@/lib/exports/xlsx";
 import { sortRowsForExport } from "@/lib/exports/sort";
-import { dedupeCompanyRows } from "@/lib/companies-report";
+import { dedupeCompanyRows, groupCompaniesByCnpjRoot } from "@/lib/companies-report";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { Badge } from "@/components/ui/badge";
@@ -147,7 +147,10 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
   // Even if a backend/search/export payload ever contains one row per contact,
   // the rendered list, badge and exports must collapse back to one row per
   // company before any summary, pagination or export is computed.
-  const allRows = dedupeCompanyRows(data?.rows ?? []);
+  // Defensive: the server already groups matriz+filiais by CNPJ root, but
+  // we re-apply the same rule on the client so list/badge/exports remain
+  // consistent even against an older server response.
+  const allRows = groupCompaniesByCnpjRoot(dedupeCompanyRows(data?.rows ?? []));
   const clienteSummary = readOnly
     ? {
         total: allRows.length,
@@ -202,7 +205,7 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
     // In readOnly (cliente) mode the server returns the full universe and the
     // visible type selector is purely client-side, so we must apply the same
     // filter to every exporter to keep table and exports in sync.
-    const uniqueRows = dedupeCompanyRows(res.rows);
+    const uniqueRows = groupCompaniesByCnpjRoot(dedupeCompanyRows(res.rows));
     return readOnly ? filterRowsByType(uniqueRows, clienteTypeFilter) : uniqueRows;
   };
 
@@ -213,7 +216,7 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
   // the PDF while the badge said one. The per-contact expansion belongs
   // to the consolidated agenda exports, not here.
   const buildRows = (rows: Awaited<ReturnType<typeof fetchAll>>) => {
-    const unique = dedupeCompanyRows(rows);
+    const unique = groupCompaniesByCnpjRoot(dedupeCompanyRows(rows));
     return sortRowsForExport(unique, {
       tradeName: (c) => c.trade_name,
       fullName: (c) => c.primary_contact?.full_name ?? "",
@@ -300,7 +303,7 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
       // Defensive: dedupe at the very last possible moment, right before
       // rendering. `fetchAll` and `buildRows` already collapse by company_id,
       // but we re-assert here so the PDF can NEVER diverge from the badge.
-      const uniqueRows = dedupeCompanyRows(rows);
+      const uniqueRows = groupCompaniesByCnpjRoot(dedupeCompanyRows(rows));
       const body = buildRows(uniqueRows);
       const companyIds = uniqueRows.map((r) => r.id);
       // Telemetry to make the export dataset auditable (see report below).
