@@ -345,10 +345,25 @@ export async function _listEventRegistrantsImpl(
   // company may still reference this profile via `primary_profile_id`,
   // emitting the same person twice (once for the stub row, once for the
   // canonical company expansion). Keep the row whose pipeline company_id
-  // matches the profile's current canonical company_id when available.
-  const dedupedOut = dedupeRegistrantsByProfile(out, profById);
+  // matches the profile's current canonical company_id when available;
+  // otherwise keep the first occurrence. Legitimate cases of multiple
+  // distinct profiles in the same company are preserved because we key
+  // by `profile_id`, not `company_id`.
+  const dedupSeen = new Map<string, RegistrantRow>();
+  for (const row of out) {
+    const existing = dedupSeen.get(row.profile_id);
+    if (!existing) {
+      dedupSeen.set(row.profile_id, row);
+      continue;
+    }
+    const canonical = profById.get(row.profile_id)?.company_id ?? null;
+    if (canonical && row.company_id === canonical && existing.company_id !== canonical) {
+      dedupSeen.set(row.profile_id, row);
+    }
+  }
+  const dedupedOut = Array.from(dedupSeen.values());
   if (data.sort === "recent") {
-    dedupedOut.sort((a, b) => {
+    dedupedOut.sort((a: RegistrantRow, b: RegistrantRow) => {
       const da = a.created_at ?? "";
       const db = b.created_at ?? "";
       if (da !== db) return db.localeCompare(da);
