@@ -341,15 +341,36 @@ export async function _listEventRegistrantsImpl(
       });
   await annotateProfileMeetingCounts(ctx.supabase, eventId, out);
   await annotateLunchParticipation(ctx.supabase, out);
+  // Defensive dedup: after a relink, an orphan pipeline row of the old stub
+  // company may still reference this profile via `primary_profile_id`,
+  // emitting the same person twice (once for the stub row, once for the
+  // canonical company expansion). Keep the row whose pipeline company_id
+  // matches the profile's current canonical company_id when available;
+  // otherwise keep the first occurrence. Legitimate cases of multiple
+  // distinct profiles in the same company are preserved because we key
+  // by `profile_id`, not `company_id`.
+  const dedupSeen = new Map<string, RegistrantRow>();
+  for (const row of out) {
+    const existing = dedupSeen.get(row.profile_id);
+    if (!existing) {
+      dedupSeen.set(row.profile_id, row);
+      continue;
+    }
+    const canonical = profById.get(row.profile_id)?.company_id ?? null;
+    if (canonical && row.company_id === canonical && existing.company_id !== canonical) {
+      dedupSeen.set(row.profile_id, row);
+    }
+  }
+  const dedupedOut = Array.from(dedupSeen.values());
   if (data.sort === "recent") {
-    out.sort((a, b) => {
+    dedupedOut.sort((a: RegistrantRow, b: RegistrantRow) => {
       const da = a.created_at ?? "";
       const db = b.created_at ?? "";
       if (da !== db) return db.localeCompare(da);
       return a.company_trade_name.localeCompare(b.company_trade_name);
     });
   }
-  return { eventId, rows: out };
+  return { eventId, rows: dedupedOut };
 }
 
 async function getCurrentEventIdWith(supabase: any, explicit?: string) {
