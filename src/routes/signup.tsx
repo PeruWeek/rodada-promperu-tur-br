@@ -32,6 +32,10 @@ import { TAXONOMY } from "@/lib/taxonomy";
 import { lookupPreRegistration, type PreRegPrefill } from "@/lib/pre-registration.functions";
 import { checkSignupAvailability } from "@/lib/signup-availability.functions";
 import { trackMauticEvent } from "@/lib/mautic";
+import {
+  trackSignupAccount,
+  type SignupBlockReason,
+} from "@/lib/signup-telemetry";
 
 export const Route = createFileRoute("/signup")({
   head: () => ({ meta: [{ title: "Cadastro — PERU MICE Networking Evento" }] }),
@@ -115,6 +119,9 @@ function SignupPage() {
   const prefillRequestId = useRef(0);
   const lookupFn = useServerFn(lookupPreRegistration);
   const availabilityFn = useServerFn(checkSignupAvailability);
+  const stepStartRef = useRef<number>(typeof performance !== "undefined" ? performance.now() : Date.now());
+  const continueAttemptsRef = useRef(0);
+  const accountCompletedRef = useRef(false);
 
   const set = <K extends keyof BuyerSignupData>(key: K, value: BuyerSignupData[K]) =>
     setData((d) => ({ ...d, [key]: value }));
@@ -132,6 +139,30 @@ function SignupPage() {
       },
       { dedupeKey: "session" },
     );
+  }, []);
+
+  // Telemetry: step viewed (only once per session), and abandonment guard.
+  useEffect(() => {
+    trackSignupAccount("signup_step_account_viewed", { once: true });
+    const onLeave = () => {
+      if (accountCompletedRef.current) return;
+      const now = typeof performance !== "undefined" ? performance.now() : Date.now();
+      trackSignupAccount("signup_abandoned_on_account_step", {
+        timeOnStepMs: Math.round(now - stepStartRef.current),
+        attempt: continueAttemptsRef.current,
+        hasEmail: !!data.email.trim(),
+      });
+    };
+    const onVis = () => {
+      if (document.visibilityState === "hidden") onLeave();
+    };
+    window.addEventListener("pagehide", onLeave);
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      window.removeEventListener("pagehide", onLeave);
+      document.removeEventListener("visibilitychange", onVis);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const runLookup = async (rawEmail: string) => {
@@ -198,6 +229,20 @@ function SignupPage() {
       flat.password = "auth.errors.passwordWeak";
     }
     setErrors(flat);
+    if (s === 1) {
+      const reasons: SignupBlockReason[] = [];
+      if (!data.email.trim()) reasons.push("missing_email");
+      else if (flat.email) reasons.push("invalid_email");
+      if (!data.password) reasons.push("missing_password");
+      else if (flat.password) reasons.push("weak_password");
+      if (!data.confirmPassword) reasons.push("missing_confirm_password");
+      else if (flat.confirmPassword) reasons.push("password_mismatch");
+      trackSignupAccount("signup_step_account_validation_failed", {
+        reason: reasons.length ? reasons : "unknown_validation_error",
+        attempt: continueAttemptsRef.current,
+        hasEmail: !!data.email.trim(),
+      });
+    }
     // Mautic: signup_validation_error. Dedupe por (step + chaves de erro)
     // para não inflar a timeline em cliques repetidos com os mesmos erros,
     // mas registrar quando o usuário muda os campos quebrados.
@@ -219,7 +264,22 @@ function SignupPage() {
   };
 
   const next = () => {
+    if (step === 1) {
+      continueAttemptsRef.current += 1;
+      trackSignupAccount("signup_continue_clicked", {
+        attempt: continueAttemptsRef.current,
+      });
+    }
     if (!validateStep(step)) return;
+    if (step === 1) {
+      accountCompletedRef.current = true;
+      const now = typeof performance !== "undefined" ? performance.now() : Date.now();
+      trackSignupAccount("signup_step_account_completed", {
+        timeOnStepMs: Math.round(now - stepStartRef.current),
+        attempt: continueAttemptsRef.current,
+        email: data.email,
+      });
+    }
     // Mautic: signup_step_N_completed. Dedupe por (email|sessão + step) para
     // não duplicar em re-cliques no botão Continuar.
     const stepEvent = (
@@ -509,6 +569,7 @@ function SignupPage() {
                   {prefill.status === "found" && (
                     <PrefillBanner t={t} onAccept={acceptPrefill} onDismiss={dismissPrefill} />
                   )}
+                  <AccountIntro t={t} />
                   <Step1 data={data} set={set} errors={errors} t={t}
                     onEmailBlur={() => void runLookup(data.email)} />
                 </>
@@ -535,6 +596,10 @@ function SignupPage() {
                   {step < TOTAL_STEPS ? t("common.continue") : t("signup.finish")}
                 </Button>
               </div>
+
+              {step === 1 && (
+                <AccountContinueHelper data={data} t={t} />
+              )}
 
               <p className="text-center text-sm text-muted-foreground">
                 <Link to="/login" className="font-medium text-primary hover:underline">
@@ -586,29 +651,136 @@ function PrefillBanner({ t, onAccept, onDismiss }: { t: StepProps["t"]; onAccept
 }
 
 function Step1({ data, set, errors, t, onEmailBlur }: StepProps & { onEmailBlur?: () => void }) {
+  const [showRules, setShowRules] = useState(false);
+  const emailStartedRef = useRef(false);
+  const passwordStartedRef = useRef(false);
+  const confirmStartedRef = useRef(false);
+  const lastRuleStrengthRef = useRef<string>("empty");
+
+  // Emit rule transitions (passed/failed) as the user types the password.
+  useEffect(() => {
+    const s = passwordStrength(data.password);
+    if (s !== lastRuleStrengthRef.current) {
+      if (s === "strong" || s === "medium") {
+        trackSignupAccount("signup_password_rule_passed", { field: "password" });
+      } else if (s === "weak") {
+        trackSignupAccount("signup_password_rule_failed", {
+          field: "password",
+          reason: "weak_password",
+        });
+      }
+      lastRuleStrengthRef.current = s;
+    }
+  }, [data.password]);
+
+  const confirmMatch =
+    data.confirmPassword.length > 0 && data.password === data.confirmPassword;
+  const confirmMismatch =
+    data.confirmPassword.length > 0 && data.password !== data.confirmPassword;
+
   return (
     <div className="space-y-4">
       <div>
         <Label htmlFor="email">{t("auth.email")} *</Label>
-        <Input id="email" type="email" autoComplete="email" value={data.email}
+        <Input id="email" type="email" autoComplete="email" inputMode="email" value={data.email}
+          onFocus={() => {
+            if (!emailStartedRef.current) {
+              emailStartedRef.current = true;
+              trackSignupAccount("signup_email_started", { once: true });
+            }
+          }}
           onChange={(e) => set("email", e.target.value)} onBlur={onEmailBlur} className="mt-1.5" />
+        <p className="mt-1 text-xs text-muted-foreground">{t("signup.account.emailHelp")}</p>
         <FieldError msg={errors.email} t={t} />
       </div>
       <div>
         <Label htmlFor="password">{t("auth.password")} *</Label>
         <PasswordInput id="password" autoComplete="new-password" value={data.password}
+          onFocus={() => {
+            if (!passwordStartedRef.current) {
+              passwordStartedRef.current = true;
+              trackSignupAccount("signup_password_started", { once: true });
+            }
+          }}
           onChange={(e) => set("password", e.target.value)} className="mt-1.5" />
-        <p className="mt-1 text-xs text-muted-foreground">{t("auth.passwordGuidelines")}</p>
-        <PasswordStrength value={data.password} />
+        <p className="mt-1 text-xs text-muted-foreground">{t("signup.account.passwordShort")}</p>
+        {data.password.length > 0 && <PasswordStrength value={data.password} />}
+        <button
+          type="button"
+          onClick={() => setShowRules((v) => !v)}
+          className="mt-1 text-xs font-medium text-primary hover:underline"
+        >
+          {showRules ? t("signup.account.hidePasswordRules") : t("signup.account.showPasswordRules")}
+        </button>
+        {showRules && (
+          <p className="mt-1 text-xs text-muted-foreground">{t("auth.passwordGuidelines")}</p>
+        )}
         <FieldError msg={errors.password} t={t} />
       </div>
       <div>
         <Label htmlFor="confirmPassword">{t("signup.confirmPassword")} *</Label>
         <PasswordInput id="confirmPassword" autoComplete="new-password" value={data.confirmPassword}
+          onFocus={() => {
+            if (!confirmStartedRef.current) {
+              confirmStartedRef.current = true;
+              trackSignupAccount("signup_confirm_password_started", { once: true });
+            }
+          }}
           onChange={(e) => set("confirmPassword", e.target.value)} className="mt-1.5" />
+        {confirmMatch && (
+          <p className="mt-1 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+            {t("signup.account.confirmMatchOk")}
+          </p>
+        )}
+        {confirmMismatch && !errors.confirmPassword && (
+          <p className="mt-1 text-xs text-muted-foreground">
+            {t("signup.account.confirmMismatch")}
+          </p>
+        )}
         <FieldError msg={errors.confirmPassword} t={t} />
       </div>
     </div>
+  );
+}
+
+function AccountIntro({ t }: { t: StepProps["t"] }) {
+  return (
+    <div className="rounded-md border bg-muted/30 p-4">
+      <p className="text-sm leading-snug text-foreground">{t("signup.account.intro")}</p>
+      <p className="mt-2 text-sm text-muted-foreground">
+        {t("signup.account.alreadyHasAccount")}{" "}
+        <Link to="/login" className="font-medium text-primary hover:underline">
+          {t("signup.account.loginHere")}
+        </Link>
+      </p>
+    </div>
+  );
+}
+
+function AccountContinueHelper({ data, t }: { data: BuyerSignupData; t: StepProps["t"] }) {
+  const missing: string[] = [];
+  const email = data.email.trim();
+  if (!email) missing.push(t("signup.account.missing.email"));
+  else if (!z.string().email().safeParse(email).success)
+    missing.push(t("signup.account.missing.emailInvalid"));
+  if (!data.password) missing.push(t("signup.account.missing.password"));
+  else if (passwordStrength(data.password) === "weak")
+    missing.push(t("signup.account.missing.passwordWeak"));
+  if (!data.confirmPassword) missing.push(t("signup.account.missing.confirmPassword"));
+  else if (data.password && data.password !== data.confirmPassword)
+    missing.push(t("signup.account.missing.passwordMismatch"));
+
+  if (missing.length === 0) {
+    return (
+      <p className="text-right text-xs font-medium text-emerald-600 dark:text-emerald-400">
+        {t("signup.account.continueReady")}
+      </p>
+    );
+  }
+  return (
+    <p className="text-right text-xs text-muted-foreground">
+      {t("signup.account.continueMissing", { list: missing.join(", ") })}
+    </p>
   );
 }
 
