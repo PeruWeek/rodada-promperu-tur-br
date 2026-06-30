@@ -4,6 +4,7 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { filterAndRankCompanies, filterAndRankParticipants } from "@/lib/company-search";
+import { dedupeCompanyRows } from "@/lib/companies-report";
 
 type JsonValue = string | number | boolean | null | JsonValue[] | { [k: string]: JsonValue };
 type JsonObject = { [k: string]: JsonValue };
@@ -411,6 +412,10 @@ export const listAdminCompanies = createServerFn({ method: "POST" })
         data.search,
       );
     }
+    // `Empresas` is a company-level dataset. Keep this server response and
+    // total immune to any accidental per-contact expansion so UI badges,
+    // visible rows and PDF/XLSX/CSV exports all share one company_id base.
+    filtered = dedupeCompanyRows(filtered);
     const total = filtered.length;
     const from = (data.page - 1) * data.pageSize;
     const paged = filtered.slice(from, from + data.pageSize);

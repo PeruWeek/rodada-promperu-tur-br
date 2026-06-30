@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import { dedupeCompanyRows } from "@/lib/companies-report";
+
 // Inline copy of the helper used in CompaniesTab to guarantee that every
 // exporter (XLSX/CSV/PDF) and the on-screen table share the exact same
 // filtering rule based on the official `role` field.
@@ -46,5 +48,21 @@ describe("companies tab export filter", () => {
       expect(csv).toEqual(base);
       expect(pdf).toEqual(base);
     }
+  });
+
+  it("collapses the Empresas dataset to one row per company_id before rendering/export", () => {
+    const expanded = [
+      { id: "incomum", role: "visitor" as const, contact: "Marília Zazzera de Melo" },
+      { id: "incomum", role: "visitor" as const, contact: "Valéria Paes de Carvalho Schiavon" },
+      { id: "copastur", role: "visitor" as const, contact: "Naline Correia" },
+    ];
+
+    const uniqueForList = dedupeCompanyRows(expanded);
+    const uniqueForPdf = dedupeCompanyRows(expanded);
+
+    expect(uniqueForList).toHaveLength(2);
+    expect(uniqueForPdf).toHaveLength(2);
+    expect(uniqueForList.filter((r) => r.id === "incomum")).toHaveLength(1);
+    expect(uniqueForPdf.filter((r) => r.id === "incomum")).toHaveLength(1);
   });
 });

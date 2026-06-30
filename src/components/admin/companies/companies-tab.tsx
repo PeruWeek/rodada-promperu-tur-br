@@ -14,6 +14,7 @@ import {
 import { downloadBlob, toCsv } from "@/lib/exports/csv";
 import { downloadXlsx } from "@/lib/exports/xlsx";
 import { sortRowsForExport } from "@/lib/exports/sort";
+import { dedupeCompanyRows } from "@/lib/companies-report";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { Badge } from "@/components/ui/badge";
@@ -142,7 +143,11 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
   });
 
   // Cliente-only: derive summary counts + client-side filtered/paginated rows.
-  const allRows = data?.rows ?? [];
+  // Defensive normalization for the Empresas flow: the unit is company_id.
+  // Even if a backend/search/export payload ever contains one row per contact,
+  // the rendered list, badge and exports must collapse back to one row per
+  // company before any summary, pagination or export is computed.
+  const allRows = dedupeCompanyRows(data?.rows ?? []);
   const clienteSummary = readOnly
     ? {
         total: allRows.length,
@@ -163,7 +168,7 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
       : clienteFilteredRows
     : allRows;
   const displayRows = readOnly ? clientePagedRows : allRows;
-  const displayTotal = readOnly ? clienteTotal : data?.total ?? 0;
+  const displayTotal = readOnly ? clienteTotal : data?.total ?? allRows.length;
 
   const headers = [
     "Nome Fantasia",
@@ -197,7 +202,8 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
     // In readOnly (cliente) mode the server returns the full universe and the
     // visible type selector is purely client-side, so we must apply the same
     // filter to every exporter to keep table and exports in sync.
-    return readOnly ? filterRowsByType(res.rows, clienteTypeFilter) : res.rows;
+    const uniqueRows = dedupeCompanyRows(res.rows);
+    return readOnly ? filterRowsByType(uniqueRows, clienteTypeFilter) : uniqueRows;
   };
 
   // Exports emit EXACTLY ONE ROW PER company_id — this is the "Empresas"
@@ -207,12 +213,7 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
   // the PDF while the badge said one. The per-contact expansion belongs
   // to the consolidated agenda exports, not here.
   const buildRows = (rows: Awaited<ReturnType<typeof fetchAll>>) => {
-    const seen = new Set<string>();
-    const unique = rows.filter((c) => {
-      if (seen.has(c.id)) return false;
-      seen.add(c.id);
-      return true;
-    });
+    const unique = dedupeCompanyRows(rows);
     return sortRowsForExport(unique, {
       tradeName: (c) => c.trade_name,
       fullName: (c) => c.primary_contact?.full_name ?? "",
