@@ -102,11 +102,27 @@ export function ClienteOverview() {
   }, [rows]);
 
   const filtered = useMemo(() => {
-    const term = search.trim().toLowerCase();
+    const normalize = (v: unknown) =>
+      (v ?? "")
+        .toString()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .trim();
+    const term = normalize(search);
     return rows
       .filter((r) => {
         if (!term) return true;
-        return (r.company_trade_name ?? "").toLowerCase().includes(term);
+        // Unified search: company (trade/legal/tax) + contact (name/email).
+        // Mirrors `filterAndRankParticipants` so Visão Geral matches the
+        // same fields as Empresas / Inscritos / Agenda on the server.
+        return [
+          r.company_trade_name,
+          r.company_legal_name,
+          r.company_tax_id,
+          r.full_name,
+          r.email,
+        ].some((field) => normalize(field).includes(term));
       })
       .filter((r) => {
         if (status === "any") return true;

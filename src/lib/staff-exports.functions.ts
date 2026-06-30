@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { filterAndRankCompanies } from "@/lib/company-search";
+import { filterAndRankParticipants } from "@/lib/company-search";
 import { getPrimaryRoleServer } from "@/lib/role-server";
 
 async function assertAdminOrStaff(userId: string) {
@@ -182,19 +182,12 @@ export async function _listEventRegistrantsImpl(
     const taxById = new Map(
       ((companies ?? []) as CompanyTaxRow[]).map((c) => [c.id, c.tax_id]),
     );
-    if (data.search?.trim()) {
-      // Search is company-scoped only: trade_name, legal_name, tax_id.
-      // Do not include primary_contact_name/email or any profile fields.
-      rowsTyped = filterAndRankCompanies(
-        rowsTyped.map((r) => ({
-          ...r,
-          trade_name: r.company_trade_name,
-          legal_name: r.company_legal_name,
-          tax_id: r.company_id ? taxById.get(r.company_id) ?? null : null,
-        })),
-        data.search,
-      );
-    }
+    // Textual search runs AFTER per-profile expansion below so the needle
+    // can match the inscribed person's full_name / email in addition to the
+    // company's trade_name, legal_name and tax_id. This keeps the search
+    // semantics consistent across Empresas, Inscritos and Agenda (each tab
+    // applies its own universe filter — Agenda restricts to rows with
+    // `scheduled_meetings_count > 0` — but the textual match is identical).
 
     const profileIds = Array.from(
       new Set(rowsTyped.map((r) => r.primary_profile_id).filter(Boolean) as string[]),
@@ -361,7 +354,20 @@ export async function _listEventRegistrantsImpl(
       dedupSeen.set(row.profile_id, row);
     }
   }
-  const dedupedOut = Array.from(dedupSeen.values());
+  let dedupedOut = Array.from(dedupSeen.values());
+  if (data.search?.trim()) {
+    dedupedOut = filterAndRankParticipants(
+      dedupedOut.map((r) => ({
+        ...r,
+        trade_name: r.company_trade_name,
+        legal_name: r.company_legal_name,
+        tax_id: r.company_tax_id,
+        full_name: r.full_name,
+        email: r.email,
+      })),
+      data.search,
+    );
+  }
   if (data.sort === "recent") {
     dedupedOut.sort((a: RegistrantRow, b: RegistrantRow) => {
       const da = a.created_at ?? "";
