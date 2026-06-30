@@ -355,7 +355,7 @@
     },
     "companies": {
       "help": "Edite dados cadastrais e a ficha comercial (segmentos, pitch, materiais) de empresas visitantes e expositoras. Para criar, inativar ou excluir um expositor, vá em Usuários.",
-      "searchPlaceholder": "Buscar por nome fantasia, razão social ou CNPJ...",
+      "searchPlaceholder": "Buscar por empresa, contato ou e-mail...",
       "filterRole": "Tipo",
       "roleAll": "Todos",
       "roleVisitor": "Visitantes",
