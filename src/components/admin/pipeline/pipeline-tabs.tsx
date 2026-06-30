@@ -14,6 +14,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  LIST_PAGINATION_THRESHOLD,
+  ListPagination,
+  ListSummary,
+  type PageSizeOption,
+} from "@/components/admin/list-summary";
 
 import {
   assignPipelineOwner,
@@ -229,14 +235,15 @@ function RegistrationsTab({ isAdmin }: Props) {
   const [regStatus, setRegStatus] = useState<string>("any");
   const [mine, setMine] = useState(!isAdmin);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<PageSizeOption>(50);
 
   const { data, isLoading } = useQuery({
-    queryKey: ["pipeline-list", { search, role, type, category, country, regStatus, mine, page }],
+    queryKey: ["pipeline-list", { search, role, type, category, country, regStatus, mine, page, pageSize }],
     queryFn: () =>
       listFn({
         data: {
           page,
-          pageSize: 50,
+          pageSize,
           search: search || undefined,
           role: role === "any" ? undefined : (role as "exhibitor" | "visitor"),
           companyType: type === "any" ? undefined : (type as (typeof COMPANY_TYPES)[number]),
@@ -285,6 +292,14 @@ function RegistrationsTab({ isAdmin }: Props) {
         <p className="py-6 text-center text-sm text-muted-foreground">Nenhuma empresa encontrada.</p>
       ) : (
         <>
+          <div className="mb-2">
+            <ListSummary
+              visible={(data?.rows ?? []).length}
+              total={data?.total ?? 0}
+              noun="cadastro"
+              nounPlural="cadastros"
+            />
+          </div>
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
@@ -320,13 +335,20 @@ function RegistrationsTab({ isAdmin }: Props) {
               </TableBody>
             </Table>
           </div>
-          <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
-            <span>{data!.total} resultados</span>
-            <div className="flex gap-2">
-              <Button size="sm" variant="outline" disabled={page === 1} onClick={() => setPage((p) => p - 1)}>Anterior</Button>
-              <Button size="sm" variant="outline" disabled={(page * 50) >= data!.total} onClick={() => setPage((p) => p + 1)}>Próxima</Button>
-            </div>
-          </div>
+          {(data?.total ?? 0) > LIST_PAGINATION_THRESHOLD && (
+            <ListPagination
+              page={page}
+              pageSize={pageSize}
+              total={data!.total}
+              onPageChange={setPage}
+              onPageSizeChange={(s) => {
+                setPageSize(s);
+                setPage(1);
+              }}
+              noun="cadastro"
+              nounPlural="cadastros"
+            />
+          )}
         </>
       )}
     </Card>
@@ -351,6 +373,8 @@ function SchedulingTab({ isAdmin }: Props) {
   const [group, setGroup] = useState<"any" | "sem_agendamento" | "com_agendamento">("any");
   const [opStatus, setOpStatus] = useState<"any" | "agendado_parcial" | "agendado_ok">("any");
   const [mine, setMine] = useState(!isAdmin);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<PageSizeOption>(50);
   const { data, isLoading } = useQuery({
     queryKey: ["pipeline-scheduling", group, opStatus, mine],
     queryFn: () =>
@@ -367,6 +391,11 @@ function SchedulingTab({ isAdmin }: Props) {
         },
       }),
   });
+
+  const allRows = (data?.rows as PipelineRow[] | undefined) ?? [];
+  const total = allRows.length;
+  const paginate = total > LIST_PAGINATION_THRESHOLD;
+  const visibleRows = paginate ? allRows.slice((page - 1) * pageSize, page * pageSize) : allRows;
 
   return (
     <Card className="p-4">
@@ -395,6 +424,15 @@ function SchedulingTab({ isAdmin }: Props) {
         </div>
       </div>
       {isLoading ? <Skeleton className="h-60 w-full" /> : (
+        <>
+        <div className="mb-2">
+          <ListSummary
+            visible={visibleRows.length}
+            total={total}
+            noun="agendamento"
+            nounPlural="agendamentos"
+          />
+        </div>
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>
@@ -410,7 +448,7 @@ function SchedulingTab({ isAdmin }: Props) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {(data?.rows as PipelineRow[] | undefined)?.map((r) => (
+              {visibleRows.map((r) => (
                 <TableRow key={r.id}>
                   <TableCell className="font-medium">{r.company_trade_name ?? "—"}</TableCell>
                   <TableCell>{r.company_role}</TableCell>
@@ -425,6 +463,21 @@ function SchedulingTab({ isAdmin }: Props) {
             </TableBody>
           </Table>
         </div>
+        {paginate && (
+          <ListPagination
+            page={page}
+            pageSize={pageSize}
+            total={total}
+            onPageChange={setPage}
+            onPageSizeChange={(s) => {
+              setPageSize(s);
+              setPage(1);
+            }}
+            noun="agendamento"
+            nounPlural="agendamentos"
+          />
+        )}
+        </>
       )}
     </Card>
   );

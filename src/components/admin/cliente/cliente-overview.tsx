@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -41,6 +41,12 @@ import {
 } from "@/lib/scheduling-status";
 import { downloadXlsx } from "@/lib/exports/xlsx";
 import { sortRowsForExport } from "@/lib/exports/sort";
+import {
+  LIST_PAGINATION_THRESHOLD,
+  ListPagination,
+  ListSummary,
+  type PageSizeOption,
+} from "@/components/admin/list-summary";
 
 type StatusFilter = "any" | SchedulingGroup;
 type TypeFilter = "all" | "visitor" | "exhibitor";
@@ -63,6 +69,8 @@ export function ClienteOverview() {
   const [status, setStatus] = useState<StatusFilter>("any");
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
   const [exporting, setExporting] = useState<null | "xlsx" | "pdf">(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<PageSizeOption>(50);
 
   const { data, isLoading } = useQuery({
     queryKey: ["cliente-overview-base"],
@@ -150,6 +158,17 @@ export function ClienteOverview() {
     () => dedupeByCompany(filtered as ClienteOverviewRow[]) as typeof filtered,
     [filtered],
   );
+
+  const totalCompanies = filteredCompanies.length;
+  const paginate = totalCompanies > LIST_PAGINATION_THRESHOLD;
+  const visibleCompanies = paginate
+    ? filteredCompanies.slice((page - 1) * pageSize, page * pageSize)
+    : filteredCompanies;
+
+  // Reset page when filters/search change.
+  useEffect(() => {
+    setPage(1);
+  }, [search, status, typeFilter, pageSize]);
 
   const exportHeaders = [
     "Nome Fantasia",
@@ -375,6 +394,15 @@ export function ClienteOverview() {
           </Button>
         </div>
 
+        <div className="mb-2">
+          <ListSummary
+            visible={visibleCompanies.length}
+            total={totalCompanies}
+            noun="empresa"
+            nounPlural="empresas"
+          />
+        </div>
+
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>
@@ -392,7 +420,7 @@ export function ClienteOverview() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {isLoading ? null : filteredCompanies.length === 0 ? (
+              {isLoading ? null : visibleCompanies.length === 0 ? (
                 <TableRow>
                   <TableCell
                     colSpan={hasUpdatedAt ? 6 : 5}
@@ -402,7 +430,7 @@ export function ClienteOverview() {
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredCompanies.map((r) => {
+                visibleCompanies.map((r) => {
                   const count = r.scheduled_meetings_count ?? 0;
                   const group = bucketGroupFromMeetings(count);
                   const anyRow = r as unknown as Record<string, unknown>;
@@ -459,6 +487,20 @@ export function ClienteOverview() {
             </TableBody>
           </Table>
         </div>
+        {paginate && (
+          <ListPagination
+            page={page}
+            pageSize={pageSize}
+            total={totalCompanies}
+            onPageChange={setPage}
+            onPageSizeChange={(s) => {
+              setPageSize(s);
+              setPage(1);
+            }}
+            noun="empresa"
+            nounPlural="empresas"
+          />
+        )}
       </Card>
     </div>
   );

@@ -61,6 +61,12 @@ import { downloadXlsx } from "@/lib/exports/xlsx";
 import { sortRowsForExport } from "@/lib/exports/sort";
 import { buildAgendaPdf, buildCompanyAgendaPdf } from "@/lib/pdf";
 import { buildConsolidatedAgendaPdf, downloadAgendaZip } from "@/lib/exports/bulk-agenda";
+import {
+  LIST_PAGINATION_THRESHOLD,
+  ListPagination,
+  ListSummary,
+  type PageSizeOption,
+} from "@/components/admin/list-summary";
 
 type RoleFilter = "all" | "exhibitor" | "visitor";
 
@@ -182,6 +188,8 @@ export function RegistrantsTab({
   const [welcomeTarget, setWelcomeTarget] = useState<RegistrantRow | null>(null);
   const [welcomeForce, setWelcomeForce] = useState(false);
   const [welcomeSending, setWelcomeSending] = useState(false);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<PageSizeOption>(50);
 
   const { data, isLoading } = useQuery({
     queryKey: ["registrants", role, search, sort, unrestrictedCliente],
@@ -208,6 +216,15 @@ export function RegistrantsTab({
     }
     return filtered;
   }, [data, onlyWithMeetings, readOnly, unrestrictedCliente]);
+
+  // Reset to page 1 whenever filters change the dataset.
+  useEffect(() => {
+    setPage(1);
+  }, [role, search, sort, unrestrictedCliente, pageSize]);
+
+  const total = rows.length;
+  const paginate = total > LIST_PAGINATION_THRESHOLD;
+  const visibleRows = paginate ? rows.slice((page - 1) * pageSize, page * pageSize) : rows;
 
   const profileIds = useMemo(() => rows.map((r) => r.profile_id), [rows]);
 
@@ -438,7 +455,7 @@ export function RegistrantsTab({
           </Select>
         )}
         <Badge variant="secondary" className="h-9 px-3">
-          {rows.length} {rows.length === 1 ? "inscrito" : "inscritos"}
+          {total} {total === 1 ? "inscrito" : "inscritos"}
         </Badge>
         <Button variant="outline" size="sm" onClick={exportXlsx} disabled={rows.length === 0}>
           <FileSpreadsheet size={14} /> XLSX
@@ -473,8 +490,17 @@ export function RegistrantsTab({
           {t("admin.registrants.empty")}
         </p>
       ) : (
+        <>
+        <div className="mb-2">
+          <ListSummary
+            visible={visibleRows.length}
+            total={total}
+            noun="inscrito"
+            nounPlural="inscritos"
+          />
+        </div>
         <div className="space-y-2">
-          {rows.map((r) => (
+          {visibleRows.map((r) => (
             <div
               key={r.profile_id}
               className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border p-3"
@@ -630,12 +656,22 @@ export function RegistrantsTab({
             </div>
           ))}
         </div>
+        </>
       )}
 
-      {rows.length > 0 && (
-        <p className="mt-3 text-xs text-muted-foreground">
-          {t("admin.registrants.total", { count: rows.length })}
-        </p>
+      {paginate && (
+        <ListPagination
+          page={page}
+          pageSize={pageSize}
+          total={total}
+          onPageChange={setPage}
+          onPageSizeChange={(s) => {
+            setPageSize(s);
+            setPage(1);
+          }}
+          noun="inscrito"
+          nounPlural="inscritos"
+        />
       )}
 
       <AlertDialog open={!!cancelTarget} onOpenChange={(o) => !o && setCancelTarget(null)}>
