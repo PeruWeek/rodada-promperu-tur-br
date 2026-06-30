@@ -386,7 +386,12 @@ export const listAdminCompanies = createServerFn({ method: "POST" })
       return { ...r, scheduled_meetings_count: count, scheduling_bucket: bucket };
     });
 
-    let filtered = enriched;
+    // CNPJ-root grouping: matriz (/0001) and filiais of the same economic
+    // group collapse into ONE visual company before any user-facing filter,
+    // search, badge, list or export sees the data. Source of truth for
+    // "Empresas" unit-of-count is the CNPJ root (first 8 digits) — falling
+    // back to company_id for rows without a parseable CNPJ.
+    let filtered = groupCompaniesByCnpjRoot(enriched);
     if (data.activeOnly) filtered = filtered.filter((r) => r.hasActiveOwner);
     // Exclude internal `cliente`-owned companies from cliente-facing views so
     // the summary buckets (Visitantes + Expositoras) match Total exactly.
@@ -414,7 +419,7 @@ export const listAdminCompanies = createServerFn({ method: "POST" })
     }
     // `Empresas` is a company-level dataset. Keep this server response and
     // total immune to any accidental per-contact expansion so UI badges,
-    // visible rows and PDF/XLSX/CSV exports all share one company_id base.
+    // visible rows and PDF/XLSX/CSV exports all share one CNPJ-root base.
     filtered = dedupeCompanyRows(filtered);
     const total = filtered.length;
     const from = (data.page - 1) * data.pageSize;
