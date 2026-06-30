@@ -160,6 +160,59 @@ async function fillMissingCompanyFields(
   }
 }
 
+/**
+ * After a profile is relinked from a stub company to the canonical one,
+ * pipeline rows of the old stub may still reference this profile as
+ * `primary_profile_id`. The "Inscritos" listing expands one row per
+ * eligible participant for the pipeline row's company AND for the
+ * pipeline row's primary profile, so an orphan stub row would emit the
+ * same person a second time. We delete stub pipeline rows that no
+ * longer have any active profile linked to them; otherwise we just null
+ * out the dangling `primary_profile_id` so multi-participant cases on
+ * shared companies keep working.
+ */
+async function reconcileStubPipelineAfterRelink(params: {
+  profileId: string;
+  oldCompanyId: string;
+  newCompanyId: string;
+}) {
+  const { profileId, oldCompanyId, newCompanyId } = params;
+  if (oldCompanyId === newCompanyId) return;
+  const { data: stubRows } = await supabaseAdmin
+    .from("company_event_pipeline")
+    .select("id, primary_profile_id")
+    .eq("company_id", oldCompanyId)
+    .eq("primary_profile_id", profileId);
+  if (!stubRows || stubRows.length === 0) return;
+  const { data: remainingProfs } = await supabaseAdmin
+    .from("profiles")
+    .select("id")
+    .eq("company_id", oldCompanyId)
+    .neq("id", profileId)
+    .limit(1);
+  const stubHasOthers = (remainingProfs ?? []).length > 0;
+  const ids = stubRows.map((r) => r.id);
+  if (!stubHasOthers) {
+    const { error } = await supabaseAdmin
+      .from("company_event_pipeline")
+      .delete()
+      .in("id", ids);
+    if (error) {
+      // Fallback: at least clear the dangling primary so the listing
+      // dedup can't re-emit this profile via the stub row.
+      await supabaseAdmin
+        .from("company_event_pipeline")
+        .update({ primary_profile_id: null })
+        .in("id", ids);
+    }
+  } else {
+    await supabaseAdmin
+      .from("company_event_pipeline")
+      .update({ primary_profile_id: null })
+      .in("id", ids);
+  }
+}
+
 async function loadDetails(profileId: string): Promise<RegistrationDetails> {
   const { data: profile, error: pErr } = await supabaseAdmin
     .from("profiles")
