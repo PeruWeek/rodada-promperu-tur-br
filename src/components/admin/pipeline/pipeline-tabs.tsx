@@ -373,6 +373,8 @@ function SchedulingTab({ isAdmin }: Props) {
   const [group, setGroup] = useState<"any" | "sem_agendamento" | "com_agendamento">("any");
   const [opStatus, setOpStatus] = useState<"any" | "agendado_parcial" | "agendado_ok">("any");
   const [mine, setMine] = useState(!isAdmin);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<PageSizeOption>(50);
   const { data, isLoading } = useQuery({
     queryKey: ["pipeline-scheduling", group, opStatus, mine],
     queryFn: () =>
@@ -389,6 +391,11 @@ function SchedulingTab({ isAdmin }: Props) {
         },
       }),
   });
+
+  const allRows = (data?.rows as PipelineRow[] | undefined) ?? [];
+  const total = allRows.length;
+  const paginate = total > LIST_PAGINATION_THRESHOLD;
+  const visibleRows = paginate ? allRows.slice((page - 1) * pageSize, page * pageSize) : allRows;
 
   return (
     <Card className="p-4">
@@ -417,6 +424,15 @@ function SchedulingTab({ isAdmin }: Props) {
         </div>
       </div>
       {isLoading ? <Skeleton className="h-60 w-full" /> : (
+        <>
+        <div className="mb-2">
+          <ListSummary
+            visible={visibleRows.length}
+            total={total}
+            noun="agendamento"
+            nounPlural="agendamentos"
+          />
+        </div>
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>
@@ -432,7 +448,7 @@ function SchedulingTab({ isAdmin }: Props) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {(data?.rows as PipelineRow[] | undefined)?.map((r) => (
+              {visibleRows.map((r) => (
                 <TableRow key={r.id}>
                   <TableCell className="font-medium">{r.company_trade_name ?? "—"}</TableCell>
                   <TableCell>{r.company_role}</TableCell>
@@ -447,6 +463,21 @@ function SchedulingTab({ isAdmin }: Props) {
             </TableBody>
           </Table>
         </div>
+        {paginate && (
+          <ListPagination
+            page={page}
+            pageSize={pageSize}
+            total={total}
+            onPageChange={setPage}
+            onPageSizeChange={(s) => {
+              setPageSize(s);
+              setPage(1);
+            }}
+            noun="agendamento"
+            nounPlural="agendamentos"
+          />
+        )}
+        </>
       )}
     </Card>
   );
