@@ -187,19 +187,24 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
     return readOnly ? filterRowsByType(res.rows, clienteTypeFilter) : res.rows;
   };
 
-  // Exports expand to ONE ROW PER ELIGIBLE CONTACT (active + auth_user_id +
-  // participant role visitor/exhibitor) using the unified rule shared with
-  // `listClienteOverviewBase` and `_listEventRegistrantsImpl`. This keeps
-  // XLSX, CSV and PDF aligned with the consolidated agenda views: e.g. a
-  // company with 2 confirmed buyers exports 2 rows, not 1. Companies with
-  // no eligible contact (pre-registration only) still emit a single
-  // company-level row so they don't disappear from the export.
-  const buildRows = (rows: Awaited<ReturnType<typeof fetchAll>>) =>
-    sortRowsForExport(rows, {
+  // Exports emit EXACTLY ONE ROW PER company_id — this is the "Empresas"
+  // report, so it must match the on-screen badge/counter (which is also
+  // per-company). Expanding by eligible contact previously caused
+  // companies with 2+ buyers (e.g. Incomum Viagens) to appear twice in
+  // the PDF while the badge said one. The per-contact expansion belongs
+  // to the consolidated agenda exports, not here.
+  const buildRows = (rows: Awaited<ReturnType<typeof fetchAll>>) => {
+    const seen = new Set<string>();
+    const unique = rows.filter((c) => {
+      if (seen.has(c.id)) return false;
+      seen.add(c.id);
+      return true;
+    });
+    return sortRowsForExport(unique, {
       tradeName: (c) => c.trade_name,
       fullName: (c) => c.primary_contact?.full_name ?? "",
       id: (c) => c.id,
-    }).flatMap((c) => {
+    }).map((c) => {
       const roleLabel =
         c.role === "exhibitor"
           ? t("admin.companies.roleExhibitor")
@@ -207,22 +212,12 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
             ? t("admin.companies.roleCliente")
             : t("admin.companies.roleVisitor");
       const statusLabel = c.confirmed ? "Confirmado" : "Pré-cadastro";
-      const eligible = (c as { eligible_contacts?: Array<{ id: string; full_name: string; email: string; whatsapp: string | null; phone: string | null }> }).eligible_contacts ?? [];
-      const contacts: Array<{ full_name: string; email: string; whatsapp: string | null }> =
-        eligible.length > 0
-          ? eligible.map((p) => ({
-              full_name: p.full_name,
-              email: p.email,
-              whatsapp: p.whatsapp ?? c.whatsapp ?? null,
-            }))
-          : [
-              {
-                full_name: c.primary_contact?.full_name ?? "",
-                email: c.primary_contact?.email ?? "",
-                whatsapp: c.primary_contact?.whatsapp ?? c.whatsapp ?? null,
-              },
-            ];
-      return contacts.map((p) => [
+      const contact = {
+        full_name: c.primary_contact?.full_name ?? "",
+        email: c.primary_contact?.email ?? "",
+        whatsapp: c.primary_contact?.whatsapp ?? c.whatsapp ?? null,
+      };
+      return [
         c.trade_name,
         c.legal_name ?? "",
         roleLabel,
@@ -230,16 +225,17 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
         c.city ?? "",
         c.state_code ?? "",
         c.country_code ?? "",
-        p.full_name ?? "",
-        p.email ?? "",
-        p.whatsapp ?? "",
+        contact.full_name,
+        contact.email,
+        contact.whatsapp ?? "",
         c.networking_lunch_participation === true
           ? "Sim"
           : c.networking_lunch_participation === false
             ? "Não"
             : "Não informado",
-      ]);
+      ];
     });
+  };
 
   const stamp = () => new Date().toISOString().slice(0, 10);
 
