@@ -229,6 +229,20 @@ function SignupPage() {
       flat.password = "auth.errors.passwordWeak";
     }
     setErrors(flat);
+    if (s === 1) {
+      const reasons: SignupBlockReason[] = [];
+      if (!data.email.trim()) reasons.push("missing_email");
+      else if (flat.email) reasons.push("invalid_email");
+      if (!data.password) reasons.push("missing_password");
+      else if (flat.password) reasons.push("weak_password");
+      if (!data.confirmPassword) reasons.push("missing_confirm_password");
+      else if (flat.confirmPassword) reasons.push("password_mismatch");
+      trackSignupAccount("signup_step_account_validation_failed", {
+        reason: reasons.length ? reasons : "unknown_validation_error",
+        attempt: continueAttemptsRef.current,
+        hasEmail: !!data.email.trim(),
+      });
+    }
     // Mautic: signup_validation_error. Dedupe por (step + chaves de erro)
     // para não inflar a timeline em cliques repetidos com os mesmos erros,
     // mas registrar quando o usuário muda os campos quebrados.
@@ -250,7 +264,22 @@ function SignupPage() {
   };
 
   const next = () => {
+    if (step === 1) {
+      continueAttemptsRef.current += 1;
+      trackSignupAccount("signup_continue_clicked", {
+        attempt: continueAttemptsRef.current,
+      });
+    }
     if (!validateStep(step)) return;
+    if (step === 1) {
+      accountCompletedRef.current = true;
+      const now = typeof performance !== "undefined" ? performance.now() : Date.now();
+      trackSignupAccount("signup_step_account_completed", {
+        timeOnStepMs: Math.round(now - stepStartRef.current),
+        attempt: continueAttemptsRef.current,
+        email: data.email,
+      });
+    }
     // Mautic: signup_step_N_completed. Dedupe por (email|sessão + step) para
     // não duplicar em re-cliques no botão Continuar.
     const stepEvent = (
