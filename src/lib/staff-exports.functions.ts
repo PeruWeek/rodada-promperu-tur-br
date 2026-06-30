@@ -341,15 +341,21 @@ export async function _listEventRegistrantsImpl(
       });
   await annotateProfileMeetingCounts(ctx.supabase, eventId, out);
   await annotateLunchParticipation(ctx.supabase, out);
+  // Defensive dedup: after a relink, an orphan pipeline row of the old stub
+  // company may still reference this profile via `primary_profile_id`,
+  // emitting the same person twice (once for the stub row, once for the
+  // canonical company expansion). Keep the row whose pipeline company_id
+  // matches the profile's current canonical company_id when available.
+  const dedupedOut = dedupeRegistrantsByProfile(out, profById);
   if (data.sort === "recent") {
-    out.sort((a, b) => {
+    dedupedOut.sort((a, b) => {
       const da = a.created_at ?? "";
       const db = b.created_at ?? "";
       if (da !== db) return db.localeCompare(da);
       return a.company_trade_name.localeCompare(b.company_trade_name);
     });
   }
-  return { eventId, rows: out };
+  return { eventId, rows: dedupedOut };
 }
 
 async function getCurrentEventIdWith(supabase: any, explicit?: string) {
