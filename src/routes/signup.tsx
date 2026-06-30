@@ -569,6 +569,7 @@ function SignupPage() {
                   {prefill.status === "found" && (
                     <PrefillBanner t={t} onAccept={acceptPrefill} onDismiss={dismissPrefill} />
                   )}
+                  <AccountIntro t={t} />
                   <Step1 data={data} set={set} errors={errors} t={t}
                     onEmailBlur={() => void runLookup(data.email)} />
                 </>
@@ -595,6 +596,10 @@ function SignupPage() {
                   {step < TOTAL_STEPS ? t("common.continue") : t("signup.finish")}
                 </Button>
               </div>
+
+              {step === 1 && (
+                <AccountContinueHelper data={data} t={t} />
+              )}
 
               <p className="text-center text-sm text-muted-foreground">
                 <Link to="/login" className="font-medium text-primary hover:underline">
