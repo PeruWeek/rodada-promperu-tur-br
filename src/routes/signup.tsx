@@ -651,29 +651,136 @@ function PrefillBanner({ t, onAccept, onDismiss }: { t: StepProps["t"]; onAccept
 }
 
 function Step1({ data, set, errors, t, onEmailBlur }: StepProps & { onEmailBlur?: () => void }) {
+  const [showRules, setShowRules] = useState(false);
+  const emailStartedRef = useRef(false);
+  const passwordStartedRef = useRef(false);
+  const confirmStartedRef = useRef(false);
+  const lastRuleStrengthRef = useRef<string>("empty");
+
+  // Emit rule transitions (passed/failed) as the user types the password.
+  useEffect(() => {
+    const s = passwordStrength(data.password);
+    if (s !== lastRuleStrengthRef.current) {
+      if (s === "strong" || s === "medium") {
+        trackSignupAccount("signup_password_rule_passed", { field: "password" });
+      } else if (s === "weak") {
+        trackSignupAccount("signup_password_rule_failed", {
+          field: "password",
+          reason: "weak_password",
+        });
+      }
+      lastRuleStrengthRef.current = s;
+    }
+  }, [data.password]);
+
+  const confirmMatch =
+    data.confirmPassword.length > 0 && data.password === data.confirmPassword;
+  const confirmMismatch =
+    data.confirmPassword.length > 0 && data.password !== data.confirmPassword;
+
   return (
     <div className="space-y-4">
       <div>
         <Label htmlFor="email">{t("auth.email")} *</Label>
-        <Input id="email" type="email" autoComplete="email" value={data.email}
+        <Input id="email" type="email" autoComplete="email" inputMode="email" value={data.email}
+          onFocus={() => {
+            if (!emailStartedRef.current) {
+              emailStartedRef.current = true;
+              trackSignupAccount("signup_email_started", { once: true });
+            }
+          }}
           onChange={(e) => set("email", e.target.value)} onBlur={onEmailBlur} className="mt-1.5" />
+        <p className="mt-1 text-xs text-muted-foreground">{t("signup.account.emailHelp")}</p>
         <FieldError msg={errors.email} t={t} />
       </div>
       <div>
         <Label htmlFor="password">{t("auth.password")} *</Label>
         <PasswordInput id="password" autoComplete="new-password" value={data.password}
+          onFocus={() => {
+            if (!passwordStartedRef.current) {
+              passwordStartedRef.current = true;
+              trackSignupAccount("signup_password_started", { once: true });
+            }
+          }}
           onChange={(e) => set("password", e.target.value)} className="mt-1.5" />
-        <p className="mt-1 text-xs text-muted-foreground">{t("auth.passwordGuidelines")}</p>
-        <PasswordStrength value={data.password} />
+        <p className="mt-1 text-xs text-muted-foreground">{t("signup.account.passwordShort")}</p>
+        {data.password.length > 0 && <PasswordStrength value={data.password} />}
+        <button
+          type="button"
+          onClick={() => setShowRules((v) => !v)}
+          className="mt-1 text-xs font-medium text-primary hover:underline"
+        >
+          {showRules ? t("signup.account.hidePasswordRules") : t("signup.account.showPasswordRules")}
+        </button>
+        {showRules && (
+          <p className="mt-1 text-xs text-muted-foreground">{t("auth.passwordGuidelines")}</p>
+        )}
         <FieldError msg={errors.password} t={t} />
       </div>
       <div>
         <Label htmlFor="confirmPassword">{t("signup.confirmPassword")} *</Label>
         <PasswordInput id="confirmPassword" autoComplete="new-password" value={data.confirmPassword}
+          onFocus={() => {
+            if (!confirmStartedRef.current) {
+              confirmStartedRef.current = true;
+              trackSignupAccount("signup_confirm_password_started", { once: true });
+            }
+          }}
           onChange={(e) => set("confirmPassword", e.target.value)} className="mt-1.5" />
+        {confirmMatch && (
+          <p className="mt-1 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+            {t("signup.account.confirmMatchOk")}
+          </p>
+        )}
+        {confirmMismatch && !errors.confirmPassword && (
+          <p className="mt-1 text-xs text-muted-foreground">
+            {t("signup.account.confirmMismatch")}
+          </p>
+        )}
         <FieldError msg={errors.confirmPassword} t={t} />
       </div>
     </div>
+  );
+}
+
+function AccountIntro({ t }: { t: StepProps["t"] }) {
+  return (
+    <div className="rounded-md border bg-muted/30 p-4">
+      <p className="text-sm leading-snug text-foreground">{t("signup.account.intro")}</p>
+      <p className="mt-2 text-sm text-muted-foreground">
+        {t("signup.account.alreadyHasAccount")}{" "}
+        <Link to="/login" className="font-medium text-primary hover:underline">
+          {t("signup.account.loginHere")}
+        </Link>
+      </p>
+    </div>
+  );
+}
+
+function AccountContinueHelper({ data, t }: { data: BuyerSignupData; t: StepProps["t"] }) {
+  const missing: string[] = [];
+  const email = data.email.trim();
+  if (!email) missing.push(t("signup.account.missing.email"));
+  else if (!z.string().email().safeParse(email).success)
+    missing.push(t("signup.account.missing.emailInvalid"));
+  if (!data.password) missing.push(t("signup.account.missing.password"));
+  else if (passwordStrength(data.password) === "weak")
+    missing.push(t("signup.account.missing.passwordWeak"));
+  if (!data.confirmPassword) missing.push(t("signup.account.missing.confirmPassword"));
+  else if (data.password && data.password !== data.confirmPassword)
+    missing.push(t("signup.account.missing.passwordMismatch"));
+
+  if (missing.length === 0) {
+    return (
+      <p className="text-right text-xs font-medium text-emerald-600 dark:text-emerald-400">
+        {t("signup.account.continueReady")}
+      </p>
+    );
+  }
+  return (
+    <p className="text-right text-xs text-muted-foreground">
+      {t("signup.account.continueMissing", { list: missing.join(", ") })}
+    </p>
   );
 }
 
