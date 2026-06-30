@@ -446,13 +446,21 @@ export const staffCompleteRegistration = createServerFn({ method: "POST" })
             .single();
           if (error) {
             if (isDuplicateTaxIdError(error.message)) {
-              throw new Error(
-                "Este CNPJ já está cadastrado em outra empresa. Recarregue a página e tente novamente — o sistema deve reutilizar a empresa existente automaticamente.",
-              );
+              const existingAfterRace = await findCompanyByNormalizedTaxId(normalizedTaxId);
+              if (existingAfterRace) {
+                await fillMissingCompanyFields(existingAfterRace, companyPatch);
+                companyId = existingAfterRace.id;
+              } else {
+                throw new Error(
+                  "Este CNPJ já está cadastrado em outra empresa. Recarregue a página e tente novamente — o sistema deve reutilizar a empresa existente automaticamente.",
+                );
+              }
+            } else {
+              throw new Error(`companies (insert): ${error.message}`);
             }
-            throw new Error(`companies (insert): ${error.message}`);
+          } else {
+            companyId = created.id;
           }
-          companyId = created.id;
         }
       }
       if (companyId && companyId !== profile.company_id) {
