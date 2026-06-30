@@ -34,6 +34,12 @@ import { EditCompanyDrawer } from "./edit-company-drawer";
 import { OrphanExhibitorsPanel } from "./orphan-exhibitors-panel";
 import { UnpublishedExhibitorsPanel } from "./unpublished-exhibitors-panel";
 import {
+  LIST_PAGINATION_THRESHOLD,
+  ListPagination,
+  ListSummary,
+  type PageSizeOption,
+} from "@/components/admin/list-summary";
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -74,6 +80,7 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
   const [lunch, setLunch] = useState<LunchFilter>("all");
   const [status, setStatus] = useState<StatusFilter>("active");
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<PageSizeOption>(50);
   const [clienteTypeFilter, setClienteTypeFilter] = useState<ClienteTypeFilter>("all");
   const [schedulingFilter, setSchedulingFilter] = useState<SchedulingFilter>("all");
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -113,6 +120,7 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
       lunch,
       effectiveStatus,
       page,
+      pageSize,
       readOnly,
       schedulingFilter,
     ],
@@ -124,7 +132,7 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
           confirmed: effectiveConfirmed,
           lunch,
           page: readOnly ? 1 : page,
-          pageSize: readOnly ? 5000 : 25,
+          pageSize: readOnly ? 5000 : pageSize,
           activeOnly: readOnly,
           status: effectiveStatus,
           excludeCliente: readOnly,
@@ -145,12 +153,17 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
   const clienteFilteredRows = readOnly
     ? filterRowsByType(allRows, clienteTypeFilter)
     : allRows;
-  const clientePageSize = 25;
+  // Cliente: client-side paginate only when above threshold (>50). Otherwise
+  // render the entire filtered set in one list.
+  const clienteTotal = clienteFilteredRows.length;
+  const cliente_paginate = clienteTotal > LIST_PAGINATION_THRESHOLD;
   const clientePagedRows = readOnly
-    ? clienteFilteredRows.slice((page - 1) * clientePageSize, page * clientePageSize)
+    ? cliente_paginate
+      ? clienteFilteredRows.slice((page - 1) * pageSize, page * pageSize)
+      : clienteFilteredRows
     : allRows;
   const displayRows = readOnly ? clientePagedRows : allRows;
-  const displayTotal = readOnly ? clienteFilteredRows.length : data?.total ?? 0;
+  const displayTotal = readOnly ? clienteTotal : data?.total ?? 0;
 
   const headers = [
     "Nome Fantasia",
@@ -497,6 +510,15 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
       ) : displayRows.length === 0 ? (
         <p className="py-8 text-center text-sm text-muted-foreground">{t("admin.companies.empty")}</p>
       ) : (
+        <>
+        <div className="mb-2">
+          <ListSummary
+            visible={displayRows.length}
+            total={displayTotal}
+            noun="empresa"
+            nounPlural="empresas"
+          />
+        </div>
         <div className="space-y-2">
           {displayRows.map((c) => (
             <div
@@ -657,27 +679,22 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
             </div>
           ))}
         </div>
+        </>
       )}
 
-      {((!readOnly && data && data.total > 25) ||
-        (readOnly && displayTotal > clientePageSize)) && (
-        <div className="mt-4 flex items-center justify-between text-xs text-muted-foreground">
-          <span>{displayTotal} empresa(s)</span>
-          <div className="flex gap-1">
-            <Button size="sm" variant="ghost" disabled={page === 1} onClick={() => setPage((p) => p - 1)}>
-              ‹
-            </Button>
-            <span className="px-2 py-1">{page}</span>
-            <Button
-              size="sm"
-              variant="ghost"
-              disabled={page * (readOnly ? clientePageSize : 25) >= displayTotal}
-              onClick={() => setPage((p) => p + 1)}
-            >
-              ›
-            </Button>
-          </div>
-        </div>
+      {displayTotal > LIST_PAGINATION_THRESHOLD && (
+        <ListPagination
+          page={page}
+          pageSize={pageSize}
+          total={displayTotal}
+          onPageChange={setPage}
+          onPageSizeChange={(s) => {
+            setPageSize(s);
+            setPage(1);
+          }}
+          noun="empresa"
+          nounPlural="empresas"
+        />
       )}
 
       {editingId && (
