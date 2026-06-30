@@ -32,6 +32,10 @@ import { TAXONOMY } from "@/lib/taxonomy";
 import { lookupPreRegistration, type PreRegPrefill } from "@/lib/pre-registration.functions";
 import { checkSignupAvailability } from "@/lib/signup-availability.functions";
 import { trackMauticEvent } from "@/lib/mautic";
+import {
+  trackSignupAccount,
+  type SignupBlockReason,
+} from "@/lib/signup-telemetry";
 
 export const Route = createFileRoute("/signup")({
   head: () => ({ meta: [{ title: "Cadastro — PERU MICE Networking Evento" }] }),
