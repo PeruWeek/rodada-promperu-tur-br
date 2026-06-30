@@ -90,6 +90,14 @@ type CompanyLookupRow = {
   state_code: string | null;
 };
 
+type StaffCompanyPatch = {
+  trade_name?: string;
+  legal_name?: string | null;
+  tax_id?: string | null;
+  city?: string | null;
+  state_code?: string | null;
+};
+
 function digitsOnly(value: string | null | undefined): string {
   return (value ?? "").replace(/\D+/g, "");
 }
@@ -98,7 +106,7 @@ function isMeaningfulTaxId(value: string | null | undefined): boolean {
   return digitsOnly(value).length > 0;
 }
 
-function normalizeCompanyPatch(company: NonNullable<z.infer<typeof patchSchema>["company"]>) {
+function normalizeCompanyPatch(company: StaffCompanyPatch): StaffCompanyPatch {
   if (!("tax_id" in company)) return company;
   return {
     ...company,
@@ -129,7 +137,7 @@ async function findCompanyByNormalizedTaxId(
 
 async function fillMissingCompanyFields(
   existing: CompanyLookupRow,
-  company: NonNullable<z.infer<typeof patchSchema>["company"]>,
+  company: StaffCompanyPatch,
 ) {
   // Reuso por CNPJ nunca deve sobrescrever dados válidos da empresa canônica;
   // apenas completa lacunas quando o stub importado traz informação útil.
