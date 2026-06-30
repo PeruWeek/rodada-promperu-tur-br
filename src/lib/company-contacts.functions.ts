@@ -308,6 +308,28 @@ export const reassignCompanyContact = createServerFn({ method: "POST" })
       .eq("id", profile.id);
     if (uErr) throw new Error(uErr.message);
 
+    // Defense in depth: the DB trigger `trg_profiles_company_change_recalc`
+    // already recalculates scheduling_status for both companies and clears
+    // stale `primary_profile_id` on the old pipeline row. We explicitly
+    // re-run the recalc here so any caller-side cache/observer sees the
+    // updated consolidated immediately, and surface failures to the admin
+    // UI rather than swallowing them. The rule is single-sourced:
+    // "the company considered everywhere is the profile's current company".
+    try {
+      const { data: events } = await supabaseAdmin
+        .from("company_event_pipeline")
+        .select("event_id, company_id")
+        .in("company_id", [previousCompanyId, data.target_company_id].filter(Boolean) as string[]);
+      for (const row of events ?? []) {
+        await supabaseAdmin.rpc("pipeline_recalc_scheduling", {
+          p_event_id: row.event_id,
+          p_company_id: row.company_id,
+        });
+      }
+    } catch (e) {
+      console.warn("[reassignCompanyContact] recalc warning", (e as Error).message);
+    }
+
     try {
       const actor = await getActorProfileId(context.userId);
       await supabaseAdmin.from("audit_logs").insert({
