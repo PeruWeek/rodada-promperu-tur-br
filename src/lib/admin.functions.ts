@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { filterAndRankParticipants } from "@/lib/company-search";
+import { filterAndRankCompanies, filterAndRankParticipants } from "@/lib/company-search";
 
 type JsonValue = string | number | boolean | null | JsonValue[] | { [k: string]: JsonValue };
 type JsonObject = { [k: string]: JsonValue };
