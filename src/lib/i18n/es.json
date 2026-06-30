@@ -625,6 +625,27 @@
       "2": "Empresa",
       "3": "Contacto y perfil"
     },
+    "account": {
+      "intro": "Empieza creando tu acceso — toma menos de 1 minuto. Usarás este correo y contraseña para entrar y gestionar tus reuniones.",
+      "alreadyHasAccount": "¿Ya tienes cuenta?",
+      "loginHere": "Ingresar aquí",
+      "emailHelp": "Usa un correo que revises con frecuencia. Te enviaremos confirmaciones y novedades del evento.",
+      "showPasswordRules": "Ver requisitos de contraseña",
+      "hidePasswordRules": "Ocultar requisitos",
+      "passwordShort": "Crea una contraseña con 8 o más caracteres, mezclando letras, número y símbolo.",
+      "confirmMatchOk": "Las contraseñas coinciden.",
+      "confirmMismatch": "Las contraseñas aún no coinciden.",
+      "continueReady": "¡Todo listo! Puedes continuar.",
+      "continueMissing": "Para continuar, falta: {{list}}",
+      "missing": {
+        "email": "ingresar tu correo",
+        "emailInvalid": "corregir el correo",
+        "password": "crear una contraseña",
+        "passwordWeak": "fortalecer la contraseña",
+        "confirmPassword": "confirmar la contraseña",
+        "passwordMismatch": "que las contraseñas coincidan"
+      }
+    },
     "exhibitorCta": "Soy expositor (Perú) — registrarme aquí",
     "buyerCta": "Soy buyer (Brasil) — registrarme aquí",
     "completeProfileHint": "Después de confirmar tu correo podrás acceder a tu panel.",
