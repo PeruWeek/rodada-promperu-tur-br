@@ -13,9 +13,9 @@ export type CompanyAgendaPdfRow = AgendaPdfRow & {
 };
 
 const FOOTER_TEXT_PREFIX = "Sistema de Rodada de Negócios Promperu - ";
-const FOOTER_LINK_TEXT = "rodada.tur.br";
+const FOOTER_LINK_TEXT = "rodada.promperu.tur.br";
 const FOOTER_TEXT_SUFFIX = " - Suporte WhatsApp (11) 99367-0633";
-const FOOTER_LINK_URL = "https://rodada.tur.br";
+const FOOTER_LINK_URL = "https://rodada.promperu.tur.br";
 
 function drawFooterOnAllPages(doc: jsPDF) {
   const W = doc.internal.pageSize.getWidth();
