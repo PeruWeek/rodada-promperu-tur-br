@@ -8,6 +8,30 @@ function redactEmail(email: string | null | undefined): string {
   return `${localPart[0]}***@${domain}`
 }
 
+function redactToken(token: string | null | undefined): string {
+  if (!token) return '***'
+  if (token.length <= 8) return '***'
+  return `${token.slice(0, 4)}…${token.slice(-4)} (len=${token.length})`
+}
+
+// Tokens are 64-char lowercase hex (see generateToken in email-send.server.ts).
+// We accept any non-empty hex-ish string of plausible length to avoid false
+// negatives if generation ever changes, but reject obvious junk early.
+const TOKEN_SHAPE = /^[a-zA-Z0-9_-]{16,256}$/
+
+type FailureReason =
+  | 'missing_token'
+  | 'malformed_token'
+  | 'expired_or_invalid_token'
+  | 'already_consumed'
+  | 'lookup_failed'
+  | 'suppress_failed'
+  | 'config_error'
+
+function failure(reason: FailureReason, status: number) {
+  return Response.json({ ok: false, reason }, { status })
+}
+
 export const Route = createFileRoute("/email/unsubscribe")({
   server: {
     handlers: {
@@ -16,35 +40,63 @@ export const Route = createFileRoute("/email/unsubscribe")({
         const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
         if (!supabaseUrl || !supabaseServiceKey) {
-          return Response.json({ error: 'Server configuration error' }, { status: 500 })
+          console.error('[unsubscribe.GET] missing server config')
+          return failure('config_error', 500)
         }
 
-        // Extract token from query params
         const url = new URL(request.url)
         const token = url.searchParams.get('token')
 
         if (!token) {
-          return Response.json({ error: 'Token is required' }, { status: 400 })
+          console.warn('[unsubscribe.GET] missing_token')
+          return failure('missing_token', 400)
+        }
+        if (!TOKEN_SHAPE.test(token)) {
+          console.warn('[unsubscribe.GET] malformed_token', { token_preview: redactToken(token) })
+          return failure('malformed_token', 400)
         }
 
         const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-        // Look up the token
         const { data: tokenRecord, error: lookupError } = await supabase
           .from('email_unsubscribe_tokens')
-          .select('*')
+          .select('email, used_at')
           .eq('token', token)
           .maybeSingle()
 
-        if (lookupError || !tokenRecord) {
-          return Response.json({ error: 'Invalid or expired token' }, { status: 404 })
+        if (lookupError) {
+          console.error('[unsubscribe.GET] lookup_failed', {
+            token_preview: redactToken(token),
+            error: lookupError.message,
+          })
+          return failure('lookup_failed', 500)
+        }
+        if (!tokenRecord) {
+          console.warn('[unsubscribe.GET] expired_or_invalid_token', {
+            token_preview: redactToken(token),
+          })
+          return failure('expired_or_invalid_token', 404)
         }
 
         if (tokenRecord.used_at) {
-          return Response.json({ valid: false, reason: 'already_unsubscribed' })
+          console.log('[unsubscribe.GET] already_consumed', {
+            email_redacted: redactEmail(tokenRecord.email),
+          })
+          return Response.json({
+            ok: true,
+            status: 'already_unsubscribed',
+            email_masked: redactEmail(tokenRecord.email),
+          })
         }
 
-        return Response.json({ valid: true })
+        console.log('[unsubscribe.GET] validated', {
+          email_redacted: redactEmail(tokenRecord.email),
+        })
+        return Response.json({
+          ok: true,
+          status: 'valid',
+          email_masked: redactEmail(tokenRecord.email),
+        })
       },
 
       POST: async ({ request }) => {
@@ -52,10 +104,10 @@ export const Route = createFileRoute("/email/unsubscribe")({
         const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
         if (!supabaseUrl || !supabaseServiceKey) {
-          return Response.json({ error: 'Server configuration error' }, { status: 500 })
+          console.error('[unsubscribe.POST] missing server config')
+          return failure('config_error', 500)
         }
 
-        // Extract token from query params (always present for RFC 8058 one-click)
         const url = new URL(request.url)
         let token: string | null = url.searchParams.get('token')
 
@@ -87,24 +139,45 @@ export const Route = createFileRoute("/email/unsubscribe")({
         }
 
         if (!token) {
-          return Response.json({ error: 'Token is required' }, { status: 400 })
+          console.warn('[unsubscribe.POST] missing_token')
+          return failure('missing_token', 400)
+        }
+        if (!TOKEN_SHAPE.test(token)) {
+          console.warn('[unsubscribe.POST] malformed_token', { token_preview: redactToken(token) })
+          return failure('malformed_token', 400)
         }
 
         const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-        // Look up the token
         const { data: tokenRecord, error: lookupError } = await supabase
           .from('email_unsubscribe_tokens')
-          .select('*')
+          .select('email, used_at')
           .eq('token', token)
           .maybeSingle()
 
-        if (lookupError || !tokenRecord) {
-          return Response.json({ error: 'Invalid or expired token' }, { status: 404 })
+        if (lookupError) {
+          console.error('[unsubscribe.POST] lookup_failed', {
+            token_preview: redactToken(token),
+            error: lookupError.message,
+          })
+          return failure('lookup_failed', 500)
+        }
+        if (!tokenRecord) {
+          console.warn('[unsubscribe.POST] expired_or_invalid_token', {
+            token_preview: redactToken(token),
+          })
+          return failure('expired_or_invalid_token', 404)
         }
 
         if (tokenRecord.used_at) {
-          return Response.json({ success: false, reason: 'already_unsubscribed' })
+          console.log('[unsubscribe.POST] already_consumed', {
+            email_redacted: redactEmail(tokenRecord.email),
+          })
+          return Response.json({
+            ok: true,
+            status: 'already_unsubscribed',
+            email_masked: redactEmail(tokenRecord.email),
+          })
         }
 
         // Atomic check-and-update to avoid TOCTOU race
@@ -117,12 +190,22 @@ export const Route = createFileRoute("/email/unsubscribe")({
           .maybeSingle()
 
         if (updateError) {
-          console.error('Failed to mark token as used', { error: updateError, token })
-          return Response.json({ error: 'Failed to process unsubscribe' }, { status: 500 })
+          console.error('[unsubscribe.POST] unsubscribe_failed (update)', {
+            token_preview: redactToken(token),
+            error: updateError.message,
+          })
+          return failure('suppress_failed', 500)
         }
 
         if (!updated) {
-          return Response.json({ success: false, reason: 'already_unsubscribed' })
+          console.log('[unsubscribe.POST] already_consumed (race)', {
+            email_redacted: redactEmail(tokenRecord.email),
+          })
+          return Response.json({
+            ok: true,
+            status: 'already_unsubscribed',
+            email_masked: redactEmail(tokenRecord.email),
+          })
         }
 
         // Add email to suppressed list (upsert to handle duplicates)
@@ -134,18 +217,22 @@ export const Route = createFileRoute("/email/unsubscribe")({
           )
 
         if (suppressError) {
-          console.error('Failed to suppress email', {
-            error: suppressError,
+          console.error('[unsubscribe.POST] suppress_failed', {
             email_redacted: redactEmail(tokenRecord.email),
+            error: suppressError.message,
           })
-          return Response.json({ error: 'Failed to process unsubscribe' }, { status: 500 })
+          return failure('suppress_failed', 500)
         }
 
-        console.log('Email unsubscribed', {
+        console.log('[unsubscribe.POST] succeeded', {
           email_redacted: redactEmail(tokenRecord.email),
         })
 
-        return Response.json({ success: true })
+        return Response.json({
+          ok: true,
+          status: 'unsubscribed',
+          email_masked: redactEmail(tokenRecord.email),
+        })
       },
     },
   },
