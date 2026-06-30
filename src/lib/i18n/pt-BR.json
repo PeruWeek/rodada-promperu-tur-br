@@ -650,6 +650,27 @@
       "2": "Empresa",
       "3": "Contato e perfil"
     },
+    "account": {
+      "intro": "Comece criando seu acesso — leva menos de 1 minuto. Você usará este e-mail e senha para entrar e gerenciar suas reuniões.",
+      "alreadyHasAccount": "Já tem conta?",
+      "loginHere": "Entrar aqui",
+      "emailHelp": "Use um e-mail que você acessa com frequência. Enviaremos confirmações e atualizações sobre o evento.",
+      "showPasswordRules": "Ver requisitos de senha",
+      "hidePasswordRules": "Esconder requisitos",
+      "passwordShort": "Crie uma senha com 8 ou mais caracteres, misturando letras, número e símbolo.",
+      "confirmMatchOk": "As senhas coincidem.",
+      "confirmMismatch": "As senhas ainda não coincidem.",
+      "continueReady": "Tudo certo! Você pode continuar.",
+      "continueMissing": "Para continuar, falta: {{list}}",
+      "missing": {
+        "email": "informar seu e-mail",
+        "emailInvalid": "corrigir o e-mail",
+        "password": "criar uma senha",
+        "passwordWeak": "fortalecer a senha",
+        "confirmPassword": "confirmar a senha",
+        "passwordMismatch": "fazer as senhas coincidirem"
+      }
+    },
     "exhibitorCta": "Sou expositor (Peru) — cadastrar aqui",
     "buyerCta": "Sou buyer (Brasil) — cadastrar aqui",
     "completeProfileHint": "Após confirmar seu e-mail você poderá acessar seu painel.",
