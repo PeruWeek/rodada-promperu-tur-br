@@ -399,6 +399,18 @@ export const listAdminCompanies = createServerFn({ method: "POST" })
       filtered = filtered.filter((r) => r.scheduled_meetings_count > 0);
     else if (data.scheduling === "not_scheduled")
       filtered = filtered.filter((r) => r.scheduled_meetings_count === 0);
+    // Textual search runs LAST so it can match both company-owned fields
+    // (trade_name, legal_name, tax_id) and any eligible contact (full_name
+    // and email of the participant profiles attached to the company).
+    if (data.search?.trim()) {
+      filtered = filterAndRankParticipants(
+        filtered.map((r) => ({
+          ...r,
+          contacts: r.eligible_contacts ?? [],
+        })),
+        data.search,
+      );
+    }
     const total = filtered.length;
     const from = (data.page - 1) * data.pageSize;
     const paged = filtered.slice(from, from + data.pageSize);
