@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -166,8 +166,7 @@ export function ClienteOverview() {
     : filteredCompanies;
 
   // Reset page when filters/search change.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useMemo(() => {
+  useEffect(() => {
     setPage(1);
   }, [search, status, typeFilter, pageSize]);
 
