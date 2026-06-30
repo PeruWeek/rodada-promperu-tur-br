@@ -174,8 +174,11 @@ export function ClienteOverview() {
         ? t("cliente.overview.type.visitor")
         : "—";
 
+  // Exports are labelled "Empresas" — must be one row per company_id.
+  // Use the deduped view so the PDF/XLSX line count matches the on-screen
+  // counter (e.g. Incomum Viagens appears once, not once per contact).
   const buildExportRows = () =>
-    sortRowsForExport(filtered, {
+    sortRowsForExport(filteredCompanies, {
       tradeName: (r) => r.company_trade_name,
       fullName: (r) => r.full_name,
       id: (r) => r.profile_id ?? r.company_id,
@@ -215,7 +218,7 @@ export function ClienteOverview() {
   };
 
   const exportXlsx = () => {
-    if (filtered.length === 0) {
+    if (filteredCompanies.length === 0) {
       toast.info(t("cliente.overview.empty"));
       return;
     }
@@ -230,7 +233,7 @@ export function ClienteOverview() {
   };
 
   const exportPdf = () => {
-    if (filtered.length === 0) {
+    if (filteredCompanies.length === 0) {
       toast.info(t("cliente.overview.empty"));
       return;
     }
@@ -358,7 +361,7 @@ export function ClienteOverview() {
             variant="outline"
             size="sm"
             onClick={exportXlsx}
-            disabled={exporting !== null || filtered.length === 0}
+            disabled={exporting !== null || filteredCompanies.length === 0}
           >
             <FileSpreadsheet size={14} /> {exporting === "xlsx" ? t("common.loading") : "XLSX"}
           </Button>
@@ -366,7 +369,7 @@ export function ClienteOverview() {
             variant="outline"
             size="sm"
             onClick={exportPdf}
-            disabled={exporting !== null || filtered.length === 0}
+            disabled={exporting !== null || filteredCompanies.length === 0}
           >
             <Files size={14} /> {exporting === "pdf" ? t("common.loading") : "PDF"}
           </Button>
