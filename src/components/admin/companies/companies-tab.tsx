@@ -13,6 +13,7 @@ import {
 } from "@/lib/admin.functions";
 import { downloadBlob, toCsv } from "@/lib/exports/csv";
 import { downloadXlsx } from "@/lib/exports/xlsx";
+import { sortRowsForExport } from "@/lib/exports/sort";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { Badge } from "@/components/ui/badge";
@@ -194,7 +195,11 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
   // no eligible contact (pre-registration only) still emit a single
   // company-level row so they don't disappear from the export.
   const buildRows = (rows: Awaited<ReturnType<typeof fetchAll>>) =>
-    rows.flatMap((c) => {
+    sortRowsForExport(rows, {
+      tradeName: (c) => c.trade_name,
+      fullName: (c) => c.primary_contact?.full_name ?? "",
+      id: (c) => c.id,
+    }).flatMap((c) => {
       const roleLabel =
         c.role === "exhibitor"
           ? t("admin.companies.roleExhibitor")
