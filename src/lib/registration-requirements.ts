@@ -70,6 +70,10 @@ function isBlank(v: unknown): boolean {
   return false;
 }
 
+function hasDigits(value: unknown): boolean {
+  return typeof value === "string" && value.replace(/\D+/g, "").length > 0;
+}
+
 export type MissingInput = {
   kind: RegistrationKind;
   profile: Partial<Record<string, unknown>>;
@@ -86,7 +90,9 @@ export function computeMissing(input: MissingInput): string[] {
       if (isBlank(input.profile?.[f])) out.push(`profile.${f}`);
     }
     for (const f of VISITOR_REQUIRED_FIELDS.company) {
-      if (isBlank(input.company?.[f])) out.push(`company.${f}`);
+      if (f === "tax_id") {
+        if (!hasDigits(input.company?.[f])) out.push(`company.${f}`);
+      } else if (isBlank(input.company?.[f])) out.push(`company.${f}`);
     }
     const v = (input.visitor ?? {}) as Record<string, unknown>;
     if (typeof v.networking_lunch_participation !== "boolean")

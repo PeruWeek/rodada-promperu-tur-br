@@ -81,6 +81,85 @@ async function assertStaffOrAdmin(userId: string) {
   if (!ok) throw new Error("Forbidden: somente Staff/Admin podem completar cadastros.");
 }
 
+type CompanyLookupRow = {
+  id: string;
+  trade_name: string | null;
+  legal_name: string | null;
+  tax_id: string | null;
+  city: string | null;
+  state_code: string | null;
+};
+
+type StaffCompanyPatch = {
+  trade_name?: string;
+  legal_name?: string | null;
+  tax_id?: string | null;
+  city?: string | null;
+  state_code?: string | null;
+};
+
+function digitsOnly(value: string | null | undefined): string {
+  return (value ?? "").replace(/\D+/g, "");
+}
+
+function isMeaningfulTaxId(value: string | null | undefined): boolean {
+  return digitsOnly(value).length > 0;
+}
+
+function normalizeCompanyPatch(company: StaffCompanyPatch): StaffCompanyPatch {
+  if (!("tax_id" in company)) return company;
+  return {
+    ...company,
+    tax_id: company.tax_id && company.tax_id.trim() ? company.tax_id : null,
+  };
+}
+
+function isDuplicateTaxIdError(message: string): boolean {
+  return /companies_tax_id_unique|duplicate key/i.test(message);
+}
+
+async function findCompanyByNormalizedTaxId(
+  normalizedTaxId: string,
+  excludeCompanyId?: string | null,
+): Promise<CompanyLookupRow | null> {
+  if (!normalizedTaxId) return null;
+  const { data: matches, error } = await supabaseAdmin
+    .from("companies")
+    .select("id, trade_name, legal_name, tax_id, city, state_code")
+    .not("tax_id", "is", null);
+  if (error) throw new Error(`companies (lookup): ${error.message}`);
+  return (
+    (matches ?? []).find(
+      (c) => c.id !== excludeCompanyId && digitsOnly(c.tax_id) === normalizedTaxId,
+    ) ?? null
+  );
+}
+
+async function fillMissingCompanyFields(
+  existing: CompanyLookupRow,
+  company: StaffCompanyPatch,
+) {
+  // Reuso por CNPJ nunca deve sobrescrever dados válidos da empresa canônica;
+  // apenas completa lacunas quando o stub importado traz informação útil.
+  const fillPatch: {
+    trade_name?: string;
+    legal_name?: string;
+    city?: string;
+    state_code?: string;
+  } = {};
+  if (!existing.trade_name && company.trade_name) fillPatch.trade_name = company.trade_name;
+  if (!existing.legal_name && company.legal_name) fillPatch.legal_name = company.legal_name;
+  if (!existing.city && company.city) fillPatch.city = company.city;
+  if (!existing.state_code && company.state_code) fillPatch.state_code = company.state_code;
+  if (Object.keys(fillPatch).length > 0) {
+    const { error } = await supabaseAdmin
+      .from("companies")
+      .update(fillPatch)
+      .eq("id", existing.id);
+    if (error) throw new Error(`companies (complement): ${error.message}`);
+  }
+}
+
 async function loadDetails(profileId: string): Promise<RegistrationDetails> {
   const { data: profile, error: pErr } = await supabaseAdmin
     .from("profiles")
@@ -132,7 +211,10 @@ async function loadDetails(profileId: string): Promise<RegistrationDetails> {
       id: company?.id ?? null,
       trade_name: company?.trade_name ?? "",
       legal_name: company?.legal_name ?? null,
-      tax_id: company?.tax_id ?? null,
+      // Dados importados antigos podem ter texto de nome fantasia dentro de
+      // `tax_id` (ex.: "AGAXTUR MICE"). O modal deve exibir CNPJ apenas quando
+      // houver ao menos dígitos; caso contrário, o campo fica pendente/blank.
+      tax_id: isMeaningfulTaxId(company?.tax_id) ? (company?.tax_id ?? null) : null,
       city: company?.city ?? null,
       state_code: company?.state_code ?? null,
       country_code: company?.country_code ?? null,
@@ -304,57 +386,57 @@ export const staffCompleteRegistration = createServerFn({ method: "POST" })
     // staying "incompleto" even after filling every field.
     let companyId = profile.company_id as string | null;
     if (data.company && Object.keys(data.company).length > 0) {
+      const companyPatch = normalizeCompanyPatch(data.company);
+      const rawTaxId = companyPatch.tax_id ?? null;
+      const normalizedTaxId = digitsOnly(rawTaxId);
+      if (rawTaxId && rawTaxId.trim() && normalizedTaxId.length === 0) {
+        throw new Error("Informe um CNPJ válido com números. O campo CNPJ não pode receber o nome da empresa.");
+      }
+
       if (companyId) {
-        const { error } = await supabaseAdmin
-          .from("companies")
-          .update(data.company)
-          .eq("id", companyId);
-        if (error) throw new Error(`companies: ${error.message}`);
+        const canonicalCompany = await findCompanyByNormalizedTaxId(normalizedTaxId, companyId);
+        if (canonicalCompany) {
+          // Caso crítico: o perfil já estava ligado a uma empresa stub/errada.
+          // Se o CNPJ digitado pertence a outra empresa, não atualizamos a stub;
+          // relinkamos o perfil para a empresa canônica existente.
+          await fillMissingCompanyFields(canonicalCompany, companyPatch);
+          companyId = canonicalCompany.id;
+        } else {
+          const { error } = await supabaseAdmin
+            .from("companies")
+            .update(companyPatch)
+            .eq("id", companyId);
+          if (error) {
+            if (isDuplicateTaxIdError(error.message) && normalizedTaxId) {
+              const existingAfterRace = await findCompanyByNormalizedTaxId(normalizedTaxId, companyId);
+              if (existingAfterRace) {
+                await fillMissingCompanyFields(existingAfterRace, companyPatch);
+                companyId = existingAfterRace.id;
+              } else {
+                throw new Error(
+                  "Este CNPJ já está cadastrado em outra empresa. Recarregue a página e tente novamente — o sistema deve reutilizar a empresa existente automaticamente.",
+                );
+              }
+            } else {
+              throw new Error(`companies: ${error.message}`);
+            }
+          }
+        }
       } else {
         // Reuse rule: 1 company per CNPJ. Before inserting, look up an
         // existing company by normalized tax_id (digits-only) so staff
         // completing a stub profile never trips the unique constraint.
-        const rawTaxId = data.company.tax_id ?? null;
-        const normalizedTaxId = rawTaxId ? rawTaxId.replace(/\D+/g, "") : "";
-        let existing: { id: string; trade_name: string | null; legal_name: string | null; city: string | null; state_code: string | null } | null = null;
-        if (normalizedTaxId.length > 0) {
-          const { data: matches, error: lookupErr } = await supabaseAdmin
-            .from("companies")
-            .select("id, trade_name, legal_name, tax_id, city, state_code")
-            .not("tax_id", "is", null);
-          if (lookupErr) throw new Error(`companies (lookup): ${lookupErr.message}`);
-          existing =
-            (matches ?? []).find(
-              (c) => (c.tax_id ?? "").replace(/\D+/g, "") === normalizedTaxId,
-            ) ?? null;
-        }
+        const existing = await findCompanyByNormalizedTaxId(normalizedTaxId);
         if (existing) {
           companyId = existing.id;
-          // Only fill empty complementary fields — never overwrite valid data.
-          const fillPatch: {
-            trade_name?: string;
-            legal_name?: string;
-            city?: string;
-            state_code?: string;
-          } = {};
-          if (!existing.trade_name && data.company.trade_name) fillPatch.trade_name = data.company.trade_name;
-          if (!existing.legal_name && data.company.legal_name) fillPatch.legal_name = data.company.legal_name;
-          if (!existing.city && data.company.city) fillPatch.city = data.company.city;
-          if (!existing.state_code && data.company.state_code) fillPatch.state_code = data.company.state_code;
-          if (Object.keys(fillPatch).length > 0) {
-            const { error: fillErr } = await supabaseAdmin
-              .from("companies")
-              .update(fillPatch)
-              .eq("id", companyId);
-            if (fillErr) throw new Error(`companies (complement): ${fillErr.message}`);
-          }
+          await fillMissingCompanyFields(existing, companyPatch);
         } else {
           const insertPayload = {
-            trade_name: data.company.trade_name ?? "(sem nome)",
-            legal_name: data.company.legal_name ?? null,
-            tax_id: data.company.tax_id ?? null,
-            city: data.company.city ?? null,
-            state_code: data.company.state_code ?? null,
+            trade_name: companyPatch.trade_name ?? "(sem nome)",
+            legal_name: companyPatch.legal_name ?? null,
+            tax_id: companyPatch.tax_id ?? null,
+            city: companyPatch.city ?? null,
+            state_code: companyPatch.state_code ?? null,
             country_code: "BR",
           };
           const { data: created, error } = await supabaseAdmin
@@ -363,15 +445,25 @@ export const staffCompleteRegistration = createServerFn({ method: "POST" })
             .select("id")
             .single();
           if (error) {
-            if (/companies_tax_id_unique|duplicate key/i.test(error.message)) {
-              throw new Error(
-                "Este CNPJ já está cadastrado em outra empresa. Recarregue a página e tente novamente — o sistema deve reutilizar a empresa existente automaticamente.",
-              );
+            if (isDuplicateTaxIdError(error.message)) {
+              const existingAfterRace = await findCompanyByNormalizedTaxId(normalizedTaxId);
+              if (existingAfterRace) {
+                await fillMissingCompanyFields(existingAfterRace, companyPatch);
+                companyId = existingAfterRace.id;
+              } else {
+                throw new Error(
+                  "Este CNPJ já está cadastrado em outra empresa. Recarregue a página e tente novamente — o sistema deve reutilizar a empresa existente automaticamente.",
+                );
+              }
+            } else {
+              throw new Error(`companies (insert): ${error.message}`);
             }
-            throw new Error(`companies (insert): ${error.message}`);
+          } else {
+            companyId = created.id;
           }
-          companyId = created.id;
         }
+      }
+      if (companyId && companyId !== profile.company_id) {
         const { error: linkErr } = await supabaseAdmin
           .from("profiles")
           .update({ company_id: companyId })
