@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { filterAndRankCompanies } from "@/lib/company-search";
+import { filterAndRankParticipants } from "@/lib/company-search";
 
 type JsonValue = string | number | boolean | null | JsonValue[] | { [k: string]: JsonValue };
 type JsonObject = { [k: string]: JsonValue };
@@ -216,24 +216,16 @@ export const listAdminCompanies = createServerFn({ method: "POST" })
     if (data.status === "active") q = q.eq("is_active", true);
     else if (data.status === "inactive") q = q.eq("is_active", false);
     // Fetch all matching companies; role/confirmed are computed post-query,
-    // so DB-level pagination would produce empty pages when most rows are filtered out.
-    // Search is post-query too: the single source of truth is normalized
-    // (trim + lowercase + accent-insensitive) matching against company-owned
-    // fields only: trade_name, legal_name and tax_id.
+    // so DB-level pagination would produce empty pages when most rows are
+    // filtered out. Search is post-query too and runs AFTER eligible
+    // contacts are attached so the needle can match trade_name, legal_name,
+    // tax_id, contact full_name and contact email (single normalised rule:
+    // trim + lower-case + accent-insensitive; exact > prefix > partial).
     q = q.limit(5000);
     const { data: companiesRaw, error } = await q;
     if (error) throw new Error(error.message);
-    let companies = companiesRaw ?? [];
+    const companies = companiesRaw ?? [];
     if (companies.length === 0) return { rows: [], total: 0 };
-
-    // Post-query strict filter + ranking by match quality on normalized values
-    // (case + accent insensitive; exact > prefix > partial). Guarantees that
-    // every returned company genuinely contains the needle in trade_name,
-    // legal_name or tax_id — no leakage via contact name/email.
-    if (data.search?.trim()) {
-      companies = filterAndRankCompanies(companies, data.search);
-      if (companies.length === 0) return { rows: [], total: 0 };
-    }
 
     const ids = companies.map((c) => c.id);
     const [{ data: profs }, { data: exhProfs }] = await Promise.all([
