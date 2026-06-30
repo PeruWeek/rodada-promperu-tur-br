@@ -119,6 +119,9 @@ function SignupPage() {
   const prefillRequestId = useRef(0);
   const lookupFn = useServerFn(lookupPreRegistration);
   const availabilityFn = useServerFn(checkSignupAvailability);
+  const stepStartRef = useRef<number>(typeof performance !== "undefined" ? performance.now() : Date.now());
+  const continueAttemptsRef = useRef(0);
+  const accountCompletedRef = useRef(false);
 
   const set = <K extends keyof BuyerSignupData>(key: K, value: BuyerSignupData[K]) =>
     setData((d) => ({ ...d, [key]: value }));
@@ -136,6 +139,30 @@ function SignupPage() {
       },
       { dedupeKey: "session" },
     );
+  }, []);
+
+  // Telemetry: step viewed (only once per session), and abandonment guard.
+  useEffect(() => {
+    trackSignupAccount("signup_step_account_viewed", { once: true });
+    const onLeave = () => {
+      if (accountCompletedRef.current) return;
+      const now = typeof performance !== "undefined" ? performance.now() : Date.now();
+      trackSignupAccount("signup_abandoned_on_account_step", {
+        timeOnStepMs: Math.round(now - stepStartRef.current),
+        attempt: continueAttemptsRef.current,
+        hasEmail: !!data.email.trim(),
+      });
+    };
+    const onVis = () => {
+      if (document.visibilityState === "hidden") onLeave();
+    };
+    window.addEventListener("pagehide", onLeave);
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      window.removeEventListener("pagehide", onLeave);
+      document.removeEventListener("visibilitychange", onVis);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const runLookup = async (rawEmail: string) => {
