@@ -354,7 +354,20 @@ export async function _listEventRegistrantsImpl(
       dedupSeen.set(row.profile_id, row);
     }
   }
-  const dedupedOut = Array.from(dedupSeen.values());
+  let dedupedOut = Array.from(dedupSeen.values());
+  if (data.search?.trim()) {
+    dedupedOut = filterAndRankParticipants(
+      dedupedOut.map((r) => ({
+        ...r,
+        trade_name: r.company_trade_name,
+        legal_name: r.company_legal_name,
+        tax_id: r.company_tax_id,
+        full_name: r.full_name,
+        email: r.email,
+      })),
+      data.search,
+    );
+  }
   if (data.sort === "recent") {
     dedupedOut.sort((a: RegistrantRow, b: RegistrantRow) => {
       const da = a.created_at ?? "";
