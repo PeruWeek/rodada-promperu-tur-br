@@ -14,7 +14,7 @@ import {
 import { downloadBlob, toCsv } from "@/lib/exports/csv";
 import { downloadXlsx } from "@/lib/exports/xlsx";
 import { sortRowsForExport } from "@/lib/exports/sort";
-import { dedupeCompanyRows } from "@/lib/companies-report";
+import { dedupeCompanyRows, groupCompaniesByCnpjRoot } from "@/lib/companies-report";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { Badge } from "@/components/ui/badge";
