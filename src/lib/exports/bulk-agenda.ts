@@ -5,6 +5,17 @@ import JSZip from "jszip";
 import { buildAgendaPdf } from "@/lib/pdf";
 import type { BulkAgendaEntry } from "@/lib/staff-exports.functions";
 import { downloadBlob } from "./csv";
+import { sortRowsForExport } from "./sort";
+
+function sortAgendaEntries(entries: BulkAgendaEntry[]): BulkAgendaEntry[] {
+  // Rule: order by company name (nome fantasia); when missing, fallback to
+  // participant name; stable tiebreak by profileId.
+  return sortRowsForExport(entries, {
+    tradeName: (e) => e.companyName,
+    fullName: (e) => e.profileName,
+    id: (e) => e.profileId,
+  });
+}
 
 function safeName(s: string) {
   return s.replace(/[^a-z0-9-_]+/gi, "_").slice(0, 80) || "agenda";
@@ -21,7 +32,7 @@ export function buildConsolidatedAgendaPdf(opts: {
   const W = doc.internal.pageSize.getWidth();
   let first = true;
 
-  for (const entry of opts.entries) {
+  for (const entry of sortAgendaEntries(opts.entries)) {
     if (!first) doc.addPage();
     first = false;
 
@@ -80,7 +91,7 @@ export async function downloadAgendaZip(opts: {
   filename: string;
 }) {
   const zip = new JSZip();
-  const nonEmpty = opts.entries.filter((e) => e.rows.length > 0);
+  const nonEmpty = sortAgendaEntries(opts.entries.filter((e) => e.rows.length > 0));
   if (nonEmpty.length === 0) throw new Error("EMPTY");
 
   const usedNames = new Set<string>();
