@@ -45,7 +45,7 @@ export function buildConsolidatedAgendaPdf(opts: {
     doc.setFontSize(10);
     doc.setTextColor(110);
     if (opts.subtitle) doc.text(opts.subtitle, 40, 66);
-    doc.text(opts.generatedLabel, W - 40, 60, { align: "right" });
+    doc.text(opts.generatedLabel, W - 40, 66, { align: "right" });
     doc.setTextColor(0);
 
     doc.setFont("helvetica", "bold");

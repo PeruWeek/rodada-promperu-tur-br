@@ -89,7 +89,7 @@ export function buildAgendaPdf(opts: {
   doc.setFontSize(9);
   doc.setFont("helvetica", "normal");
   doc.setTextColor(110);
-  doc.text(opts.generatedLabel, W - 40, 60, { align: "right" });
+  doc.text(opts.generatedLabel, W - 40, 70, { align: "right" });
   doc.setTextColor(0);
 
   autoTable(doc, {
@@ -143,7 +143,7 @@ export function buildCompanyAgendaPdf(opts: {
   doc.text(opts.totalLabel, 40, opts.subtitle ? 104 : 86);
 
   doc.setFontSize(9);
-  doc.text(opts.generatedLabel, W - 40, 60, { align: "right" });
+  doc.text(opts.generatedLabel, W - 40, 70, { align: "right" });
   doc.setTextColor(0);
 
   autoTable(doc, {
