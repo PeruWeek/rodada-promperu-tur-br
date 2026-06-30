@@ -56,9 +56,10 @@ export function buildAgendaPdf(opts: {
   doc.text(opts.title, 40, 50);
 
   doc.setFontSize(11);
-  doc.setFont("helvetica", "bold");
+  doc.setFont("helvetica", "normal");
   doc.setTextColor(0);
   if (opts.subtitle) doc.text(opts.subtitle, 40, 70);
+  doc.setFont("helvetica", "bold");
   doc.text(opts.ownerName, 40, opts.subtitle ? 88 : 70);
 
   doc.setFontSize(9);
