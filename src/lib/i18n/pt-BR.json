@@ -813,7 +813,7 @@
         "exhibitor": "Expositor"
       },
       "search": {
-        "placeholder": "Buscar empresa..."
+        "placeholder": "Buscar por empresa, contato ou e-mail..."
       },
       "filter": {
         "all": "Todos",
