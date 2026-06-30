@@ -58,6 +58,7 @@ import {
 } from "@/lib/scheduling-status";
 import { downloadBlob, toCsv } from "@/lib/exports/csv";
 import { downloadXlsx } from "@/lib/exports/xlsx";
+import { sortRowsForExport } from "@/lib/exports/sort";
 import { buildAgendaPdf, buildCompanyAgendaPdf } from "@/lib/pdf";
 import { buildConsolidatedAgendaPdf, downloadAgendaZip } from "@/lib/exports/bulk-agenda";
 
@@ -88,6 +89,11 @@ function fmtDateTime(iso: string | null, locale: string): string {
 }
 
 function buildExportArrays(rows: RegistrantRow[], t: (k: string) => string) {
+  const sorted = sortRowsForExport(rows, {
+    tradeName: (r) => r.company_trade_name,
+    fullName: (r) => r.full_name,
+    id: (r) => r.profile_id,
+  });
   const headers = [
     t("admin.registrants.cols.company"),
     t("admin.registrants.cols.legalName"),
@@ -106,7 +112,7 @@ function buildExportArrays(rows: RegistrantRow[], t: (k: string) => string) {
     t("admin.registrants.cols.createdAt"),
     "Almoço de networking",
   ];
-  const data = rows.map((r) => [
+  const data = sorted.map((r) => [
     r.company_trade_name,
     r.company_legal_name ?? "",
     r.company_tax_id ?? "",
