@@ -87,6 +87,17 @@ export const getMyTableAgenda = createServerFn({ method: "POST" })
           ? (companies ?? []).find((c) => c.id === visitor.company_id)
           : undefined;
         const checkin = (checkins ?? []).find((c) => c.meeting_id === m.id);
+        // Technical guarantee: the rendered time comes from the canonical
+        // slot row identified by meeting.slot_id. Any missing slot join is
+        // logged so divergences surface immediately instead of silently
+        // rendering "—" or the wrong value.
+        if (!slot) {
+          // eslint-disable-next-line no-console
+          console.warn("[table-agenda] missing slot for meeting", {
+            meetingId: m.id,
+            slotId: m.slot_id,
+          });
+        }
         return {
           meeting_id: m.id,
           status: m.status as string,
