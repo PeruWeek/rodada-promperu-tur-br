@@ -385,8 +385,8 @@ function ManualBookingDialog({
         if (!q) return true;
         return (
           (r.company_trade_name ?? "").toLowerCase().includes(q) ||
-          (r.primary_contact_name ?? "").toLowerCase().includes(q) ||
-          (r.primary_contact_email ?? "").toLowerCase().includes(q)
+          (r.full_name ?? "").toLowerCase().includes(q) ||
+          (r.email ?? "").toLowerCase().includes(q)
         );
       })
       .slice(0, 50);
@@ -470,18 +470,18 @@ function ManualBookingDialog({
                 <p className="p-3 text-xs text-muted-foreground">{t("availability.book.noVisitors")}</p>
               ) : (
                 visitors.map((v) => {
-                  const active = selectedProfileId === v.primary_profile_id;
+                    const active = selectedProfileId === v.profile_id;
                   return (
                     <button
                       type="button"
-                      key={v.id}
-                      disabled={!v.primary_profile_id}
-                      onClick={() => setSelectedProfileId(v.primary_profile_id)}
+                      key={v.profile_id}
+                      disabled={!v.profile_id}
+                      onClick={() => setSelectedProfileId(v.profile_id)}
                       className={`block w-full rounded-md px-2 py-1.5 text-left text-sm transition ${
                         active ? "bg-primary text-primary-foreground" : "hover:bg-accent"
-                      } ${!v.primary_profile_id ? "opacity-50" : ""}`}
+                      } ${!v.profile_id ? "opacity-50" : ""}`}
                     >
-                      <p className="font-medium">{v.primary_contact_name ?? "—"}</p>
+                      <p className="font-medium">{v.full_name ?? "—"}</p>
                       <p className="text-xs opacity-80">
                         {v.company_trade_name ?? "—"}
                         {v.city ? ` · ${v.city}` : ""}
