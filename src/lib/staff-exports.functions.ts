@@ -28,6 +28,37 @@ async function getCurrentEventId(explicit?: string) {
   return data?.id ?? null;
 }
 
+// PostgREST enforces a per-role max-rows cap (default 1000). Every listing
+// that feeds a badge/summary/list/export MUST loop `.range()` in chunks so
+// the base universe cannot be silently truncated by that default. The
+// safety ceiling is defense-in-depth only — never the functional limit;
+// hitting it emits an explicit console.warn.
+const PIPELINE_CHUNK = 1000;
+const PIPELINE_SAFETY_CEILING = 100_000;
+async function fetchAllPipelineRowsRanged<T>(
+  buildQuery: () => { range: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }> },
+  ctxLabel: string,
+): Promise<T[]> {
+  const out: T[] = [];
+  for (let offset = 0; offset < PIPELINE_SAFETY_CEILING; offset += PIPELINE_CHUNK) {
+    const to = offset + PIPELINE_CHUNK - 1;
+    const { data: chunk, error } = await buildQuery().range(offset, to);
+    if (error) throw new Error(error.message);
+    const rows = chunk ?? [];
+    out.push(...rows);
+    if (rows.length < PIPELINE_CHUNK) return out;
+    if (offset + PIPELINE_CHUNK >= PIPELINE_SAFETY_CEILING) {
+      // eslint-disable-next-line no-console
+      console.warn(`[${ctxLabel}] dataset may be truncated by safety ceiling`, {
+        fetched: out.length,
+        ceiling: PIPELINE_SAFETY_CEILING,
+      });
+      return out;
+    }
+  }
+  return out;
+}
+
 export type RegistrantRow = {
   profile_id: string;
   auth_user_id: string;
