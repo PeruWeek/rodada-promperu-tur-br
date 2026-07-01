@@ -54,6 +54,7 @@ function TableAgendaPage() {
         withName: m.company_name ?? m.visitor_name ?? "—",
         table: m.visitor_name ?? "",
         location: [m.city, m.country_code].filter(Boolean).join(" · "),
+        website: m.company_website ?? null,
       })),
     });
     doc.save(`agenda-mesa-${data.table?.table_number ?? "x"}.pdf`);
@@ -103,6 +104,16 @@ function TableAgendaPage() {
                   {m.start_at ? formatSlotFull(m.start_at, i18n.language) : "—"}
                 </p>
                 <p className="mt-0.5 truncate font-medium">{m.company_name ?? m.visitor_name ?? "—"}</p>
+                {m.company_website ? (
+                  <a
+                    href={/^https?:\/\//i.test(m.company_website) ? m.company_website : `https://${m.company_website}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-0.5 block truncate text-xs text-muted-foreground/80 hover:text-primary hover:underline"
+                  >
+                    {m.company_website}
+                  </a>
+                ) : null}
                 <p className="mt-0.5 text-xs text-muted-foreground inline-flex items-center gap-1">
                   <User size={12} />{m.visitor_name}
                   {m.city ? ` · ${m.city}` : ""}
