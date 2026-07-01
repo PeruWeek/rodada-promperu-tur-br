@@ -757,6 +757,7 @@ export type ParticipantAgendaRow = {
   withName: string;
   table: string;
   location: string;
+  website?: string | null;
 };
 
 export type BulkAgendaEntry = {
