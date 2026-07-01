@@ -757,6 +757,7 @@ export type ParticipantAgendaRow = {
   withName: string;
   table: string;
   location: string;
+  website?: string | null;
 };
 
 export type BulkAgendaEntry = {
@@ -849,15 +850,20 @@ export const getParticipantAgenda = createServerFn({ method: "POST" })
       ),
     );
     const { data: companies } = allCompanyIds.length
-      ? await supabaseAdmin.from("companies").select("id, trade_name").in("id", allCompanyIds)
-      : { data: [] as Array<{ id: string; trade_name: string }> };
+      ? await supabaseAdmin.from("companies").select("id, trade_name, website").in("id", allCompanyIds)
+      : { data: [] as Array<{ id: string; trade_name: string; website: string | null }> };
     const companyName = (id: string | null | undefined) =>
       id ? (companies ?? []).find((c) => c.id === id)?.trade_name ?? "—" : "—";
+    const companyWebsite = (id: string | null | undefined) =>
+      id ? (companies ?? []).find((c) => c.id === id)?.website ?? null : null;
 
     const enriched: ParticipantAgendaRow[] = rows
       .map((m) => {
         const slot = (slots ?? []).find((s) => s.id === m.slot_id);
         const tbl = (tables ?? []).find((t) => t.id === m.table_id);
+        const counterpartCompanyId: string | null | undefined = isExhibitor
+          ? (visitors ?? []).find((x) => x.id === m.visitor_profile_id)?.company_id
+          : (exhProfiles ?? []).find((p) => p.id === tbl?.exhibitor_profile_id)?.company_id;
         const withName = isExhibitor
           ? (() => {
               const v = (visitors ?? []).find((x) => x.id === m.visitor_profile_id);
@@ -883,10 +889,11 @@ export const getParticipantAgenda = createServerFn({ method: "POST" })
           withName,
           table: tbl?.table_number ? String(tbl.table_number) : "—",
           location: "",
+          website: companyWebsite(counterpartCompanyId),
         };
       })
       .sort((a, b) => a._start.localeCompare(b._start))
-      .map(({ time, withName, table, location }) => ({ time, withName, table, location }));
+      .map(({ time, withName, table, location, website }) => ({ time, withName, table, location, website }));
 
     return {
       eventId,
@@ -1056,10 +1063,12 @@ export const listBulkAgendas = createServerFn({ method: "POST" })
       ),
     );
     const { data: companies } = allCompanyIds.length
-      ? await supabaseAdmin.from("companies").select("id, trade_name").in("id", allCompanyIds)
-      : { data: [] as Array<{ id: string; trade_name: string }> };
+      ? await supabaseAdmin.from("companies").select("id, trade_name, website").in("id", allCompanyIds)
+      : { data: [] as Array<{ id: string; trade_name: string; website: string | null }> };
     const compName = (id: string | null | undefined) =>
       id ? (companies ?? []).find((c) => c.id === id)?.trade_name ?? "—" : "—";
+    const compWebsite = (id: string | null | undefined) =>
+      id ? (companies ?? []).find((c) => c.id === id)?.website ?? null : null;
 
     const fmt = (iso: string) =>
       iso
@@ -1080,6 +1089,9 @@ export const listBulkAgendas = createServerFn({ method: "POST" })
       const rows: Array<ParticipantAgendaRow & { _start: string }> = mine.map((m) => {
         const slot = (slots ?? []).find((s) => s.id === m.slot_id);
         const tbl = (tables ?? []).find((t) => t.id === m.table_id);
+        const counterpartCompanyId: string | null | undefined = isExh
+          ? (visitorProfs ?? []).find((x) => x.id === m.visitor_profile_id)?.company_id
+          : (exhProfs ?? []).find((p) => p.id === tbl?.exhibitor_profile_id)?.company_id;
         const withName = isExh
           ? (() => {
               const v = (visitorProfs ?? []).find((x) => x.id === m.visitor_profile_id);
@@ -1097,6 +1109,7 @@ export const listBulkAgendas = createServerFn({ method: "POST" })
           withName,
           table: tbl?.table_number ? String(tbl.table_number) : "—",
           location: "",
+          website: compWebsite(counterpartCompanyId),
         };
       });
       rows.sort((a, b) => a._start.localeCompare(b._start));
@@ -1106,7 +1119,7 @@ export const listBulkAgendas = createServerFn({ method: "POST" })
         companyName: compName(prof?.company_id),
         role: isExh ? "exhibitor" : "visitor",
         tableNumber: ownTbl ? String(ownTbl.table_number) : null,
-        rows: rows.map(({ time, withName, table, location }) => ({ time, withName, table, location })),
+        rows: rows.map(({ time, withName, table, location, website }) => ({ time, withName, table, location, website })),
       };
     });
 
@@ -1290,11 +1303,13 @@ export const getCompanyAgenda = createServerFn({ method: "POST" })
     const { data: otherCompanies } = otherCompanyIds.length
       ? await supabaseAdmin
           .from("companies")
-          .select("id, trade_name")
+          .select("id, trade_name, website")
           .in("id", otherCompanyIds)
-      : { data: [] as Array<{ id: string; trade_name: string }> };
+      : { data: [] as Array<{ id: string; trade_name: string; website: string | null }> };
     const compName = (id: string | null | undefined) =>
       id ? (otherCompanies ?? []).find((c) => c.id === id)?.trade_name ?? "—" : "—";
+    const compWebsite = (id: string | null | undefined) =>
+      id ? (otherCompanies ?? []).find((c) => c.id === id)?.website ?? null : null;
 
     const fmt = (iso: string) =>
       iso
@@ -1316,16 +1331,19 @@ export const getCompanyAgenda = createServerFn({ method: "POST" })
       let contactName: string;
       let withName: string;
       let contactRole: "exhibitor" | "visitor";
+      let counterpartCompanyId: string | null | undefined;
       if (isExhibitorMeeting) {
         contactRole = "exhibitor";
         contactName = ownProfileName(ownerProfileId!);
         const v = (visitorProfs ?? []).find((x) => x.id === m.visitor_profile_id);
         withName = v ? `${v.full_name} · ${compName(v.company_id)}` : "—";
+        counterpartCompanyId = v?.company_id;
       } else {
         contactRole = "visitor";
         contactName = ownProfileName(m.visitor_profile_id);
         const exh = (exhProfs ?? []).find((p) => p.id === tbl?.exhibitor_profile_id);
         withName = exh ? `${compName(exh.company_id)} (${exh.full_name})` : "—";
+        counterpartCompanyId = exh?.company_id;
       }
       const startStr = slot?.start_at ?? "";
       const endStr = slot?.end_at ?? "";
@@ -1335,6 +1353,7 @@ export const getCompanyAgenda = createServerFn({ method: "POST" })
         withName,
         table: tbl?.table_number ? String(tbl.table_number) : "—",
         location: "",
+        website: compWebsite(counterpartCompanyId),
         contactName,
         contactRole,
       };
@@ -1349,11 +1368,12 @@ export const getCompanyAgenda = createServerFn({ method: "POST" })
       companyId: data.companyId,
       companyName: company?.trade_name ?? null,
       contactCount: profileIds.length,
-      rows: rows.map(({ time, withName, table, location, contactName, contactRole }) => ({
+      rows: rows.map(({ time, withName, table, location, website, contactName, contactRole }) => ({
         time,
         withName,
         table,
         location,
+        website,
         contactName,
         contactRole,
       })),
