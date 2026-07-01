@@ -112,6 +112,17 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
   const effectiveConfirmed: ConfirmedFilter = readOnly ? "yes" : confirmed;
   const effectiveStatus: StatusFilter = readOnly ? "active" : status;
 
+  // SINGLE SOURCE OF TRUTH for the Empresas tab.
+  //
+  // We always fetch the entire filtered universe from the server (pageSize
+  // 5000, page 1) and then dedupe + group by CNPJ root client-side. Every
+  // downstream artifact — list, badge, "Mostrando X de Y" summary, XLSX,
+  // CSV and PDF — reads from `unifiedRows`. Pagination is applied only
+  // for rendering; it never touches the export path.
+  //
+  // This eliminates the previous divergence between the paginated server
+  // page (badge = data.total) and the fetchAll snapshot re-hit at export
+  // time — both are now the same in-memory collection.
   const { data, isLoading, refetch } = useQuery({
     queryKey: [
       "admin-companies",
@@ -120,8 +131,6 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
       effectiveConfirmed,
       lunch,
       effectiveStatus,
-      page,
-      pageSize,
       readOnly,
       schedulingFilter,
     ],
@@ -132,8 +141,8 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
           role: effectiveRole,
           confirmed: effectiveConfirmed,
           lunch,
-          page: readOnly ? 1 : page,
-          pageSize: readOnly ? 5000 : pageSize,
+          page: 1,
+          pageSize: 5000,
           activeOnly: readOnly,
           status: effectiveStatus,
           excludeCliente: readOnly,
@@ -142,36 +151,32 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
       }),
   });
 
-  // Cliente-only: derive summary counts + client-side filtered/paginated rows.
-  // Defensive normalization for the Empresas flow: the unit is company_id.
-  // Even if a backend/search/export payload ever contains one row per contact,
-  // the rendered list, badge and exports must collapse back to one row per
-  // company before any summary, pagination or export is computed.
-  // Defensive: the server already groups matriz+filiais by CNPJ root, but
-  // we re-apply the same rule on the client so list/badge/exports remain
-  // consistent even against an older server response.
-  const allRows = groupCompaniesByCnpjRoot(dedupeCompanyRows(data?.rows ?? []));
+  // Defensive dedupe + CNPJ-root grouping. The server already applies both
+  // rules; re-applying on the client is idempotent and guarantees the same
+  // visual unit even against a stale/older server response.
+  const universeRows = groupCompaniesByCnpjRoot(dedupeCompanyRows(data?.rows ?? []));
+
+  // Cliente KPI cards use the FULL universe (no type filter applied).
   const clienteSummary = readOnly
     ? {
-        total: allRows.length,
-        visitors: allRows.filter((r) => r.role === "visitor").length,
-        exhibitors: allRows.filter((r) => r.role === "exhibitor").length,
+        total: universeRows.length,
+        visitors: universeRows.filter((r) => r.role === "visitor").length,
+        exhibitors: universeRows.filter((r) => r.role === "exhibitor").length,
       }
     : null;
-  const clienteFilteredRows = readOnly
-    ? filterRowsByType(allRows, clienteTypeFilter)
-    : allRows;
-  // Cliente: client-side paginate only when above threshold (>50). Otherwise
-  // render the entire filtered set in one list.
-  const clienteTotal = clienteFilteredRows.length;
-  const cliente_paginate = clienteTotal > LIST_PAGINATION_THRESHOLD;
-  const clientePagedRows = readOnly
-    ? cliente_paginate
-      ? clienteFilteredRows.slice((page - 1) * pageSize, page * pageSize)
-      : clienteFilteredRows
-    : allRows;
-  const displayRows = readOnly ? clientePagedRows : allRows;
-  const displayTotal = readOnly ? clienteTotal : data?.total ?? allRows.length;
+
+  // The unified collection — used by list, badge, summary AND all exports.
+  const unifiedRows = readOnly
+    ? filterRowsByType(universeRows, clienteTypeFilter)
+    : universeRows;
+  const displayTotal = unifiedRows.length;
+
+  // Pagination is purely visual. When total ≤ threshold (50) we render the
+  // whole set in a single page. Exports NEVER see the paged slice.
+  const shouldPaginate = displayTotal > LIST_PAGINATION_THRESHOLD;
+  const displayRows = shouldPaginate
+    ? unifiedRows.slice((page - 1) * pageSize, page * pageSize)
+    : unifiedRows;
 
   const headers = [
     "Nome Fantasia",
@@ -187,27 +192,9 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
     "Almoço de networking",
   ];
 
-  const fetchAll = async () => {
-    const res = await listFn({
-      data: {
-        search,
-        role: effectiveRole,
-        confirmed: effectiveConfirmed,
-        lunch,
-        page: 1,
-        pageSize: 5000,
-        activeOnly: readOnly,
-        status: effectiveStatus,
-        excludeCliente: readOnly,
-        scheduling: schedulingFilter,
-      },
-    });
-    // In readOnly (cliente) mode the server returns the full universe and the
-    // visible type selector is purely client-side, so we must apply the same
-    // filter to every exporter to keep table and exports in sync.
-    const uniqueRows = groupCompaniesByCnpjRoot(dedupeCompanyRows(res.rows));
-    return readOnly ? filterRowsByType(uniqueRows, clienteTypeFilter) : uniqueRows;
-  };
+  // Exports read the exact same in-memory collection the badge/list use.
+  // No refetch, no alternate filter path, no way to diverge.
+  const fetchAll = async () => unifiedRows;
 
   // Exports emit EXACTLY ONE ROW PER company_id — this is the "Empresas"
   // report, so it must match the on-screen badge/counter (which is also
@@ -300,17 +287,12 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
         toast.info(t("admin.companies.empty"));
         return;
       }
-      // Defensive: dedupe at the very last possible moment, right before
-      // rendering. `fetchAll` and `buildRows` already collapse by company_id,
-      // but we re-assert here so the PDF can NEVER diverge from the badge.
-      const uniqueRows = groupCompaniesByCnpjRoot(dedupeCompanyRows(rows));
-      const body = buildRows(uniqueRows);
-      const companyIds = uniqueRows.map((r) => r.id);
+      const body = buildRows(rows);
+      const companyIds = rows.map((r) => r.id);
       // Telemetry to make the export dataset auditable (see report below).
       // eslint-disable-next-line no-console
       console.info("[empresas-pdf] dataset", {
-        rowsFromServer: rows.length,
-        uniqueByCompanyId: uniqueRows.length,
+        unifiedRows: rows.length,
         bodyRows: body.length,
         badgeTotal: displayTotal,
         companyIds,
