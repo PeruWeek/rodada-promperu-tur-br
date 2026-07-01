@@ -11,6 +11,7 @@ export type MyTableAgendaRow = {
   visitor_profile_id: string;
   visitor_name: string;
   company_name: string;
+  company_website: string | null;
   city: string | null;
   country_code: string | null;
   checkin_status: string | null;
@@ -75,9 +76,9 @@ export const getMyTableAgenda = createServerFn({ method: "POST" })
     const { data: companies } = companyIds.length
       ? await supabaseAdmin
           .from("companies")
-          .select("id, trade_name, city, country_code")
+          .select("id, trade_name, website, city, country_code")
           .in("id", companyIds)
-      : { data: [] as Array<{ id: string; trade_name: string; city: string | null; country_code: string | null }> };
+      : { data: [] as Array<{ id: string; trade_name: string; website: string | null; city: string | null; country_code: string | null }> };
 
     const rows: MyTableAgendaRow[] = list
       .map((m) => {
@@ -106,6 +107,7 @@ export const getMyTableAgenda = createServerFn({ method: "POST" })
           visitor_profile_id: m.visitor_profile_id,
           visitor_name: visitor?.full_name ?? "—",
           company_name: company?.trade_name ?? "—",
+          company_website: company?.website ?? null,
           city: company?.city ?? null,
           country_code: company?.country_code ?? null,
           checkin_status: (checkin?.status as string | undefined) ?? null,
