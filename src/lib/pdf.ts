@@ -6,6 +6,7 @@ export type AgendaPdfRow = {
   withName: string;
   table: string;
   location?: string;
+  website?: string | null;
 };
 
 export type CompanyAgendaPdfRow = AgendaPdfRow & {
@@ -95,13 +96,32 @@ export function buildAgendaPdf(opts: {
   autoTable(doc, {
     startY: opts.subtitle ? 110 : 95,
     head: [["Horário / Hora", "Com / Con", "Mesa", "Detalhes"]],
-    body: opts.rows.map((r) => [r.time, r.withName, r.table, r.location ?? ""]),
+    body: opts.rows.map((r) => [
+      r.time,
+      r.website ? `${r.withName}\n${r.website}` : r.withName,
+      r.table,
+      r.location ?? "",
+    ]),
     styles: { fontSize: 10, cellPadding: 8 },
     headStyles: { fillColor: [30, 30, 30], textColor: 255 },
     alternateRowStyles: { fillColor: [245, 245, 245] },
     columnStyles: {
       0: { cellWidth: 110, fontStyle: "bold" },
       2: { cellWidth: 60, halign: "center" },
+    },
+    didDrawCell: (data) => {
+      if (data.section !== "body" || data.column.index !== 1) return;
+      const row = opts.rows[data.row.index];
+      if (!row?.website) return;
+      const url = /^https?:\/\//i.test(row.website)
+        ? row.website
+        : `https://${row.website}`;
+      const padLeft = 8;
+      const padBottom = 8;
+      const x = data.cell.x + padLeft;
+      const y = data.cell.y + data.cell.height - padBottom;
+      const w = doc.getTextWidth(row.website);
+      doc.link(x, y - 10, w, 12, { url });
     },
   });
 
