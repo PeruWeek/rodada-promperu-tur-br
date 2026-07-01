@@ -169,7 +169,12 @@ export function buildCompanyAgendaPdf(opts: {
   autoTable(doc, {
     startY: opts.subtitle ? 120 : 102,
     head: [["Horário / Hora", "Contato", "Com / Con", "Mesa"]],
-    body: opts.rows.map((r) => [r.time, r.contactName, r.withName, r.table]),
+    body: opts.rows.map((r) => [
+      r.time,
+      r.contactName,
+      r.website ? `${r.withName}\n${r.website}` : r.withName,
+      r.table,
+    ]),
     styles: { fontSize: 10, cellPadding: 6 },
     headStyles: { fillColor: [30, 30, 30], textColor: 255 },
     alternateRowStyles: { fillColor: [245, 245, 245] },
@@ -177,6 +182,20 @@ export function buildCompanyAgendaPdf(opts: {
       0: { cellWidth: 95, fontStyle: "bold" },
       1: { cellWidth: 130 },
       3: { cellWidth: 55, halign: "center" },
+    },
+    didDrawCell: (data) => {
+      if (data.section !== "body" || data.column.index !== 2) return;
+      const row = opts.rows[data.row.index];
+      if (!row?.website) return;
+      const url = /^https?:\/\//i.test(row.website)
+        ? row.website
+        : `https://${row.website}`;
+      const padLeft = 6;
+      const padBottom = 6;
+      const x = data.cell.x + padLeft;
+      const y = data.cell.y + data.cell.height - padBottom;
+      const w = doc.getTextWidth(row.website);
+      doc.link(x, y - 10, w, 12, { url });
     },
   });
 
