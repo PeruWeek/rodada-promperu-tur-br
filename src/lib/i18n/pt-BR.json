@@ -277,7 +277,8 @@
       "companies": "Empresas",
       "registrants": "Inscritos",
       "preRegistration": "Pré-cadastros",
-      "review": "Revisão"
+      "review": "Revisão",
+      "availability": "Disponibilidade"
     },
     "review": {
       "title": "Fila de Revisão",

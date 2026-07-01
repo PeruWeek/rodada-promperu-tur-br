@@ -277,7 +277,8 @@
       "companies": "Empresas",
       "registrants": "Inscritos",
       "preRegistration": "Pre-registros",
-      "review": "Revisión"
+      "review": "Revisión",
+      "availability": "Disponibilidad"
     },
     "review": {
       "title": "Cola de Revisión",
