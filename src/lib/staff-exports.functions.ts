@@ -153,22 +153,30 @@ export async function _listEventRegistrantsImpl(
   const eventId = await getCurrentEventIdWith(ctx.supabase, data.eventId);
     if (!eventId) return { eventId: null, rows: [] as RegistrantRow[] };
 
-    let q = ctx.supabase
-      .from("v_company_event_pipeline")
-      .select(
-        "id, event_id, company_id, primary_profile_id, company_role, company_trade_name, company_legal_name, country_code, state_code, city, registration_status, scheduling_status, scheduled_meetings_count, primary_contact_name, primary_contact_email, primary_contact_phone, primary_contact_whatsapp, created_at",
-      )
-      .eq("event_id", eventId);
-    if (data.role !== "all") q = q.eq("company_role", data.role);
-    if (restrictCliente) {
-      // Canonical "com agendamento" bucket = count > 0. Source of truth.
-      q = q.gt("scheduled_meetings_count", 0);
-    }
-    if (schedulingStatuses && schedulingStatuses.length > 0) {
-      q = q.in("scheduling_status", schedulingStatuses);
-    }
-    const { data: rows, error } = await q.order("company_trade_name", { ascending: true });
-    if (error) throw new Error(error.message);
+    // Full-universe fetch via ranged loop — bypasses PostgREST's per-role
+    // max-rows cap so the badge/summary/list/exports downstream all sit on
+    // the SAME real base collection. Filters are applied at the DB layer
+    // so the loop paginates the already-narrow result set.
+    const buildBaseQuery = () => {
+      let q = ctx.supabase
+        .from("v_company_event_pipeline")
+        .select(
+          "id, event_id, company_id, primary_profile_id, company_role, company_trade_name, company_legal_name, country_code, state_code, city, registration_status, scheduling_status, scheduled_meetings_count, primary_contact_name, primary_contact_email, primary_contact_phone, primary_contact_whatsapp, created_at",
+        )
+        .eq("event_id", eventId);
+      if (data.role !== "all") q = q.eq("company_role", data.role);
+      if (restrictCliente) q = q.gt("scheduled_meetings_count", 0);
+      if (schedulingStatuses && schedulingStatuses.length > 0) {
+        q = q.in("scheduling_status", schedulingStatuses);
+      }
+      return q
+        .order("company_trade_name", { ascending: true })
+        .order("id", { ascending: true });
+    };
+    const rows = await fetchAllPipelineRowsRanged(
+      buildBaseQuery,
+      "list-event-registrants",
+    );
 
     type PipelineRow = {
       id: string;
