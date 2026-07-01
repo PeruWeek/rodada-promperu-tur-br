@@ -39,6 +39,7 @@ import { EmailTemplatesTab } from "@/components/admin/email-templates-tab";
 import { BookingRemindersTab } from "@/components/admin/booking-reminders-tab";
 import { CompaniesTab } from "@/components/admin/companies/companies-tab";
 import { RegistrantsTab } from "@/components/admin/registrants-tab";
+import { ExhibitorAvailabilityTab } from "@/components/admin/exhibitor-availability-tab";
 import { ClienteOverview } from "@/components/admin/cliente/cliente-overview";
 import { PreRegistrationsTab } from "@/components/admin/pre-registrations-tab";
 import { QaSimulationTab } from "@/components/admin/qa-simulation-tab";
@@ -119,11 +120,13 @@ function AdminPage() {
             <TabsTrigger value="companies">{t("admin.tabs.companies")}</TabsTrigger>
             <TabsTrigger value="registrants">{t("admin.tabs.registrants")}</TabsTrigger>
             <TabsTrigger value="meetings">{t("admin.tabs.meetings", { defaultValue: "Agendamentos" })}</TabsTrigger>
+            <TabsTrigger value="availability">{t("admin.tabs.availability")}</TabsTrigger>
           </TabsList>
           <TabsContent value="overview" className="mt-4"><ClienteOverview /></TabsContent>
           <TabsContent value="companies" className="mt-4"><CompaniesTab readOnly /></TabsContent>
           <TabsContent value="registrants" className="mt-4"><RegistrantsTab readOnly unrestrictedCliente defaultRole="visitor" /></TabsContent>
           <TabsContent value="meetings" className="mt-4"><RegistrantsTab readOnly onlyWithMeetings /></TabsContent>
+          <TabsContent value="availability" className="mt-4"><ExhibitorAvailabilityTab /></TabsContent>
         </Tabs>
       ) : isStaffOnly ? (
         <Tabs defaultValue="checkin" className="mt-6">
@@ -131,10 +134,12 @@ function AdminPage() {
             <TabsTrigger value="checkin">{t("admin.tabs.checkin")}</TabsTrigger>
             <TabsTrigger value="companies">{t("admin.tabs.companies")}</TabsTrigger>
             <TabsTrigger value="registrants">{t("admin.tabs.registrants")}</TabsTrigger>
+            <TabsTrigger value="availability">{t("admin.tabs.availability")}</TabsTrigger>
           </TabsList>
           <TabsContent value="checkin" className="mt-4"><CheckinTab /></TabsContent>
           <TabsContent value="companies" className="mt-4"><CompaniesTab readOnly /></TabsContent>
           <TabsContent value="registrants" className="mt-4"><RegistrantsTab defaultRole="visitor" /></TabsContent>
+          <TabsContent value="availability" className="mt-4"><ExhibitorAvailabilityTab /></TabsContent>
         </Tabs>
       ) : (
         <Tabs defaultValue="dashboard" className="mt-6">
@@ -147,6 +152,7 @@ function AdminPage() {
             <TabsTrigger value="users">{t("admin.tabs.users")}</TabsTrigger>
             <TabsTrigger value="companies">{t("admin.tabs.companies")}</TabsTrigger>
             <TabsTrigger value="registrants">{t("admin.tabs.registrants")}</TabsTrigger>
+            <TabsTrigger value="availability">{t("admin.tabs.availability")}</TabsTrigger>
             <TabsTrigger value="requests">{t("admin.tabs.requests")}</TabsTrigger>
             <TabsTrigger value="review">{t("admin.tabs.review")}</TabsTrigger>
             <TabsTrigger value="preRegistration">{t("admin.tabs.preRegistration")}</TabsTrigger>
@@ -164,6 +170,7 @@ function AdminPage() {
           <TabsContent value="users" className="mt-4"><UsersTab currentAuthUserId={me?.auth_user_id ?? null} canDelete={isAdmin} /></TabsContent>
           <TabsContent value="companies" className="mt-4"><CompaniesTab /></TabsContent>
           <TabsContent value="registrants" className="mt-4"><RegistrantsTab defaultRole="all" /></TabsContent>
+          <TabsContent value="availability" className="mt-4"><ExhibitorAvailabilityTab /></TabsContent>
           <TabsContent value="requests" className="mt-4"><RequestsTab /></TabsContent>
           <TabsContent value="review" className="mt-4"><ReviewQueueTab /></TabsContent>
           <TabsContent value="preRegistration" className="mt-4"><PreRegistrationsTab /></TabsContent>
