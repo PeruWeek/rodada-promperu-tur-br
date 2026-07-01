@@ -232,14 +232,15 @@ export const listAdminCompanies = createServerFn({ method: "POST" })
       else if (data.status === "inactive") q = q.eq("is_active", false);
       return q;
     };
-    const companies: Array<Record<string, unknown>> = [];
+    type CompanyRow = NonNullable<Awaited<ReturnType<ReturnType<typeof buildBaseQuery>["range"]>>["data"]>[number];
+    const companies: CompanyRow[] = [];
     let baseTruncated = false;
     for (let offset = 0; offset < BASE_COMPANIES_SAFETY_CEILING; offset += BASE_COMPANIES_CHUNK) {
       const to = offset + BASE_COMPANIES_CHUNK - 1;
       const { data: chunk, error } = await buildBaseQuery().range(offset, to);
       if (error) throw new Error(error.message);
-      const rowsChunk = chunk ?? [];
-      companies.push(...(rowsChunk as Array<Record<string, unknown>>));
+      const rowsChunk = (chunk ?? []) as CompanyRow[];
+      companies.push(...rowsChunk);
       if (rowsChunk.length < BASE_COMPANIES_CHUNK) break;
       if (offset + BASE_COMPANIES_CHUNK >= BASE_COMPANIES_SAFETY_CEILING) {
         baseTruncated = true;
