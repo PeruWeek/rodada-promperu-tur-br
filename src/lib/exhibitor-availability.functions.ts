@@ -36,7 +36,6 @@ export type BookedSlot = {
 };
 
 export type ExhibitorAvailabilityStatus =
-  | "sem_mesa"
   | "lotada"
   | "com_agendamento"
   | "sem_agendamento";
@@ -80,7 +79,8 @@ export const listExhibitorAvailability = createServerFn({ method: "POST" })
     const eventId = await getCurrentEventIdWith(supabaseAdmin, data.eventId);
     if (!eventId) return { event_id: null, rows: [] };
 
-    // 1) Mesas do evento
+    // 1) Mesas do evento (única origem de expositoras nesta aba —
+    //    expositoras sem mesa NÃO entram nesta visão operacional).
     const { data: tables } = await supabaseAdmin
       .from("event_tables")
       .select("id, table_number, exhibitor_profile_id")
@@ -92,21 +92,26 @@ export const listExhibitorAvailability = createServerFn({ method: "POST" })
       exhibitor_profile_id: string | null;
     }>;
 
-    // 2) Perfis expositores → company_id
+    // 2) Perfis expositores ATIVOS → company_id.
+    //    Perfis desativados são descartados aqui.
     const exhProfileIds = tableList
       .map((t) => t.exhibitor_profile_id)
       .filter((v): v is string => !!v);
     const { data: profs } = exhProfileIds.length
       ? await supabaseAdmin
           .from("profiles")
-          .select("id, company_id")
+          .select("id, company_id, is_active")
           .in("id", exhProfileIds)
-      : { data: [] as Array<{ id: string; company_id: string | null }> };
+      : { data: [] as Array<{ id: string; company_id: string | null; is_active: boolean | null }> };
     const profileCompany = new Map<string, string | null>(
-      (profs ?? []).map((p) => [p.id, p.company_id ?? null]),
+      (profs ?? [])
+        .filter((p) => p.is_active !== false)
+        .map((p) => [p.id, p.company_id ?? null]),
     );
 
-    // 3) Expositores inscritos no pipeline (mesmo sem mesa)
+    // 3) Metadados de pipeline apenas para enriquecer nome/cidade/país
+    //    das companies que JÁ possuem mesa. Não usamos mais para incluir
+    //    expositoras "sem mesa" na resposta.
     const { data: pipelineRows } = await supabaseAdmin
       .from("v_company_event_pipeline")
       .select("company_id, company_trade_name, city, country_code, company_role")
@@ -130,7 +135,8 @@ export const listExhibitorAvailability = createServerFn({ method: "POST" })
       });
     }
 
-    // 4) company_ids alvo
+    // 4) company_ids alvo: SOMENTE empresas com pelo menos uma mesa
+    //    atribuída a perfil expositor ATIVO no evento atual.
     const companyIds = new Set<string>();
     for (const t of tableList) {
       const cid = t.exhibitor_profile_id
@@ -138,22 +144,32 @@ export const listExhibitorAvailability = createServerFn({ method: "POST" })
         : null;
       if (cid) companyIds.add(cid);
     }
-    for (const cid of pipelineByCompany.keys()) companyIds.add(cid);
     if (companyIds.size === 0) return { event_id: eventId, rows: [] };
 
-    // 5) Companies sem pipeline
-    const missingCompanyIds = [...companyIds].filter((id) => !pipelineByCompany.has(id));
-    const { data: extraCompanies } = missingCompanyIds.length
+    // 5) Metadados de company + status is_active (fonte da verdade
+    //    para excluir empresas desativadas).
+    const { data: companyRows } = await supabaseAdmin
+      .from("companies")
+      .select("id, trade_name, city, country_code, is_active")
+      .in("id", [...companyIds]);
+    const activeCompanyIds = new Set(
+      (companyRows ?? [])
+        .filter((c) => (c as { is_active?: boolean }).is_active !== false)
+        .map((c) => c.id),
+    );
+    const missingCompanyIds = [...activeCompanyIds].filter((id) => !pipelineByCompany.has(id));
+    const extraCompanies = missingCompanyIds.length
       ? await supabaseAdmin
           .from("companies")
           .select("id, trade_name, city, country_code")
           .in("id", missingCompanyIds)
-      : { data: [] as Array<{ id: string; trade_name: string; city: string | null; country_code: string | null }> };
+          .then((r) => r.data ?? [])
+      : [];
     const companyInfo = new Map<
       string,
       { trade_name: string; city: string | null; country_code: string | null }
     >(pipelineByCompany);
-    for (const c of extraCompanies ?? []) {
+    for (const c of extraCompanies) {
       companyInfo.set(c.id, {
         trade_name: c.trade_name ?? "—",
         city: c.city,
@@ -252,7 +268,7 @@ export const listExhibitorAvailability = createServerFn({ method: "POST" })
       }
       return acc;
     };
-    for (const cid of pipelineByCompany.keys()) ensure(cid);
+    // Só instancia acumuladores para empresas ativas com mesa (loop abaixo).
 
     const bookedSlotIds = new Set(meetings.map((m) => m.slot_id));
     const meetingsByTable = new Map<string, typeof meetings>();
@@ -267,6 +283,7 @@ export const listExhibitorAvailability = createServerFn({ method: "POST" })
         ? profileCompany.get(t.exhibitor_profile_id) ?? null
         : null;
       if (!cid) continue;
+      if (!activeCompanyIds.has(cid)) continue;
       const acc = ensure(cid);
       acc.tables.push({ id: t.id, table_number: t.table_number });
 
@@ -303,10 +320,11 @@ export const listExhibitorAvailability = createServerFn({ method: "POST" })
 
     const rows: ExhibitorAvailabilityRow[] = [];
     for (const [companyId, acc] of byCompany.entries()) {
+      // Defesa em profundidade — empresa sem mesa jamais deve aparecer.
+      if (acc.tables.length === 0) continue;
       const slots_free = Math.max(0, acc.slots_total - acc.slots_booked);
       let status: ExhibitorAvailabilityStatus;
-      if (acc.tables.length === 0) status = "sem_mesa";
-      else if (slots_free === 0 && acc.slots_total > 0) status = "lotada";
+      if (slots_free === 0 && acc.slots_total > 0) status = "lotada";
       else status = bucketGroupFromMeetings(acc.slots_booked);
 
       acc.free_slots.sort((a, b) => a.start_at.localeCompare(b.start_at));
@@ -333,7 +351,6 @@ export const listExhibitorAvailability = createServerFn({ method: "POST" })
       sem_agendamento: 1,
       com_agendamento: 2,
       lotada: 3,
-      sem_mesa: 4,
     };
     rows.sort((a, b) => {
       const aFree = a.slots_free > 0 ? 0 : 1;

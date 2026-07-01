@@ -41,8 +41,7 @@ type StatusFilter =
   | "com_agendamento"
   | "sem_agendamento"
   | "com_vaga"
-  | "lotada"
-  | "sem_mesa";
+  | "lotada";
 
 // Query keys efetivamente utilizadas em todo o projeto (varridas com rg).
 // Após um agendamento manual, invalidamos todas as coleções que
@@ -68,8 +67,6 @@ const INVALIDATE_KEYS: Array<readonly [string]> = [
 
 function statusBadge(status: ExhibitorAvailabilityStatus, t: (k: string) => string) {
   switch (status) {
-    case "sem_mesa":
-      return <Badge variant="destructive">{t("availability.status.sem_mesa")}</Badge>;
     case "lotada":
       return <Badge variant="secondary">{t("availability.status.lotada")}</Badge>;
     case "com_agendamento":
@@ -102,7 +99,7 @@ export function ExhibitorAvailabilityTab() {
     return rows.filter((r) => {
       if (q && !r.trade_name.toLowerCase().includes(q)) return false;
       if (status === "all") return true;
-      if (status === "com_vaga") return r.slots_free > 0 && r.status !== "sem_mesa";
+      if (status === "com_vaga") return r.slots_free > 0;
       return r.status === status;
     });
   }, [rows, search, status]);
@@ -163,7 +160,6 @@ export function ExhibitorAvailabilityTab() {
               <SelectItem value="com_agendamento">{t("availability.status.com_agendamento")}</SelectItem>
               <SelectItem value="sem_agendamento">{t("availability.status.sem_agendamento")}</SelectItem>
               <SelectItem value="lotada">{t("availability.status.lotada")}</SelectItem>
-              <SelectItem value="sem_mesa">{t("availability.status.sem_mesa")}</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -178,7 +174,6 @@ export function ExhibitorAvailabilityTab() {
         <div className="space-y-2">
           {filtered.map((r) => {
             const preview = r.free_slots.slice(0, 3);
-            const noTable = r.status === "sem_mesa";
             const full = r.status === "lotada";
             return (
               <Card key={r.company_id} className="p-4">
@@ -186,9 +181,7 @@ export function ExhibitorAvailabilityTab() {
                   <div className="min-w-0">
                     <p className="truncate font-semibold">{r.trade_name}</p>
                     <p className="text-xs text-muted-foreground">
-                      {r.tables.length > 0
-                        ? `${t("availability.tableLabel")}: ${r.table_numbers_label}`
-                        : t("availability.noTable")}
+                      {`${t("availability.tableLabel")}: ${r.table_numbers_label}`}
                       {r.city ? ` · ${r.city}` : ""}
                       {r.country_code ? ` · ${r.country_code}` : ""}
                     </p>
@@ -202,7 +195,7 @@ export function ExhibitorAvailabilityTab() {
                         {t("availability.free", { count: r.slots_free })}
                       </span>
                     </div>
-                    {!noTable && preview.length > 0 && (
+                    {preview.length > 0 && (
                       <div className="mt-2 flex flex-wrap gap-1">
                         {preview.map((s) => (
                           <button
@@ -229,13 +222,13 @@ export function ExhibitorAvailabilityTab() {
                     )}
                   </div>
                   <div className="flex shrink-0 flex-col items-end gap-2">
-                    <Button size="sm" variant="outline" onClick={() => setSlotsDialog(r)} disabled={noTable}>
+                    <Button size="sm" variant="outline" onClick={() => setSlotsDialog(r)}>
                       <Clock size={14} /> {t("availability.seeSlots")}
                     </Button>
                     <Button
                       size="sm"
                       onClick={() => setBookingDialog({ row: r })}
-                      disabled={noTable || full}
+                      disabled={full}
                     >
                       <CalendarPlus size={14} /> {t("availability.scheduleVisitor")}
                     </Button>
