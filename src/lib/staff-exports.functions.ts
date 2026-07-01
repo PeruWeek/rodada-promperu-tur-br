@@ -901,13 +901,26 @@ export const listBulkAgendas = createServerFn({ method: "POST" })
     z
       .object({
         eventId: z.string().uuid().optional(),
-        profileIds: z.array(z.string().uuid()).min(1).max(500),
+        // Cap raised well above realistic operational needs so the bulk
+        // PDF/ZIP export button (which passes every filtered row from
+        // `Inscritos`) never fails Zod validation for a large event.
+        // Still bounded to keep the RPC bounded — treat as safety
+        // ceiling, not the functional limit. `console.warn` fires below
+        // when the payload approaches the ceiling.
+        profileIds: z.array(z.string().uuid()).min(1).max(10_000),
       })
       .parse(input),
   )
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
     await assertAdminOrStaff(context.userId);
+    if (data.profileIds.length >= 5_000) {
+      // eslint-disable-next-line no-console
+      console.warn("[list-bulk-agendas] payload nearing safety ceiling", {
+        received: data.profileIds.length,
+        ceiling: 10_000,
+      });
+    }
     const eventId = await getCurrentEventId(data.eventId);
     if (!eventId) return { eventId: null, entries: [] as BulkAgendaEntry[] };
 
