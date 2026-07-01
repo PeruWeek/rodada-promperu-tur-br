@@ -28,6 +28,37 @@ async function getCurrentEventId(explicit?: string) {
   return data?.id ?? null;
 }
 
+// PostgREST enforces a per-role max-rows cap (default 1000). Every listing
+// that feeds a badge/summary/list/export MUST loop `.range()` in chunks so
+// the base universe cannot be silently truncated by that default. The
+// safety ceiling is defense-in-depth only — never the functional limit;
+// hitting it emits an explicit console.warn.
+const PIPELINE_CHUNK = 1000;
+const PIPELINE_SAFETY_CEILING = 100_000;
+async function fetchAllPipelineRowsRanged<T>(
+  buildQuery: () => { range: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }> },
+  ctxLabel: string,
+): Promise<T[]> {
+  const out: T[] = [];
+  for (let offset = 0; offset < PIPELINE_SAFETY_CEILING; offset += PIPELINE_CHUNK) {
+    const to = offset + PIPELINE_CHUNK - 1;
+    const { data: chunk, error } = await buildQuery().range(offset, to);
+    if (error) throw new Error(error.message);
+    const rows = chunk ?? [];
+    out.push(...rows);
+    if (rows.length < PIPELINE_CHUNK) return out;
+    if (offset + PIPELINE_CHUNK >= PIPELINE_SAFETY_CEILING) {
+      // eslint-disable-next-line no-console
+      console.warn(`[${ctxLabel}] dataset may be truncated by safety ceiling`, {
+        fetched: out.length,
+        ceiling: PIPELINE_SAFETY_CEILING,
+      });
+      return out;
+    }
+  }
+  return out;
+}
+
 export type RegistrantRow = {
   profile_id: string;
   auth_user_id: string;
@@ -122,22 +153,30 @@ export async function _listEventRegistrantsImpl(
   const eventId = await getCurrentEventIdWith(ctx.supabase, data.eventId);
     if (!eventId) return { eventId: null, rows: [] as RegistrantRow[] };
 
-    let q = ctx.supabase
-      .from("v_company_event_pipeline")
-      .select(
-        "id, event_id, company_id, primary_profile_id, company_role, company_trade_name, company_legal_name, country_code, state_code, city, registration_status, scheduling_status, scheduled_meetings_count, primary_contact_name, primary_contact_email, primary_contact_phone, primary_contact_whatsapp, created_at",
-      )
-      .eq("event_id", eventId);
-    if (data.role !== "all") q = q.eq("company_role", data.role);
-    if (restrictCliente) {
-      // Canonical "com agendamento" bucket = count > 0. Source of truth.
-      q = q.gt("scheduled_meetings_count", 0);
-    }
-    if (schedulingStatuses && schedulingStatuses.length > 0) {
-      q = q.in("scheduling_status", schedulingStatuses);
-    }
-    const { data: rows, error } = await q.order("company_trade_name", { ascending: true });
-    if (error) throw new Error(error.message);
+    // Full-universe fetch via ranged loop — bypasses PostgREST's per-role
+    // max-rows cap so the badge/summary/list/exports downstream all sit on
+    // the SAME real base collection. Filters are applied at the DB layer
+    // so the loop paginates the already-narrow result set.
+    const buildBaseQuery = () => {
+      let q = ctx.supabase
+        .from("v_company_event_pipeline")
+        .select(
+          "id, event_id, company_id, primary_profile_id, company_role, company_trade_name, company_legal_name, country_code, state_code, city, registration_status, scheduling_status, scheduled_meetings_count, primary_contact_name, primary_contact_email, primary_contact_phone, primary_contact_whatsapp, created_at",
+        )
+        .eq("event_id", eventId);
+      if (data.role !== "all") q = q.eq("company_role", data.role);
+      if (restrictCliente) q = q.gt("scheduled_meetings_count", 0);
+      if (schedulingStatuses && schedulingStatuses.length > 0) {
+        q = q.in("scheduling_status", schedulingStatuses);
+      }
+      return q
+        .order("company_trade_name", { ascending: true })
+        .order("id", { ascending: true });
+    };
+    const rows = await fetchAllPipelineRowsRanged(
+      buildBaseQuery,
+      "list-event-registrants",
+    );
 
     type PipelineRow = {
       id: string;
@@ -552,14 +591,21 @@ export const listClienteOverviewBase = createServerFn({ method: "POST" })
     const eventId = await getCurrentEventIdWith(supabaseAdmin, data.eventId);
     if (!eventId) return { eventId: null, rows: [] as RegistrantRow[] };
 
-    const { data: rows, error } = await supabaseAdmin
-      .from("v_company_event_pipeline")
-      .select(
-        "id, event_id, company_id, primary_profile_id, company_role, company_trade_name, company_legal_name, country_code, state_code, city, registration_status, scheduling_status, scheduled_meetings_count, primary_contact_name, primary_contact_email, primary_contact_phone, primary_contact_whatsapp, created_at",
-      )
-      .eq("event_id", eventId)
-      .order("company_trade_name", { ascending: true });
-    if (error) throw new Error(error.message);
+    // Full-universe fetch via ranged loop — the cliente overview base
+    // feeds badge, KPIs, on-screen list AND XLSX/PDF exports from one
+    // collection; must not depend on PostgREST's default max-rows cap.
+    const rows = await fetchAllPipelineRowsRanged(
+      () =>
+        supabaseAdmin
+          .from("v_company_event_pipeline")
+          .select(
+            "id, event_id, company_id, primary_profile_id, company_role, company_trade_name, company_legal_name, country_code, state_code, city, registration_status, scheduling_status, scheduled_meetings_count, primary_contact_name, primary_contact_email, primary_contact_phone, primary_contact_whatsapp, created_at",
+          )
+          .eq("event_id", eventId)
+          .order("company_trade_name", { ascending: true })
+          .order("id", { ascending: true }),
+      "cliente-overview-base",
+    );
 
     type PipelineRow = {
       id: string;
@@ -855,13 +901,26 @@ export const listBulkAgendas = createServerFn({ method: "POST" })
     z
       .object({
         eventId: z.string().uuid().optional(),
-        profileIds: z.array(z.string().uuid()).min(1).max(500),
+        // Cap raised well above realistic operational needs so the bulk
+        // PDF/ZIP export button (which passes every filtered row from
+        // `Inscritos`) never fails Zod validation for a large event.
+        // Still bounded to keep the RPC bounded — treat as safety
+        // ceiling, not the functional limit. `console.warn` fires below
+        // when the payload approaches the ceiling.
+        profileIds: z.array(z.string().uuid()).min(1).max(10_000),
       })
       .parse(input),
   )
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
     await assertAdminOrStaff(context.userId);
+    if (data.profileIds.length >= 5_000) {
+      // eslint-disable-next-line no-console
+      console.warn("[list-bulk-agendas] payload nearing safety ceiling", {
+        received: data.profileIds.length,
+        ceiling: 10_000,
+      });
+    }
     const eventId = await getCurrentEventId(data.eventId);
     if (!eventId) return { eventId: null, entries: [] as BulkAgendaEntry[] };
 

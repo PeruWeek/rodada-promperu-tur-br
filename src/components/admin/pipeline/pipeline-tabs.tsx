@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
@@ -376,12 +376,12 @@ function SchedulingTab({ isAdmin }: Props) {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState<PageSizeOption>(50);
   const { data, isLoading } = useQuery({
-    queryKey: ["pipeline-scheduling", group, opStatus, mine],
+    queryKey: ["pipeline-scheduling", group, opStatus, mine, page, pageSize],
     queryFn: () =>
       listFn({
         data: {
-          pageSize: 200,
-          page: 1,
+          page,
+          pageSize,
           schedulingGroup: group === "any" ? undefined : group,
           schedulingStatus:
             group === "com_agendamento" && opStatus !== "any"
@@ -392,10 +392,15 @@ function SchedulingTab({ isAdmin }: Props) {
       }),
   });
 
-  const allRows = (data?.rows as PipelineRow[] | undefined) ?? [];
-  const total = allRows.length;
+  // Real server pagination: `listPipeline` returns `{ rows: <page>, total }`
+  // with `count: 'exact'`, so badge/summary reflect the true universe and
+  // no client silently caps the base collection at a fixed size.
+  const visibleRows = (data?.rows as PipelineRow[] | undefined) ?? [];
+  const total = data?.total ?? 0;
   const paginate = total > LIST_PAGINATION_THRESHOLD;
-  const visibleRows = paginate ? allRows.slice((page - 1) * pageSize, page * pageSize) : allRows;
+  useEffect(() => {
+    setPage(1);
+  }, [group, opStatus, mine, pageSize]);
 
   return (
     <Card className="p-4">
