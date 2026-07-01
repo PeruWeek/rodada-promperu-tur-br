@@ -277,7 +277,8 @@
       "companies": "Empresas",
       "registrants": "Inscritos",
       "preRegistration": "Pre-registros",
-      "review": "Revisión"
+      "review": "Revisión",
+      "availability": "Disponibilidad"
     },
     "review": {
       "title": "Cola de Revisión",
@@ -812,6 +813,51 @@
         "visitor": "Visitante",
         "exhibitor": "Expositora"
       }
+    }
+  },
+  "availability": {
+    "empty": "Ninguna expositora encontrada.",
+    "searchPlaceholder": "Buscar por nombre comercial…",
+    "tableLabel": "Mesa",
+    "noTable": "Sin mesa asignada",
+    "booked": "{{count}} agendada(s)",
+    "free": "{{count}} libre(s)",
+    "seeAll": "+ ver todos ({{n}})",
+    "seeSlots": "Ver horarios",
+    "scheduleVisitor": "Agendar visitante",
+    "bookThisSlot": "Agendar este horario",
+    "kpi": {
+      "total": "Expositoras",
+      "withMeetings": "Con agenda",
+      "withFree": "Con cupo libre",
+      "freeSlots": "Horarios libres"
+    },
+    "status": {
+      "sem_mesa": "Sin mesa",
+      "lotada": "Completa",
+      "com_agendamento": "Con agenda",
+      "sem_agendamento": "Sin agenda"
+    },
+    "filter": {
+      "all": "Todas",
+      "com_vaga": "Con cupo libre"
+    },
+    "slotsDialog": {
+      "subtitle": "Mesa {{table}} — todos los horarios",
+      "empty": "Sin horarios disponibles.",
+      "book": "Agendar",
+      "booked": "Ocupado"
+    },
+    "book": {
+      "title": "Agendamiento manual",
+      "subtitle": "Asignar un inscrito a la agenda de {{name}}.",
+      "slot": "Horario",
+      "pickSlot": "Selecciona un horario libre",
+      "visitor": "Inscrito visitante",
+      "visitorSearchPlaceholder": "Buscar por nombre, empresa o email…",
+      "noVisitors": "No se encontraron inscritos.",
+      "confirm": "Confirmar agenda",
+      "success": "Reunión agendada con éxito."
     }
   }
 }

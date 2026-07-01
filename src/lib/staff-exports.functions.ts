@@ -418,7 +418,7 @@ export async function _listEventRegistrantsImpl(
   return { eventId, rows: dedupedOut };
 }
 
-async function getCurrentEventIdWith(supabase: any, explicit?: string) {
+export async function getCurrentEventIdWith(supabase: any, explicit?: string) {
   if (explicit) return explicit;
   const { data } = await supabase
     .from("events")
