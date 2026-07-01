@@ -114,15 +114,19 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
 
   // SINGLE SOURCE OF TRUTH for the Empresas tab.
   //
-  // We always fetch the entire filtered universe from the server (pageSize
-  // 5000, page 1) and then dedupe + group by CNPJ root client-side. Every
-  // downstream artifact — list, badge, "Mostrando X de Y" summary, XLSX,
-  // CSV and PDF — reads from `unifiedRows`. Pagination is applied only
-  // for rendering; it never touches the export path.
+  // We assemble `fullRows` by paging through the server with a bounded
+  // per-call size until we've collected `total` rows. This makes the
+  // tab (list, badge, summary, XLSX, CSV, PDF) independent of any
+  // single silent `pageSize` constant: even if the universe grows past
+  // a former ad-hoc cap, we keep fetching subsequent pages until the
+  // whole filtered set is in memory. Pagination on screen is purely
+  // visual (see `displayRows` below) and never touches the exports.
   //
-  // This eliminates the previous divergence between the paginated server
-  // page (badge = data.total) and the fetchAll snapshot re-hit at export
-  // time — both are now the same in-memory collection.
+  // Belt-and-suspenders: the server also reports `baseTruncated` when
+  // its underlying companies query hit its hard cap. We surface that
+  // as an explicit `console.warn` instead of silently degrading.
+  const CLIENT_PAGE_SIZE = 1000;
+  const CLIENT_MAX_PAGES = 100; // 100k rows safety ceiling
   const { data, isLoading, refetch } = useQuery({
     queryKey: [
       "admin-companies",
@@ -134,21 +138,62 @@ export function CompaniesTab({ readOnly = false }: { readOnly?: boolean } = {}) 
       readOnly,
       schedulingFilter,
     ],
-    queryFn: () =>
-      listFn({
-        data: {
-          search,
-          role: effectiveRole,
-          confirmed: effectiveConfirmed,
-          lunch,
-          page: 1,
-          pageSize: 5000,
-          activeOnly: readOnly,
-          status: effectiveStatus,
-          excludeCliente: readOnly,
-          scheduling: schedulingFilter,
-        },
-      }),
+    queryFn: async () => {
+      const baseInput = {
+        search,
+        role: effectiveRole,
+        confirmed: effectiveConfirmed,
+        lunch,
+        activeOnly: readOnly,
+        status: effectiveStatus,
+        excludeCliente: readOnly,
+        scheduling: schedulingFilter,
+      };
+      const first = await listFn({
+        data: { ...baseInput, page: 1, pageSize: CLIENT_PAGE_SIZE },
+      });
+      const total = first.total ?? 0;
+      const acc: typeof first.rows = [...first.rows];
+      let pagesFetched = 1;
+      while (
+        acc.length < total &&
+        first.rows.length > 0 &&
+        pagesFetched < CLIENT_MAX_PAGES
+      ) {
+        pagesFetched += 1;
+        const next = await listFn({
+          data: { ...baseInput, page: pagesFetched, pageSize: CLIENT_PAGE_SIZE },
+        });
+        if (!next.rows.length) break;
+        acc.push(...next.rows);
+      }
+      const clientTruncated =
+        acc.length < total && pagesFetched >= CLIENT_MAX_PAGES;
+      const baseTruncated = Boolean(
+        (first as { baseTruncated?: boolean }).baseTruncated,
+      );
+      if (baseTruncated) {
+        // The server-side base companies query hit its hard cap. The
+        // `total` reported by the server is itself truncated, so every
+        // downstream artifact would silently under-report otherwise.
+        console.warn(
+          "[companies-tab] server base dataset truncated by companies hard limit",
+          { total, fetched: acc.length, pageSize: CLIENT_PAGE_SIZE },
+        );
+      }
+      if (clientTruncated) {
+        console.warn(
+          "[companies-tab] dataset may be truncated by client safety ceiling",
+          {
+            total,
+            fetched: acc.length,
+            pageSize: CLIENT_PAGE_SIZE,
+            maxPages: CLIENT_MAX_PAGES,
+          },
+        );
+      }
+      return { rows: acc, total, baseTruncated, clientTruncated };
+    },
   });
 
   // Defensive dedupe + CNPJ-root grouping. The server already applies both
