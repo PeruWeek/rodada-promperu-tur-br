@@ -222,11 +222,15 @@ export const listAdminCompanies = createServerFn({ method: "POST" })
     // contacts are attached so the needle can match trade_name, legal_name,
     // tax_id, contact full_name and contact email (single normalised rule:
     // trim + lower-case + accent-insensitive; exact > prefix > partial).
-    q = q.limit(5000);
+    // Hard cap on the base companies fetch. We surface `baseTruncated`
+    // downstream so callers can warn explicitly instead of silently
+    // relying on this constant to always exceed the real universe.
+    const BASE_COMPANIES_LIMIT = 5000;
+    q = q.limit(BASE_COMPANIES_LIMIT);
     const { data: companiesRaw, error } = await q;
     if (error) throw new Error(error.message);
     const companies = companiesRaw ?? [];
-    if (companies.length === 0) return { rows: [], total: 0 };
+    if (companies.length === 0) return { rows: [], total: 0, baseTruncated: false };
 
     const ids = companies.map((c) => c.id);
     const [{ data: profs }, { data: exhProfs }] = await Promise.all([
@@ -424,7 +428,11 @@ export const listAdminCompanies = createServerFn({ method: "POST" })
     const total = filtered.length;
     const from = (data.page - 1) * data.pageSize;
     const paged = filtered.slice(from, from + data.pageSize);
-    return { rows: paged, total };
+    return {
+      rows: paged,
+      total,
+      baseTruncated: companies.length >= BASE_COMPANIES_LIMIT,
+    };
   });
 
 export const setVisitorLunchParticipation = createServerFn({ method: "POST" })
