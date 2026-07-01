@@ -591,14 +591,21 @@ export const listClienteOverviewBase = createServerFn({ method: "POST" })
     const eventId = await getCurrentEventIdWith(supabaseAdmin, data.eventId);
     if (!eventId) return { eventId: null, rows: [] as RegistrantRow[] };
 
-    const { data: rows, error } = await supabaseAdmin
-      .from("v_company_event_pipeline")
-      .select(
-        "id, event_id, company_id, primary_profile_id, company_role, company_trade_name, company_legal_name, country_code, state_code, city, registration_status, scheduling_status, scheduled_meetings_count, primary_contact_name, primary_contact_email, primary_contact_phone, primary_contact_whatsapp, created_at",
-      )
-      .eq("event_id", eventId)
-      .order("company_trade_name", { ascending: true });
-    if (error) throw new Error(error.message);
+    // Full-universe fetch via ranged loop — the cliente overview base
+    // feeds badge, KPIs, on-screen list AND XLSX/PDF exports from one
+    // collection; must not depend on PostgREST's default max-rows cap.
+    const rows = await fetchAllPipelineRowsRanged(
+      () =>
+        supabaseAdmin
+          .from("v_company_event_pipeline")
+          .select(
+            "id, event_id, company_id, primary_profile_id, company_role, company_trade_name, company_legal_name, country_code, state_code, city, registration_status, scheduling_status, scheduled_meetings_count, primary_contact_name, primary_contact_email, primary_contact_phone, primary_contact_whatsapp, created_at",
+          )
+          .eq("event_id", eventId)
+          .order("company_trade_name", { ascending: true })
+          .order("id", { ascending: true }),
+      "cliente-overview-base",
+    );
 
     type PipelineRow = {
       id: string;
