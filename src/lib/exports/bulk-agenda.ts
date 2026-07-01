@@ -70,13 +70,32 @@ export function buildConsolidatedAgendaPdf(opts: {
     autoTable(doc, {
       startY: 124,
       head: [["Horário", "Com / Con", "Mesa", "Detalhes"]],
-      body: entry.rows.map((r) => [r.time, r.withName, r.table, r.location ?? ""]),
+      body: entry.rows.map((r) => [
+        r.time,
+        r.website ? `${r.withName}\n${r.website}` : r.withName,
+        r.table,
+        r.location ?? "",
+      ]),
       styles: { fontSize: 10, cellPadding: 6 },
       headStyles: { fillColor: [30, 30, 30], textColor: 255 },
       alternateRowStyles: { fillColor: [245, 245, 245] },
       columnStyles: {
         0: { cellWidth: 100, fontStyle: "bold" },
         2: { cellWidth: 50, halign: "center" },
+      },
+      didDrawCell: (data) => {
+        if (data.section !== "body" || data.column.index !== 1) return;
+        const r = entry.rows[data.row.index];
+        if (!r?.website) return;
+        const url = /^https?:\/\//i.test(r.website)
+          ? r.website
+          : `https://${r.website}`;
+        const padLeft = 6;
+        const padBottom = 6;
+        const x = data.cell.x + padLeft;
+        const y = data.cell.y + data.cell.height - padBottom;
+        const w = doc.getTextWidth(r.website);
+        doc.link(x, y - 10, w, 12, { url });
       },
     });
   }
