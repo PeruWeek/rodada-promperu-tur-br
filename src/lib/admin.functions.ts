@@ -210,26 +210,42 @@ export const listAdminCompanies = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     await assertAdminOrStaffRead(context.userId);
 
-    let q = supabaseAdmin
-      .from("companies")
-      .select("id, trade_name, legal_name, tax_id, country_code, state_code, city, whatsapp, phone, general_phone, created_at, is_active, inactivated_at, inactivated_reason")
-      .order("trade_name", { ascending: true });
-    if (data.status === "active") q = q.eq("is_active", true);
-    else if (data.status === "inactive") q = q.eq("is_active", false);
-    // Fetch all matching companies; role/confirmed are computed post-query,
-    // so DB-level pagination would produce empty pages when most rows are
-    // filtered out. Search is post-query too and runs AFTER eligible
-    // contacts are attached so the needle can match trade_name, legal_name,
-    // tax_id, contact full_name and contact email (single normalised rule:
-    // trim + lower-case + accent-insensitive; exact > prefix > partial).
-    // Hard cap on the base companies fetch. We surface `baseTruncated`
-    // downstream so callers can warn explicitly instead of silently
-    // relying on this constant to always exceed the real universe.
-    const BASE_COMPANIES_LIMIT = 5000;
-    q = q.limit(BASE_COMPANIES_LIMIT);
-    const { data: companiesRaw, error } = await q;
-    if (error) throw new Error(error.message);
-    const companies = companiesRaw ?? [];
+    // Fetch the FULL universe of matching companies via server-side range
+    // pagination. Role/confirmed/search are computed post-query, so we
+    // cannot paginate at the DB layer for the caller — but we also must
+    // not depend on a single hard cap that silently truncates the base.
+    // We loop in chunks of BASE_COMPANIES_CHUNK until the source is
+    // exhausted, with a safety ceiling to bound worst-case memory. If the
+    // ceiling is hit we surface `baseTruncated` downstream so callers can
+    // warn explicitly — defense in depth, never the primary limit.
+    const BASE_COMPANIES_CHUNK = 1000;
+    const BASE_COMPANIES_SAFETY_CEILING = 100_000;
+    const buildBaseQuery = () => {
+      let q = supabaseAdmin
+        .from("companies")
+        .select(
+          "id, trade_name, legal_name, tax_id, country_code, state_code, city, whatsapp, phone, general_phone, created_at, is_active, inactivated_at, inactivated_reason",
+        )
+        .order("trade_name", { ascending: true })
+        .order("id", { ascending: true });
+      if (data.status === "active") q = q.eq("is_active", true);
+      else if (data.status === "inactive") q = q.eq("is_active", false);
+      return q;
+    };
+    const companies: Array<Record<string, unknown>> = [];
+    let baseTruncated = false;
+    for (let offset = 0; offset < BASE_COMPANIES_SAFETY_CEILING; offset += BASE_COMPANIES_CHUNK) {
+      const to = offset + BASE_COMPANIES_CHUNK - 1;
+      const { data: chunk, error } = await buildBaseQuery().range(offset, to);
+      if (error) throw new Error(error.message);
+      const rowsChunk = chunk ?? [];
+      companies.push(...(rowsChunk as Array<Record<string, unknown>>));
+      if (rowsChunk.length < BASE_COMPANIES_CHUNK) break;
+      if (offset + BASE_COMPANIES_CHUNK >= BASE_COMPANIES_SAFETY_CEILING) {
+        baseTruncated = true;
+        break;
+      }
+    }
     if (companies.length === 0) return { rows: [], total: 0, baseTruncated: false };
 
     const ids = companies.map((c) => c.id);
@@ -431,7 +447,7 @@ export const listAdminCompanies = createServerFn({ method: "POST" })
     return {
       rows: paged,
       total,
-      baseTruncated: companies.length >= BASE_COMPANIES_LIMIT,
+      baseTruncated,
     };
   });
 
