@@ -449,11 +449,17 @@ export const staffCompleteRegistration = createServerFn({ method: "POST" })
       if (companyId) {
         const canonicalCompany = await findCompanyByNormalizedTaxId(normalizedTaxId, companyId);
         if (canonicalCompany) {
-          // Caso crítico: o perfil já estava ligado a uma empresa stub/errada.
-          // Se o CNPJ digitado pertence a outra empresa, não atualizamos a stub;
-          // relinkamos o perfil para a empresa canônica existente.
-          await fillMissingCompanyFields(canonicalCompany, companyPatch);
-          companyId = canonicalCompany.id;
+          // NUNCA relinkar silenciosamente por CNPJ quando o perfil já está
+          // vinculado a uma empresa. Grupos empresariais (ex.: AQUARELA VIAGEM
+          // × COPASTUR) compartilham CNPJ e o campo CNPJ do modal não pode
+          // virar chave de reatribuição implícita — isso apagava a identidade
+          // operacional (trade_name) do contato. Reatribuição só pelo fluxo
+          // explícito em Admin › Empresas › Reatribuir contato.
+          throw new Error(
+            `O CNPJ informado pertence a outra empresa cadastrada (${canonicalCompany.trade_name ?? canonicalCompany.legal_name ?? "sem nome"}). ` +
+              `Para mover este contato para outra empresa, use o fluxo "Reatribuir contato" em Admin › Empresas. ` +
+              `O cadastro não foi alterado.`,
+          );
         } else {
           const { error } = await supabaseAdmin
             .from("companies")
@@ -461,15 +467,16 @@ export const staffCompleteRegistration = createServerFn({ method: "POST" })
             .eq("id", companyId);
           if (error) {
             if (isDuplicateTaxIdError(error.message) && normalizedTaxId) {
+              // Colisão em corrida: outra empresa canônica passou a ter esse
+              // CNPJ. Também não relinkamos aqui — devolvemos conflito para o
+              // operador decidir via fluxo de reatribuição.
               const existingAfterRace = await findCompanyByNormalizedTaxId(normalizedTaxId, companyId);
-              if (existingAfterRace) {
-                await fillMissingCompanyFields(existingAfterRace, companyPatch);
-                companyId = existingAfterRace.id;
-              } else {
-                throw new Error(
-                  "Este CNPJ já está cadastrado em outra empresa. Recarregue a página e tente novamente — o sistema deve reutilizar a empresa existente automaticamente.",
-                );
-              }
+              const otherName = existingAfterRace?.trade_name ?? existingAfterRace?.legal_name ?? "outra empresa";
+              throw new Error(
+                `O CNPJ informado já está cadastrado em ${otherName}. ` +
+                  `Reatribuição entre empresas deve ser feita pelo fluxo "Reatribuir contato" em Admin › Empresas. ` +
+                  `O cadastro não foi alterado.`,
+              );
             } else {
               throw new Error(`companies: ${error.message}`);
             }

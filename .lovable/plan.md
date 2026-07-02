@@ -1,95 +1,71 @@
 ## Causa raiz confirmada
 
-A regressão está em `profiles.company_id` da Naline — **não** em `companies.trade_name/legal_name` e **não** no pipeline.
+O fluxo `staffCompleteRegistration` (`src/lib/staff-registration.functions.ts`, linhas 449–456) trata o campo CNPJ como **chave canônica de reatribuição silenciosa**. Quando o perfil já está vinculado a uma empresa (`profile.company_id` presente) e o operador digita um CNPJ que pertence a outra empresa (`findCompanyByNormalizedTaxId`), o código faz:
 
-### Estado atual verificado
-
-**Companies (rótulos corretos):**
-| id | trade_name | legal_name | tax_id |
-|---|---|---|---|
-| `694245f4` | AQUARELA VIAGEM | COPASTUR TURISMO | (vazio) |
-| `2429b47f` | COPASTUR TURISMO | COPASTUR VIAGENS E TURISMO LTDA | 43.637.214/0001-86 |
-
-**Profiles:**
-- `e0438f6c` Naline `naline.correia@aquarelagencia.com.br` → hoje em `2429b47f` ❌ (deveria estar em `694245f4`)
-- `8ab580f6` Wellika `@copastur.com.br` → em `2429b47f` ✅
-- `5d7b1826` Emerson e `83a23881` Midori `@aquarelagencia.com.br` → em `694245f4` ✅
-
-**Pipeline (`company_event_pipeline` no evento ativo `d86be1b5`):** as duas empresas têm linhas próprias, sem cross-link nem resíduo.
-
-### Qual fluxo permitiu religar a Naline (07-01 18:54)
-
-Auditoria da janela `18:53–18:55` em 07-01:
-- 1 evento `profile.company_linked` com `actor_profile_id = NULL`, `old = 694245f4`, `new = 2429b47f`
-- 1 evento `pipeline.scheduling_status` derivado
-- **Nenhum** evento `company_contact_reassigned`
-
-Mapeamento dos writers de `profiles.company_id` no código (grep completo em `src/lib`):
-
-| Fluxo | Arquivo | Reescreve company de perfil já vinculado? | Emite `company_contact_reassigned`? |
-|---|---|---|---|
-| `reassignCompanyContact` | `company-contacts.functions.ts:275` | Sim | **Sim, sempre** (linha 337) |
-| `adminUpsertUserCompany` | `admin-auth.functions.ts:239` | Não — só atualiza `companies` do vínculo existente, ou vincula quando `company_id` é NULL | — |
-| `resolveReviewLink` / `resolveReviewMerge` | `review-queue.functions.ts:228/301` | Só quando `!target.company_id` (`if (!target.company_id && rev.company_id)`) | — |
-| `preRegistrationBulkImport` | `pre-registration.functions.ts:216` | Só quando `!existingProfile.company_id`; nunca sobrescreve perfil com `auth_user_id` | — |
-| `approveExhibitorRequest` | `exhibitor-requests.functions.ts:142` | Cenário de aprovação de expositor (perfil sem company) | — |
-| `staff-registration` bulk | `staff-registration.functions.ts:522` | Cenário de importação staff | — |
-| `qa-simulation` | `qa-simulation.functions.ts:125` | Somente contas QA (`qa_run_id`) | — |
-
-Conclusão: **nenhum fluxo operacional do app pode ter feito a religação de 07-01**, porque a única rota que reescreve `company_id` de um contato já vinculado é `reassignCompanyContact`, e ela sempre grava o par `company_contact_reassigned` no `audit_logs`. Esse par não existe.
-
-**Origem real:** UPDATE direto no banco (SQL Editor / psql / migração ad-hoc) sobre `profiles.company_id`. Só isso dispara o trigger `trg_audit_profiles` (que emite `profile.company_linked`) sem gerar o audit operacional — e explica também o `actor_profile_id = NULL`.
-
-## Correção
-
-### 1. Dado (via `supabase--insert`)
-
-```sql
-UPDATE public.profiles
-SET company_id = '694245f4-9ef4-464d-a595-1310694a9e6e'
-WHERE id = 'e0438f6c-f8dd-4196-9c0f-4912f177611c'
-  AND email = 'naline.correia@aquarelagencia.com.br'
-  AND company_id = '2429b47f-827d-4f2e-9a6b-f971396a752c';
-
-INSERT INTO public.audit_logs (actor_profile_id, action, payload)
-VALUES (
-  NULL,
-  'company_contact_reassigned',
-  jsonb_build_object(
-    'email', 'naline.correia@aquarelagencia.com.br',
-    'profile_id', 'e0438f6c-f8dd-4196-9c0f-4912f177611c',
-    'previous_company_id', '2429b47f-827d-4f2e-9a6b-f971396a752c',
-    'new_company_id', '694245f4-9ef4-464d-a595-1310694a9e6e',
-    'reason', 'Reconciliação: Naline pertence à AQUARELA VIAGEM (694245f4). Regressão registrada em 2026-07-01 18:54 veio de UPDATE direto em banco — não do fluxo reassignCompanyContact.',
-    'source', 'manual_reconciliation'
-  )
-);
+```ts
+if (canonicalCompany) {
+  await fillMissingCompanyFields(canonicalCompany, companyPatch);
+  companyId = canonicalCompany.id;   // ← relink implícito
+}
 ```
 
-Triggers cobrem o resto automaticamente:
-- `trg_profiles_recalc_company` reavalia `companies.is_active` de `694245f4` e `2429b47f`.
-- `trg_pipeline_after_profile_company` garante `pipeline_ensure_row(694245f4)`.
-- `trg_meetings_recalc_company_scheduling` não é acionado (não mexe em meetings), mas `pipeline_recalc_scheduling` já reflete o estado correto (a linha `2429b47f` continua `agendado_ok` — Wellika mantém as reuniões da COPASTUR).
+E logo depois (linhas 519–537) grava `profiles.company_id = canonicalCompany.id` e emite `profile.company_linked`.
 
-Sem alterações em `companies` (rótulos corretos) nem em `company_event_pipeline` (sem resíduo).
+### Evidência no banco (Naline Correia · `e0438f6c-f8dd-4196-9c0f-4912f177611c`)
 
-### 2. Prevenção operacional
+- Estado atual: vinculada a `2429b47f` (`COPASTUR`), deveria estar em `694245f4` (`AQUARELA VIAGEM`).
+- `audit_logs` mostra o novo relink em **2026-07-02 13:32:45** (`profile.company_linked`, sem `company_contact_reassigned` correspondente), logo após a reconciliação manual de 13:27 — assinatura idêntica à regressão de 07-01 18:54: veio do fluxo `Completar cadastro` ao digitar o CNPJ da COPASTUR.
 
-- O código do app já protege este caminho: a única rota UI, `reassignCompanyContact`, exige `reason` (mínimo 10 chars via UI) e grava audit próprio. Nenhum ajuste de código é necessário.
-- O que permitiu a regressão foi um UPDATE fora do app. Ficará documentado no `audit_logs` que qualquer futura mudança em `naline.correia@aquarelagencia.com.br` que a tire de `694245f4` é regressão — a entrada acima serve como marcador de decisão canônica.
+### Por que deixar em branco não reverte
 
-### 3. Validação pós-aplicação
+O ramo `else` da linha 458 só executa quando **não há** empresa canônica com aquele CNPJ. Com `tax_id` vazio, `normalizedTaxId = ""`, `findCompanyByNormalizedTaxId` retorna `null`, e o código apenas faz `UPDATE companies SET tax_id = null` na empresa **já relinkada** (`2429b47f`). Nunca há caminho de rollback para a empresa anterior — `profile.company_id` permanece na COPASTUR.
 
-`SELECT` para confirmar:
-- `naline.correia@aquarelagencia.com.br` → `company_id = 694245f4`
-- `wellika.medeiros@copastur.com.br` → `company_id = 2429b47f`
-- Emerson/Midori seguem em `694245f4`
-- `694245f4.is_active` conforme cálculo do trigger
-- Uma linha de pipeline por empresa no evento ativo
+---
 
-## Entrega ao final
+## Correção proposta
 
-1. **Causa raiz:** UPDATE direto em `profiles.company_id` em 2026-07-01 18:54, fora do fluxo `reassignCompanyContact` (sem `company_contact_reassigned`, `actor_profile_id = NULL`).
-2. **Dados alterados:** 1 linha em `profiles` + 1 entrada em `audit_logs`. Nenhum arquivo de código.
-3. **Resumo:** Naline volta para `694245f4` (AQUARELA VIAGEM). Rótulos e pipeline não precisam de correção.
-4. **Como fica evitado:** UI já expõe apenas `reassignCompanyContact` (com motivo obrigatório e audit próprio). A entrada em `audit_logs` marca a decisão canônica para futuras investigações.
+### 1. Eliminar relink implícito por CNPJ (arquivo `src/lib/staff-registration.functions.ts`)
+
+Na ramificação `if (companyId)` (perfil já vinculado):
+
+- **Remover** o `companyId = canonicalCompany.id` silencioso.
+- Se `normalizedTaxId` bater com uma empresa canônica **diferente** da atual, **rejeitar** a submissão com erro claro:
+
+  > “O CNPJ informado pertence a outra empresa cadastrada (`<trade_name>`). Reatribuição de contato entre empresas precisa ser feita pelo fluxo ‘Reatribuir contato’ (Admin › Empresas). O cadastro não foi alterado.”
+
+- Não gravar `tax_id` na empresa atual nesse caso (evita poluir a empresa correta com o CNPJ do grupo).
+- Continuar permitindo `UPDATE companies` normalmente quando o CNPJ digitado é o **da própria empresa** ou está vazio.
+- O tratamento de `duplicate key` (linhas 463–471) passa a devolver o mesmo erro de conflito (nunca relinka).
+
+Reuso silencioso por CNPJ permanece **apenas** no ramo de stub (`else` da linha 478 — `profile.company_id IS NULL`), que é o caso legítimo de importação/completação inicial.
+
+### 2. Reconciliar o caso Naline (dados, via `supabase--insert`)
+
+- `UPDATE profiles SET company_id = '694245f4-9ef4-464d-a595-1310694a9e6e' WHERE id = 'e0438f6c-f8dd-4196-9c0f-4912f177611c'`
+- `INSERT INTO audit_logs (action = 'company_contact_reassigned', payload = { reason: 'Reconciliação pós-fix: staffCompleteRegistration não pode relinkar por CNPJ. Naline pertence à AQUARELA VIAGEM.', source: 'manual_reconciliation', ... })`
+- Triggers existentes recalculam `companies.is_active` e limpam `company_event_pipeline`.
+
+### 3. Não mexer em outros fluxos
+
+- `reassignCompanyContact` (`src/lib/company-contacts.functions.ts`) continua sendo o único caminho autorizado para trocar `profiles.company_id` de contato já vinculado — já exige `reason` e grava `company_contact_reassigned`.
+- Nenhuma mudança de UI: o `CompleteRegistrationDialog` já mostra o erro devolvido pelo backend via `toast.error`.
+
+---
+
+## Critérios de aceite
+
+- Editar Naline (ou qualquer contato AQUARELA) e digitar CNPJ da COPASTUR: bloqueia com mensagem explicando o fluxo de reatribuição, `profiles.company_id` fica intacto, `companies.tax_id` da AQUARELA não é sobrescrito.
+- Deixar CNPJ em branco em edição posterior: também não altera vínculo (era o comportamento seguro; agora sem regressão).
+- Reatribuição real de empresa continua funcionando via `Admin › Empresas › Reatribuir contato`.
+- Stubs importados sem `company_id` continuam sendo reaproveitados por CNPJ (comportamento original preservado).
+- Estado atual da Naline: vinculada a `694245f4` (AQUARELA VIAGEM); Emerson e Midori inalterados; Wellika permanece em `2429b47f`.
+
+---
+
+## Entrega ao final da build
+
+1. arquivos alterados (`src/lib/staff-registration.functions.ts`) e migração de dados (Naline)
+2. causa raiz confirmada
+3. confirmação do relink de `profiles.company_id` e evidência de audit
+4. resumo da correção
+5. como o novo relink AQUARELA→COPASTUR foi evitado (erro explícito no backend, sem overwrite silencioso)
