@@ -194,6 +194,21 @@ export function RegistrantsTab({
   const [welcomeForce, setWelcomeForce] = useState(false);
   const [welcomeSending, setWelcomeSending] = useState(false);
   const [bookTarget, setBookTarget] = useState<RegistrantRow | null>(null);
+  const listAvailabilityFn = useServerFn(listExhibitorAvailability);
+  const availabilityQuery = useQuery({
+    queryKey: ["exhibitor-availability", "registrants-probe"],
+    queryFn: () => listAvailabilityFn({ data: {} }),
+    staleTime: 30_000,
+  });
+
+  const availabilityRows = (availabilityQuery.data?.rows ?? []) as ExhibitorAvailabilityRow[];
+
+  const hasAnyFreeSlot = useMemo(() => {
+    return availabilityRows.some(
+      (r) => r.status !== "lotada" && (r.free_slots?.length ?? 0) > 0,
+    );
+  }, [availabilityRows]);
+
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState<PageSizeOption>(50);
 
