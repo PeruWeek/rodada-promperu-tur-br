@@ -35,6 +35,7 @@ import {
   type FreeSlot,
 } from "@/lib/exhibitor-availability.functions";
 import { listEventRegistrants } from "@/lib/staff-exports.functions";
+import { BOOKING_INVALIDATE_KEYS } from "@/lib/booking-invalidate-keys";
 
 type StatusFilter =
   | "all"
@@ -43,27 +44,6 @@ type StatusFilter =
   | "com_vaga"
   | "lotada";
 
-// Query keys efetivamente utilizadas em todo o projeto (varridas com rg).
-// Após um agendamento manual, invalidamos todas as coleções que
-// influenciam contadores/listagens/agenda para não gerar divergência de tela.
-const INVALIDATE_KEYS: Array<readonly [string]> = [
-  ["exhibitor-availability"],
-  ["my-agenda"],
-  ["table-agenda"],
-  ["staff-agenda"],
-  ["booking-slots"],
-  ["registrants"],
-  ["registrants-completion"],
-  ["cliente-overview-base"],
-  ["admin-companies"],
-  ["pipeline"],
-  ["pipeline-list"],
-  ["pipeline-scheduling"],
-  ["pipeline-kpis"],
-  ["pipeline-followups"],
-  ["pipeline-alerts"],
-  ["visitor-ready"],
-];
 
 function statusBadge(status: ExhibitorAvailabilityStatus, t: (k: string) => string) {
   switch (status) {
@@ -404,7 +384,7 @@ function ManualBookingDialog({
     },
     onSuccess: () => {
       toast.success(t("availability.book.success"));
-      for (const key of INVALIDATE_KEYS) qc.invalidateQueries({ queryKey: key });
+      for (const key of BOOKING_INVALIDATE_KEYS) qc.invalidateQueries({ queryKey: key });
       onClose();
     },
     onError: (e: Error) => toast.error(e.message),
