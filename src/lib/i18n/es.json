@@ -418,8 +418,8 @@
       "noAgenda": "Este participante no tiene reuniones agendadas.",
       "inactiveBadge": "Inactivo",
       "actions": {
-        "cancel": "Cancelar inscripción",
-        "reactivate": "Reactivar inscripción",
+        "cancel": "Desactivar inscrito",
+        "reactivate": "Reactivar acceso",
         "replace": "Sustituir contacto",
         "book": "Agendar"
       },
@@ -434,13 +434,13 @@
         "agendaComplete": "Agenda operativa completa — no hay más horarios libres en ninguna expositora elegible."
       },
       "cancelDialog": {
-        "title": "Cancelar inscripción",
-        "description": "El usuario {{name}} será desactivado y no podrá acceder a la plataforma. El historial, las reuniones y la empresa se preservan. Esta acción es reversible.",
-        "exhibitorImpact": "Este inscrito es expositor. Al cancelar: la empresa y la mesa asignada se mantienen; las reuniones ya agendadas siguen en el historial, pero el expositor no podrá ingresar. Revisa la mesa/agenda si es necesario.",
-        "confirm": "Cancelar inscripción"
+        "title": "Desactivar inscrito",
+        "description": "El usuario {{name}} será desactivado y no podrá acceder a la plataforma. Empresa, reuniones e historial se preservan — la inscripción a la ronda no se cancela. Esta acción es reversible.",
+        "exhibitorImpact": "Este inscrito es expositor. Al desactivar: la empresa y la mesa asignada se mantienen; las reuniones ya agendadas siguen en el historial, pero el expositor no podrá ingresar. Revisa la mesa/agenda si es necesario.",
+        "confirm": "Desactivar inscrito"
       },
       "reactivateDialog": {
-        "title": "Reactivar inscripción",
+        "title": "Reactivar acceso",
         "description": "El usuario {{name}} volverá a tener acceso a la plataforma.",
         "confirm": "Reactivar"
       },
@@ -454,8 +454,8 @@
         "confirm": "Guardar sustitución"
       },
       "toasts": {
-        "cancelled": "Inscripción cancelada.",
-        "reactivated": "Inscripción reactivada.",
+        "cancelled": "Inscrito desactivado.",
+        "reactivated": "Acceso reactivado.",
         "replaced": "Contacto sustituido."
       },
       "bulk": {
