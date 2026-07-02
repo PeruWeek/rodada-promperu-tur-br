@@ -48,13 +48,13 @@ async function cancelFutureMeetingsForRegistrant(params: {
   const nowIso = new Date().toISOString();
   const { data: futureMeetings, error: mErr } = await supabaseAdmin
     .from("meetings")
-    .select("id, event_id, table_id, slot_id, time_slots!inner(start_at)")
+    .select("id, event_id, table_id, slot_id, time_slots!meetings_slot_id_fkey!inner(start_at)")
     .eq("visitor_profile_id", profile.id)
     .eq("status", "scheduled")
     .gt("time_slots.start_at", nowIso);
   if (mErr) throw new Error(mErr.message);
 
-  const rows = (futureMeetings ?? []) as Array<{
+  const rows = (futureMeetings ?? []) as unknown as Array<{
     id: string;
     event_id: string;
     table_id: string;
@@ -87,9 +87,9 @@ async function cancelFutureMeetingsForRegistrant(params: {
       return {
         event_id: m.event_id,
         recipient_profile_id: t.exhibitor_profile_id,
-        type: "meeting_cancelled",
-        channel: "in_app",
-        status: "sent",
+        type: "meeting_cancelled" as const,
+        channel: "in_app" as const,
+        status: "sent" as const,
         title: "Reunião cancelada",
         body: `${profile.full_name} teve o acesso inativado; a reunião foi cancelada e o horário liberado.`,
         data: {
