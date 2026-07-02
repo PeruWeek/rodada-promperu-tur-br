@@ -510,14 +510,23 @@
       "title": "Credenciamento",
       "help": "Use esta tela para registrar a chegada do participante no evento.",
       "helpSecondary": "Operação destinada ao Staff e à coordenação para controle de presença no credenciamento.",
-      "searchPlaceholder": "Buscar participante por nome ou e-mail...",
+      "searchPlaceholder": "Buscar por nome, e-mail ou empresa...",
       "noResults": "Nenhum participante encontrado.",
       "checked": "Presente",
       "check": "Marcar chegada",
       "done": "Chegada confirmada!",
       "already": "Participante já estava credenciado.",
       "checkedAt": "Credenciado em {{date}}",
-      "checkedBy": "por {{name}}"
+      "checkedBy": "por {{name}}",
+      "noEvent": "Nenhum evento ativo encontrado.",
+      "emptyEvent": "Nenhum participante elegível para este evento ainda.",
+      "pipelineStatus": {
+        "em_preenchimento": "Cadastro em preenchimento",
+        "cadastro_concluido": "Cadastro concluído",
+        "aguardando_aprovacao": "Aguardando aprovação",
+        "aprovado": "Aprovado",
+        "bloqueado": "Bloqueado"
+      }
     },
     "users": {
       "searchPlaceholder": "Buscar usuário...",

@@ -491,14 +491,23 @@
       "title": "Acreditación",
       "help": "Usa esta pantalla para registrar la llegada del participante al evento.",
       "helpSecondary": "Operación destinada al Staff y a la coordinación para el control de presencia en la acreditación.",
-      "searchPlaceholder": "Buscar participante por nombre o email...",
+      "searchPlaceholder": "Buscar por nombre, email o empresa...",
       "noResults": "No se encontraron participantes.",
       "checked": "Presente",
       "check": "Marcar llegada",
       "done": "¡Llegada confirmada!",
       "already": "El participante ya estaba acreditado.",
       "checkedAt": "Acreditado el {{date}}",
-      "checkedBy": "por {{name}}"
+      "checkedBy": "por {{name}}",
+      "noEvent": "Ningún evento activo encontrado.",
+      "emptyEvent": "Aún no hay participantes elegibles para este evento.",
+      "pipelineStatus": {
+        "em_preenchimento": "Registro en curso",
+        "cadastro_concluido": "Registro concluido",
+        "aguardando_aprovacao": "Esperando aprobación",
+        "aprovado": "Aprobado",
+        "bloqueado": "Bloqueado"
+      }
     },
     "users": {
       "searchPlaceholder": "Buscar usuario...",

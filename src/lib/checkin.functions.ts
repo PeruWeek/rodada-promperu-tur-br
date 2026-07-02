@@ -21,12 +21,11 @@ async function isAdminOrStaff(userId: string) {
 }
 
 // List of profiles eligible for general check-in at an event.
-// Eligibility rules (enforced server-side):
-//  - registration completed for the participant's company at this event
-//    (company_event_pipeline.registration_status in cadastro_concluido / aprovado)
-//  - at least one meeting in the event with status scheduled / done / no_show
-//    (the participant is either the visitor or the table's exhibitor)
-// `is_active` alone is NOT sufficient.
+// Eligibility = operational presence in the event (union of three sources):
+//  1) visitor_profile_id of meetings with status scheduled|done|no_show
+//  2) exhibitor_profile_id of event_tables referenced by those meetings
+//  3) exhibitor_profile_id owning ANY event_tables of the event (with or without meetings)
+// pipeline registration_status is INFORMATIONAL only (no longer filters).
 export const listCheckinEligible = createServerFn({ method: "POST" })
   .inputValidator((input) =>
     z
@@ -52,80 +51,122 @@ export const listCheckinEligible = createServerFn({ method: "POST" })
         .maybeSingle();
       eventId = ev?.id ?? null;
     }
-    if (!eventId) return { eventId: null, profiles: [] as Array<{ id: string; auth_user_id: string | null; full_name: string | null; email: string | null; company_id: string | null; company: string | null }> };
+    type EligibleProfile = {
+      id: string;
+      auth_user_id: string | null;
+      full_name: string | null;
+      email: string | null;
+      company_id: string | null;
+      company: string | null;
+      pipeline_status: string | null;
+    };
+    if (!eventId) return { eventId: null, profiles: [] as EligibleProfile[] };
 
-    // 1) Meetings of the event with relevant statuses → eligible profile ids.
-    const { data: meetings } = await supabaseAdmin
-      .from("meetings")
-      .select("visitor_profile_id, table_id, status")
-      .eq("event_id", eventId)
-      .in("status", ["scheduled", "done", "no_show"]);
-    const visitorIds = new Set<string>();
-    const tableIds = new Set<string>();
-    for (const m of meetings ?? []) {
-      if (m.visitor_profile_id) visitorIds.add(m.visitor_profile_id as string);
-      if (m.table_id) tableIds.add(m.table_id as string);
-    }
-    const exhibitorIds = new Set<string>();
-    if (tableIds.size > 0) {
-      const { data: tables } = await supabaseAdmin
+    // 1) In parallel: active meetings + ALL event_tables of the event.
+    const [meetingsRes, tablesRes] = await Promise.all([
+      supabaseAdmin
+        .from("meetings")
+        .select("visitor_profile_id, table_id, status")
+        .eq("event_id", eventId)
+        .in("status", ["scheduled", "done", "no_show"]),
+      supabaseAdmin
         .from("event_tables")
         .select("id, exhibitor_profile_id")
-        .in("id", Array.from(tableIds));
-      for (const t of tables ?? []) {
+        .eq("event_id", eventId),
+    ]);
+    const meetings = meetingsRes.data ?? [];
+    const tables = tablesRes.data ?? [];
+
+    const visitorIds = new Set<string>();
+    const meetingTableIds = new Set<string>();
+    for (const m of meetings) {
+      if (m.visitor_profile_id) visitorIds.add(m.visitor_profile_id as string);
+      if (m.table_id) meetingTableIds.add(m.table_id as string);
+    }
+    const exhibitorIds = new Set<string>();
+    const knownTableIds = new Set<string>();
+    for (const t of tables) {
+      knownTableIds.add(t.id as string);
+      if (t.exhibitor_profile_id) exhibitorIds.add(t.exhibitor_profile_id as string);
+    }
+    // Safety net: meeting references a table not returned in the first batch.
+    const missingTableIds = Array.from(meetingTableIds).filter((id) => !knownTableIds.has(id));
+    if (missingTableIds.length > 0) {
+      const { data: extra } = await supabaseAdmin
+        .from("event_tables")
+        .select("id, exhibitor_profile_id")
+        .in("id", missingTableIds);
+      for (const t of extra ?? []) {
         if (t.exhibitor_profile_id) exhibitorIds.add(t.exhibitor_profile_id as string);
       }
     }
-    const candidateIds = new Set<string>([...visitorIds, ...exhibitorIds]);
-    if (candidateIds.size === 0) return { eventId, profiles: [] };
 
-    // 2) Restrict to companies with completed registration in this event.
-    const { data: pipeRows } = await supabaseAdmin
-      .from("company_event_pipeline")
-      .select("company_id, registration_status")
-      .eq("event_id", eventId)
-      .in("registration_status", ["cadastro_concluido", "aprovado"]);
-    const eligibleCompanies = new Set<string>(
-      (pipeRows ?? []).map((r) => r.company_id as string),
-    );
+    const candidateIds = Array.from(new Set<string>([...visitorIds, ...exhibitorIds]));
+    if (candidateIds.length === 0) return { eventId, profiles: [] as EligibleProfile[] };
 
-    // 3) Load candidate profiles, filter by eligible company and search term.
-    let pq = supabaseAdmin
+    // 2) Load candidate profiles (no company filter — pipeline is informational).
+    const { data: profs, error } = await supabaseAdmin
       .from("profiles")
       .select("id, auth_user_id, full_name, email, company_id")
-      .in("id", Array.from(candidateIds))
-      .order("full_name")
-      .limit(data.limit ?? 200);
-    if (data.q?.trim()) {
-      const term = `%${data.q.trim()}%`;
-      pq = pq.or(`full_name.ilike.${term},email.ilike.${term}`);
-    }
-    const { data: profs, error } = await pq;
+      .in("id", candidateIds)
+      .order("full_name");
     if (error) throw new Error(error.message);
-    const eligibleProfiles = (profs ?? []).filter(
-      (p) => p.company_id && eligibleCompanies.has(p.company_id as string),
-    );
 
-    // 4) Resolve company names.
+    // Dedup by profiles.id (natural via Map).
+    const profMap = new Map<string, typeof profs[number]>();
+    for (const p of profs ?? []) profMap.set(p.id as string, p);
+
+    // 3) Resolve company trade_name and pipeline status per batch.
     const compIds = Array.from(
-      new Set(eligibleProfiles.map((p) => p.company_id).filter(Boolean) as string[]),
+      new Set(Array.from(profMap.values()).map((p) => p.company_id).filter(Boolean) as string[]),
     );
-    const { data: comps } = compIds.length
-      ? await supabaseAdmin.from("companies").select("id, trade_name").in("id", compIds)
-      : { data: [] as Array<{ id: string; trade_name: string }> };
-    const compMap = new Map((comps ?? []).map((c) => [c.id as string, c.trade_name as string]));
+    const [compsRes, pipeRes] = await Promise.all([
+      compIds.length
+        ? supabaseAdmin.from("companies").select("id, trade_name").in("id", compIds)
+        : Promise.resolve({ data: [] as Array<{ id: string; trade_name: string }> }),
+      compIds.length
+        ? supabaseAdmin
+            .from("company_event_pipeline")
+            .select("company_id, registration_status")
+            .eq("event_id", eventId)
+            .in("company_id", compIds)
+        : Promise.resolve({ data: [] as Array<{ company_id: string; registration_status: string }> }),
+    ]);
+    const compMap = new Map(
+      (compsRes.data ?? []).map((c) => [c.id as string, c.trade_name as string]),
+    );
+    const pipeMap = new Map(
+      (pipeRes.data ?? []).map((r) => [r.company_id as string, r.registration_status as string]),
+    );
 
-    return {
-      eventId,
-      profiles: eligibleProfiles.map((p) => ({
-        id: p.id as string,
-        auth_user_id: (p.auth_user_id as string) ?? null,
-        full_name: (p.full_name as string) ?? null,
-        email: (p.email as string) ?? null,
-        company_id: (p.company_id as string) ?? null,
-        company: p.company_id ? compMap.get(p.company_id as string) ?? null : null,
-      })),
-    };
+    // 4) Merge → informational shape.
+    let merged: EligibleProfile[] = Array.from(profMap.values()).map((p) => ({
+      id: p.id as string,
+      auth_user_id: (p.auth_user_id as string) ?? null,
+      full_name: (p.full_name as string) ?? null,
+      email: (p.email as string) ?? null,
+      company_id: (p.company_id as string) ?? null,
+      company: p.company_id ? compMap.get(p.company_id as string) ?? null : null,
+      pipeline_status: p.company_id ? pipeMap.get(p.company_id as string) ?? null : null,
+    }));
+
+    // 5) In-memory free-text search over full_name | email | company (trade_name).
+    const term = data.q?.trim().toLowerCase() ?? "";
+    if (term) {
+      merged = merged.filter((p) => {
+        const hay = [p.full_name, p.email, p.company]
+          .filter(Boolean)
+          .map((s) => (s as string).toLowerCase())
+          .join(" \u0001 ");
+        return hay.includes(term);
+      });
+    } else {
+      // Only cap when there is no search term — a search must never silently hide a match.
+      const cap = data.limit ?? 500;
+      if (merged.length > cap) merged = merged.slice(0, cap);
+    }
+
+    return { eventId, profiles: merged };
   });
 
 // General event check-in (admin/staff scans/marks a profile as present)

@@ -676,15 +676,26 @@ function CheckinTab() {
       <div className="mt-3 space-y-1.5">
         {isLoading ? (
           <Skeleton className="h-40 w-full" />
+        ) : !data?.event ? (
+          <p className="py-4 text-sm text-muted-foreground">{t("admin.checkin.noEvent")}</p>
         ) : (data?.profiles ?? []).length === 0 ? (
-          <p className="py-4 text-sm text-muted-foreground">{t("admin.checkin.noResults")}</p>
+          <p className="py-4 text-sm text-muted-foreground">
+            {q.trim() ? t("admin.checkin.noResults") : t("admin.checkin.emptyEvent")}
+          </p>
         ) : (
           data!.profiles.map((p) => {
             const info = data!.checks.get(p.id);
             return (
               <div key={p.id} className="flex items-center justify-between gap-3 rounded-md border border-border p-3">
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-medium">{p.full_name}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="truncate text-sm font-medium">{p.full_name}</p>
+                    {p.pipeline_status && (
+                      <Badge variant="outline" className="shrink-0 text-[10px]">
+                        {t(`admin.checkin.pipelineStatus.${p.pipeline_status}`, { defaultValue: p.pipeline_status })}
+                      </Badge>
+                    )}
+                  </div>
                   <p className="truncate text-xs text-muted-foreground">{[p.company, p.email].filter(Boolean).join(" · ")}</p>
                   {info && (
                     <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
