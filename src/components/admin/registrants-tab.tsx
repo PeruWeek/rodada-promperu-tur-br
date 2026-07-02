@@ -604,7 +604,7 @@ export function RegistrantsTab({
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 {r.role === "visitor" &&
-                  (r.profile_meetings_count ?? 0) === 0 &&
+                  hasAnyFreeSlot &&
                   !!r.auth_user_id &&
                   r.is_active === true && (
                     <Button
