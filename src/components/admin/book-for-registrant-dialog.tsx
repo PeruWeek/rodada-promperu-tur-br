@@ -163,7 +163,21 @@ export function BookForRegistrantDialog({
       }
       onClose();
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => {
+      const msg = e.message || "";
+      if (
+        msg.includes("uq_meetings_table_slot_scheduled") ||
+        msg.includes("acabou de ser reservado")
+      ) {
+        toast.error(
+          "Este horário acabou de ser reservado por outro participante. Escolha outro slot.",
+        );
+        qc.invalidateQueries({ queryKey: ["exhibitor-availability"] });
+        qc.invalidateQueries({ queryKey: ["booking-slots"] });
+      } else {
+        toast.error(msg);
+      }
+    },
   });
 
   if (!target) return null;
