@@ -456,6 +456,21 @@ export const bookMeetingForVisitor = createServerFn({ method: "POST" })
       );
     }
 
+    // Guarda 3.5 — no máximo 1 reunião ativa por (table_id, slot_id).
+    // Garantia dura pelo índice único parcial `uq_meetings_table_slot_scheduled`.
+    const { data: slotTaken } = await supabaseAdmin
+      .from("meetings")
+      .select("id")
+      .eq("table_id", data.tableId)
+      .eq("slot_id", data.slotId)
+      .eq("status", "scheduled")
+      .maybeSingle();
+    if (slotTaken) {
+      throw new Error(
+        "Este horário acabou de ser reservado por outro participante. Escolha outro slot.",
+      );
+    }
+
     // Guarda 4 — mesma empresa visitante já no mesmo (start_at, end_at) do evento
     // em qualquer mesa. Enforçado no banco por trg_meetings_one_company_per_slot;
     // aqui é apenas o caminho amigável de erro.
