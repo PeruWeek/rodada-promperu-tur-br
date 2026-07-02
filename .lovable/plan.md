@@ -1,71 +1,99 @@
-## Causa raiz confirmada
+## Auditoria global (executada agora)
 
-O fluxo `staffCompleteRegistration` (`src/lib/staff-registration.functions.ts`, linhas 449–456) trata o campo CNPJ como **chave canônica de reatribuição silenciosa**. Quando o perfil já está vinculado a uma empresa (`profile.company_id` presente) e o operador digita um CNPJ que pertence a outra empresa (`findCompanyByNormalizedTaxId`), o código faz:
-
-```ts
-if (canonicalCompany) {
-  await fillMissingCompanyFields(canonicalCompany, companyPatch);
-  companyId = canonicalCompany.id;   // ← relink implícito
-}
+```sql
+SELECT p.company_id, m.event_id, ts.start_at,
+       array_agg(m.id ORDER BY m.created_at) meeting_ids, count(*) n
+FROM meetings m
+JOIN profiles p    ON p.id  = m.visitor_profile_id
+JOIN time_slots ts ON ts.id = m.slot_id
+WHERE m.status = 'scheduled' AND p.company_id IS NOT NULL
+GROUP BY p.company_id, m.event_id, ts.start_at
+HAVING count(*) > 1;
 ```
 
-E logo depois (linhas 519–537) grava `profiles.company_id = canonicalCompany.id` e emite `profile.company_linked`.
+**Conflitos encontrados: 1** — BWT OPERADORA, evento `d86be1b5…`, slot 09:15 BRT (`12:15:00+00`), meetings `ea4144a9…` (mesa 10, manter) e `2021bbf2…` (mesa 11, cancelar). Nenhum outro caso legado.
 
-### Evidência no banco (Naline Correia · `e0438f6c-f8dd-4196-9c0f-4912f177611c`)
+**Reconciliação**: `UPDATE meetings SET status='cancelled', cancel_reason='admin_dedupe_company_slot' WHERE id='2021bbf2-4494-4334-a04d-22f6e0b6de4b'` via `supabase--insert` + `audit_logs` + `notifications` (`meeting_cancelled`) ao expositor da mesa 11.
 
-- Estado atual: vinculada a `2429b47f` (`COPASTUR`), deveria estar em `694245f4` (`AQUARELA VIAGEM`).
-- `audit_logs` mostra o novo relink em **2026-07-02 13:32:45** (`profile.company_linked`, sem `company_contact_reassigned` correspondente), logo após a reconciliação manual de 13:27 — assinatura idêntica à regressão de 07-01 18:54: veio do fluxo `Completar cadastro` ao digitar o CNPJ da COPASTUR.
+## Semântica do horário
 
-### Por que deixar em branco não reverte
+Verificado: todos os `time_slots` do evento têm duração uniforme de 15min e o self-join `a.start_at < b.end_at AND b.start_at < a.end_at` (excluindo pares idênticos) retorna 0. Comparação por `(start_at, end_at)` é semanticamente equivalente a overlap. Não vira range.
 
-O ramo `else` da linha 458 só executa quando **não há** empresa canônica com aquele CNPJ. Com `tax_id` vazio, `normalizedTaxId = ""`, `findCompanyByNormalizedTaxId` retorna `null`, e o código apenas faz `UPDATE companies SET tax_id = null` na empresa **já relinkada** (`2429b47f`). Nunca há caminho de rollback para a empresa anterior — `profile.company_id` permanece na COPASTUR.
+## Guardas backend
 
----
+`src/lib/booking.functions.ts` e `src/lib/exhibitor-availability.functions.ts`: antes do INSERT, verificar existência de meeting `scheduled` no mesmo `event_id` + `(start_at, end_at)` cujo `visitor.company_id` seja igual ao da empresa alvo. Mensagem canônica: `Esta empresa já possui uma reunião agendada neste horário.` Guarda por `visitor_profile_id` continua.
 
-## Correção proposta
+## Trigger final (com short-circuit)
 
-### 1. Eliminar relink implícito por CNPJ (arquivo `src/lib/staff-registration.functions.ts`)
+```sql
+CREATE OR REPLACE FUNCTION public.enforce_one_company_per_slot()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_company uuid;
+  v_start   timestamptz;
+  v_end     timestamptz;
+  v_clash   uuid;
+BEGIN
+  -- Short-circuit: UPDATE que não mexe em nenhum campo relevante à regra.
+  IF TG_OP = 'UPDATE'
+     AND NEW.status             = OLD.status
+     AND NEW.event_id           = OLD.event_id
+     AND NEW.slot_id            = OLD.slot_id
+     AND NEW.visitor_profile_id = OLD.visitor_profile_id
+  THEN
+    RETURN NEW;
+  END IF;
 
-Na ramificação `if (companyId)` (perfil já vinculado):
+  IF NEW.status IS DISTINCT FROM 'scheduled' THEN
+    RETURN NEW;
+  END IF;
 
-- **Remover** o `companyId = canonicalCompany.id` silencioso.
-- Se `normalizedTaxId` bater com uma empresa canônica **diferente** da atual, **rejeitar** a submissão com erro claro:
+  SELECT company_id INTO v_company FROM public.profiles WHERE id = NEW.visitor_profile_id;
+  IF v_company IS NULL THEN
+    RETURN NEW;
+  END IF;
 
-  > “O CNPJ informado pertence a outra empresa cadastrada (`<trade_name>`). Reatribuição de contato entre empresas precisa ser feita pelo fluxo ‘Reatribuir contato’ (Admin › Empresas). O cadastro não foi alterado.”
+  SELECT start_at, end_at INTO v_start, v_end
+  FROM public.time_slots WHERE id = NEW.slot_id;
 
-- Não gravar `tax_id` na empresa atual nesse caso (evita poluir a empresa correta com o CNPJ do grupo).
-- Continuar permitindo `UPDATE companies` normalmente quando o CNPJ digitado é o **da própria empresa** ou está vazio.
-- O tratamento de `duplicate key` (linhas 463–471) passa a devolver o mesmo erro de conflito (nunca relinka).
+  SELECT m.id INTO v_clash
+  FROM public.meetings m
+  JOIN public.profiles   p  ON p.id  = m.visitor_profile_id
+  JOIN public.time_slots ts ON ts.id = m.slot_id
+  WHERE m.event_id   = NEW.event_id
+    AND m.status     = 'scheduled'
+    AND m.id        <> COALESCE(NEW.id, '00000000-0000-0000-0000-000000000000'::uuid)
+    AND p.company_id = v_company
+    AND ts.start_at  = v_start
+    AND ts.end_at    = v_end
+  LIMIT 1;
 
-Reuso silencioso por CNPJ permanece **apenas** no ramo de stub (`else` da linha 478 — `profile.company_id IS NULL`), que é o caso legítimo de importação/completação inicial.
+  IF v_clash IS NOT NULL THEN
+    RAISE EXCEPTION 'Esta empresa já possui uma reunião agendada neste horário.'
+      USING ERRCODE = 'check_violation';
+  END IF;
 
-### 2. Reconciliar o caso Naline (dados, via `supabase--insert`)
+  RETURN NEW;
+END $$;
 
-- `UPDATE profiles SET company_id = '694245f4-9ef4-464d-a595-1310694a9e6e' WHERE id = 'e0438f6c-f8dd-4196-9c0f-4912f177611c'`
-- `INSERT INTO audit_logs (action = 'company_contact_reassigned', payload = { reason: 'Reconciliação pós-fix: staffCompleteRegistration não pode relinkar por CNPJ. Naline pertence à AQUARELA VIAGEM.', source: 'manual_reconciliation', ... })`
-- Triggers existentes recalculam `companies.is_active` e limpam `company_event_pipeline`.
+DROP TRIGGER IF EXISTS trg_meetings_one_company_per_slot ON public.meetings;
+CREATE TRIGGER trg_meetings_one_company_per_slot
+BEFORE INSERT OR UPDATE ON public.meetings          -- sem OF <cols>: sem bypass
+FOR EACH ROW EXECUTE FUNCTION public.enforce_one_company_per_slot();
+```
 
-### 3. Não mexer em outros fluxos
+Notas:
+- Short-circuit compara **valores** (não colunas listadas no `OF`), então continua sem bypass: qualquer mudança em `status`/`event_id`/`slot_id`/`visitor_profile_id` — inclusive via UPDATE genérico — reentra na validação. Mudanças em colunas irrelevantes (`cancel_reason`, `updated_at`, notas) saem baratas.
+- `NULL`s dessas colunas: em `meetings` as quatro são `NOT NULL`, então a comparação `=` é segura; se algum dia deixarem de ser, trocar por `IS NOT DISTINCT FROM`.
 
-- `reassignCompanyContact` (`src/lib/company-contacts.functions.ts`) continua sendo o único caminho autorizado para trocar `profiles.company_id` de contato já vinculado — já exige `reason` e grava `company_contact_reassigned`.
-- Nenhuma mudança de UI: o `CompleteRegistrationDialog` já mostra o erro devolvido pelo backend via `toast.error`.
+## Frontend do agendamento manual
 
----
+`src/components/admin/book-for-registrant-dialog.tsx` e `src/components/booking-dialog.tsx`: filtrar `free_slots` removendo `(start_at, end_at)` já ocupados por outros perfis da mesma `company_id` do alvo/usuário. Race no submit: toast com a mensagem canônica antes de chamar o backend.
 
-## Critérios de aceite
+## Entrega ao usuário
 
-- Editar Naline (ou qualquer contato AQUARELA) e digitar CNPJ da COPASTUR: bloqueia com mensagem explicando o fluxo de reatribuição, `profiles.company_id` fica intacto, `companies.tax_id` da AQUARELA não é sobrescrito.
-- Deixar CNPJ em branco em edição posterior: também não altera vínculo (era o comportamento seguro; agora sem regressão).
-- Reatribuição real de empresa continua funcionando via `Admin › Empresas › Reatribuir contato`.
-- Stubs importados sem `company_id` continuam sendo reaproveitados por CNPJ (comportamento original preservado).
-- Estado atual da Naline: vinculada a `694245f4` (AQUARELA VIAGEM); Emerson e Midori inalterados; Wellika permanece em `2429b47f`.
-
----
-
-## Entrega ao final da build
-
-1. arquivos alterados (`src/lib/staff-registration.functions.ts`) e migração de dados (Naline)
-2. causa raiz confirmada
-3. confirmação do relink de `profiles.company_id` e evidência de audit
-4. resumo da correção
-5. como o novo relink AQUARELA→COPASTUR foi evitado (erro explícito no backend, sem overwrite silencioso)
+1. Causa raiz: validação de duplicidade só existia por `visitor_profile_id`, permitindo agendar a mesma empresa em mesas diferentes no mesmo horário via fluxo manual admin.
+2. Cancelamento da mesa 11 confirmado por `SELECT` pós-reconciliação.
+3. Arquivos alterados: `src/lib/booking.functions.ts`, `src/lib/exhibitor-availability.functions.ts`, `src/components/admin/book-for-registrant-dialog.tsx`, `src/components/booking-dialog.tsx` + 1 migração.
+4. Migração: função `enforce_one_company_per_slot` + trigger `trg_meetings_one_company_per_slot` (BEFORE INSERT OR UPDATE, sem lista de colunas, com short-circuit por valores).
+5. Prova: auditoria global reexecutada (retorno vazio) + tentativa de INSERT duplicado bloqueada pela trigger com a mensagem canônica.
