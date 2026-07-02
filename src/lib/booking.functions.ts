@@ -99,6 +99,22 @@ export const bookMeeting = createServerFn({ method: "POST" })
       );
     }
 
+    // Slot-mesa guard: no máximo 1 reunião ativa por (table_id, slot_id).
+    // Garantia dura pelo índice único parcial `uq_meetings_table_slot_scheduled`;
+    // esta checagem apenas fornece mensagem amigável na corrida perdida.
+    const { data: slotTaken } = await supabaseAdmin
+      .from("meetings")
+      .select("id")
+      .eq("table_id", data.tableId)
+      .eq("slot_id", data.slotId)
+      .eq("status", "scheduled")
+      .maybeSingle();
+    if (slotTaken) {
+      throw new Error(
+        "Este horário acabou de ser reservado por outro participante. Escolha outro slot.",
+      );
+    }
+
     // Company-slot guard: same visitor company cannot occupy the same
     // (start_at, end_at) window in the same event across different tables.
     // The DB trigger `trg_meetings_one_company_per_slot` enforces the hard
