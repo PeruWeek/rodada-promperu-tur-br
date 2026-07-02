@@ -456,6 +456,29 @@ export const bookMeetingForVisitor = createServerFn({ method: "POST" })
       );
     }
 
+    // Guarda 4 — mesma empresa visitante já no mesmo (start_at, end_at) do evento
+    // em qualquer mesa. Enforçado no banco por trg_meetings_one_company_per_slot;
+    // aqui é apenas o caminho amigável de erro.
+    if (visitor.company_id) {
+      const { data: companyClash } = await supabaseAdmin
+        .from("meetings")
+        .select(
+          "id, visitor:profiles!visitor_profile_id(company_id), time_slots!inner(start_at, end_at)",
+        )
+        .eq("event_id", data.eventId)
+        .eq("status", "scheduled")
+        .eq("time_slots.start_at", newSlot.start_at)
+        .eq("time_slots.end_at", newSlot.end_at);
+      const clash = (companyClash ?? []).some(
+        (m: any) => m.visitor?.company_id === visitor.company_id,
+      );
+      if (clash) {
+        throw new Error(
+          "Esta empresa já possui uma reunião agendada neste horário.",
+        );
+      }
+    }
+
     const { data: meeting, error: mErr } = await supabaseAdmin
       .from("meetings")
       .insert({
