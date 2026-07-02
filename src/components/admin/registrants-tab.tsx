@@ -512,6 +512,11 @@ export function RegistrantsTab({
         </p>
       ) : (
         <>
+        {!availabilityQuery.isLoading && availabilityRows.length > 0 && !hasAnyFreeSlot && (
+          <div className="mb-2 rounded-md border border-amber-500/50 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+            {t("admin.registrants.book.agendaComplete")}
+          </div>
+        )}
         <div className="mb-2">
           <ListSummary
             visible={visibleRows.length}
