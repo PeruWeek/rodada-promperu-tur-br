@@ -46,21 +46,53 @@ async function cancelFutureMeetingsForRegistrant(params: {
   if (!profile) return { cancelledCount: 0 };
 
   const nowIso = new Date().toISOString();
-  const { data: futureMeetings, error: mErr } = await supabaseAdmin
+  // 1) Reuniões futuras onde o perfil é o VISITANTE.
+  const { data: asVisitor, error: vErr } = await supabaseAdmin
     .from("meetings")
     .select("id, event_id, table_id, slot_id, time_slots!meetings_slot_id_fkey!inner(start_at)")
     .eq("visitor_profile_id", profile.id)
     .eq("status", "scheduled")
     .gt("time_slots.start_at", nowIso);
-  if (mErr) throw new Error(mErr.message);
+  if (vErr) throw new Error(vErr.message);
 
-  const rows = (futureMeetings ?? []) as unknown as Array<{
+  // 2) Reuniões futuras onde o perfil é o EXPOSITOR da mesa.
+  const { data: exhibitorTables, error: tErr } = await supabaseAdmin
+    .from("event_tables")
+    .select("id")
+    .eq("exhibitor_profile_id", profile.id);
+  if (tErr) throw new Error(tErr.message);
+  const exhibitorTableIds = (exhibitorTables ?? []).map((t) => t.id);
+
+  let asExhibitor: typeof asVisitor = [];
+  if (exhibitorTableIds.length > 0) {
+    const { data, error: eErr } = await supabaseAdmin
+      .from("meetings")
+      .select("id, event_id, table_id, slot_id, time_slots!meetings_slot_id_fkey!inner(start_at)")
+      .in("table_id", exhibitorTableIds)
+      .eq("status", "scheduled")
+      .gt("time_slots.start_at", nowIso);
+    if (eErr) throw new Error(eErr.message);
+    asExhibitor = data ?? [];
+  }
+
+  // Dedup por meeting id.
+  const byId = new Map<string, {
     id: string;
     event_id: string;
     table_id: string;
     slot_id: string;
     time_slots: { start_at: string } | null;
-  }>;
+  }>();
+  for (const m of [...(asVisitor ?? []), ...(asExhibitor ?? [])] as unknown as Array<{
+    id: string;
+    event_id: string;
+    table_id: string;
+    slot_id: string;
+    time_slots: { start_at: string } | null;
+  }>) {
+    byId.set(m.id, m);
+  }
+  const rows = Array.from(byId.values());
   if (rows.length === 0) return { cancelledCount: 0 };
 
   const meetingIds = rows.map((m) => m.id);
@@ -80,13 +112,18 @@ async function cancelFutureMeetingsForRegistrant(params: {
     (tables ?? []).map((t) => [t.id, t] as const),
   );
 
+  // Notificar o expositor de cada mesa afetada, exceto quando o expositor
+  // é o próprio perfil inativado (nesse caso, notificar o visitante).
   const notifications = rows
     .map((m) => {
       const t = tableById.get(m.table_id);
-      if (!t?.exhibitor_profile_id) return null;
+      if (!t) return null;
+      const inactivatedIsExhibitor = t.exhibitor_profile_id === profile.id;
+      const recipient = inactivatedIsExhibitor ? null : t.exhibitor_profile_id;
+      if (!recipient) return null;
       return {
         event_id: m.event_id,
-        recipient_profile_id: t.exhibitor_profile_id,
+        recipient_profile_id: recipient,
         type: "meeting_cancelled" as const,
         channel: "in_app" as const,
         status: "sent" as const,
@@ -97,10 +134,54 @@ async function cancelFutureMeetingsForRegistrant(params: {
           slot_start: m.time_slots?.start_at ?? null,
           table_number: t.table_number,
           reason: params.reason,
+          inactivated_role: inactivatedIsExhibitor ? "exhibitor" : "visitor",
         },
       };
     })
     .filter((n): n is NonNullable<typeof n> => n !== null);
+
+  // Quando o inativado é o expositor, notificar os visitantes das reuniões.
+  const visitorNotifPromise = (async () => {
+    const exhibitorMeetings = rows.filter((m) => {
+      const t = tableById.get(m.table_id);
+      return t?.exhibitor_profile_id === profile.id;
+    });
+    if (exhibitorMeetings.length === 0) return;
+    const { data: mFull } = await supabaseAdmin
+      .from("meetings")
+      .select("id, visitor_profile_id")
+      .in("id", exhibitorMeetings.map((m) => m.id));
+    const visitorByMeeting = new Map(
+      (mFull ?? []).map((m) => [m.id, m.visitor_profile_id] as const),
+    );
+    const visitorNotifs = exhibitorMeetings
+      .map((m) => {
+        const vId = visitorByMeeting.get(m.id);
+        const t = tableById.get(m.table_id);
+        if (!vId) return null;
+        return {
+          event_id: m.event_id,
+          recipient_profile_id: vId,
+          type: "meeting_cancelled" as const,
+          channel: "in_app" as const,
+          status: "sent" as const,
+          title: "Reunião cancelada",
+          body: `O expositor teve o acesso inativado; a reunião foi cancelada e o horário liberado.`,
+          data: {
+            meeting_id: m.id,
+            slot_start: m.time_slots?.start_at ?? null,
+            table_number: t?.table_number ?? null,
+            reason: params.reason,
+            inactivated_role: "exhibitor",
+          },
+        };
+      })
+      .filter((n): n is NonNullable<typeof n> => n !== null);
+    if (visitorNotifs.length) {
+      await supabaseAdmin.from("notifications").insert(visitorNotifs);
+    }
+  })();
+  await visitorNotifPromise;
   if (notifications.length) {
     await supabaseAdmin.from("notifications").insert(notifications);
   }
