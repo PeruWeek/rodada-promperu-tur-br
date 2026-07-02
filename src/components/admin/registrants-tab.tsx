@@ -43,6 +43,10 @@ import {
   type RegistrantRow,
 } from "@/lib/staff-exports.functions";
 import {
+  listExhibitorAvailability,
+  type ExhibitorAvailabilityRow,
+} from "@/lib/exhibitor-availability.functions";
+import {
   adminUpdateUserEmail,
   adminUpdateUserProfile,
 } from "@/lib/admin-auth.functions";
@@ -190,6 +194,21 @@ export function RegistrantsTab({
   const [welcomeForce, setWelcomeForce] = useState(false);
   const [welcomeSending, setWelcomeSending] = useState(false);
   const [bookTarget, setBookTarget] = useState<RegistrantRow | null>(null);
+  const listAvailabilityFn = useServerFn(listExhibitorAvailability);
+  const availabilityQuery = useQuery({
+    queryKey: ["exhibitor-availability", "registrants-probe"],
+    queryFn: () => listAvailabilityFn({ data: {} }),
+    staleTime: 30_000,
+  });
+
+  const availabilityRows = (availabilityQuery.data?.rows ?? []) as ExhibitorAvailabilityRow[];
+
+  const hasAnyFreeSlot = useMemo(() => {
+    return availabilityRows.some(
+      (r) => r.status !== "lotada" && (r.free_slots?.length ?? 0) > 0,
+    );
+  }, [availabilityRows]);
+
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState<PageSizeOption>(50);
 
@@ -493,6 +512,11 @@ export function RegistrantsTab({
         </p>
       ) : (
         <>
+        {!availabilityQuery.isLoading && availabilityRows.length > 0 && !hasAnyFreeSlot && (
+          <div className="mb-2 rounded-md border border-amber-500/50 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+            {t("admin.registrants.book.agendaComplete")}
+          </div>
+        )}
         <div className="mb-2">
           <ListSummary
             visible={visibleRows.length}
@@ -585,7 +609,7 @@ export function RegistrantsTab({
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 {r.role === "visitor" &&
-                  (r.profile_meetings_count ?? 0) === 0 &&
+                  hasAnyFreeSlot &&
                   !!r.auth_user_id &&
                   r.is_active === true && (
                     <Button

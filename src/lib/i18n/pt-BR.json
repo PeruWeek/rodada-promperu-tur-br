@@ -449,7 +449,8 @@
         "pickSlot": "Horário livre",
         "searchPlaceholder": "Buscar expositor por nome…",
         "noExhibitors": "Nenhum expositor com vaga livre no evento atual.",
-        "confirm": "Confirmar agendamento"
+        "confirm": "Confirmar agendamento",
+        "agendaComplete": "Agenda operacional completa — não há mais horários livres em nenhuma expositora elegível."
       },
       "cancelDialog": {
         "title": "Cancelar inscrição",
