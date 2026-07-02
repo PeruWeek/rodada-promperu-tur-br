@@ -418,8 +418,8 @@
       "noAgenda": "Este participante no tiene reuniones agendadas.",
       "inactiveBadge": "Inactivo",
       "actions": {
-        "cancel": "Cancelar inscripción",
-        "reactivate": "Reactivar inscripción",
+        "cancel": "Desactivar inscrito",
+        "reactivate": "Reactivar acceso",
         "replace": "Sustituir contacto",
         "book": "Agendar"
       },
