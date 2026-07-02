@@ -435,8 +435,8 @@
       },
       "cancelDialog": {
         "title": "Desactivar inscrito",
-        "description": "El usuario {{name}} será desactivado y no podrá acceder a la plataforma. Empresa, reuniones e historial se preservan — la inscripción a la ronda no se cancela. Esta acción es reversible.",
-        "exhibitorImpact": "Este inscrito es expositor. Al desactivar: la empresa y la mesa asignada se mantienen; las reuniones ya agendadas siguen en el historial, pero el expositor no podrá ingresar. Revisa la mesa/agenda si es necesario.",
+        "description": "El usuario {{name}} será desactivado y no podrá acceder a la plataforma. Sus reuniones futuras serán canceladas y los horarios liberados en la agenda de los expositores. Empresa, historial y reuniones ya realizadas se preservan. Reactivar el acceso no recrea las reuniones — el inscrito debe volver a agendar.",
+        "exhibitorImpact": "Este inscrito es expositor. Al desactivar: la empresa y la mesa asignada se mantienen; las reuniones futuras en que participa serán canceladas y los horarios liberados. Las reuniones ya realizadas quedan en el historial. Revisa la mesa/agenda si es necesario.",
         "confirm": "Desactivar inscrito"
       },
       "reactivateDialog": {

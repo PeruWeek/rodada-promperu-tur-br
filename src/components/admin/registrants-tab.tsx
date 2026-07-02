@@ -62,6 +62,7 @@ import {
   operationalStatusFromMeetings,
 } from "@/lib/scheduling-status";
 import { downloadBlob, toCsv } from "@/lib/exports/csv";
+import { BOOKING_INVALIDATE_KEYS } from "@/lib/booking-invalidate-keys";
 import { downloadXlsx } from "@/lib/exports/xlsx";
 import { sortRowsForExport } from "@/lib/exports/sort";
 import { buildAgendaPdf, buildCompanyAgendaPdf } from "@/lib/pdf";
@@ -259,17 +260,30 @@ export function RegistrantsTab({
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["registrants"] });
     qc.invalidateQueries({ queryKey: ["admin-users"] });
+    // Inativar um inscrito cancela suas reuniões futuras (server-side),
+    // então precisamos revalidar agenda, disponibilidade e pipeline para
+    // que slots liberados e badges reflitam o novo estado sem reload.
+    for (const key of BOOKING_INVALIDATE_KEYS) {
+      qc.invalidateQueries({ queryKey: key });
+    }
   };
 
   const activeMut = useMutation({
     mutationFn: async (v: { userId: string; is_active: boolean }) =>
       updateProfileFn({ data: v }),
-    onSuccess: (_r, v) => {
-      toast.success(
-        v.is_active
-          ? t("admin.registrants.toasts.reactivated")
-          : t("admin.registrants.toasts.cancelled"),
-      );
+    onSuccess: (r, v) => {
+      const cancelled = (r as { cancelledMeetings?: number } | undefined)?.cancelledMeetings ?? 0;
+      if (v.is_active) {
+        toast.success(t("admin.registrants.toasts.reactivated"));
+      } else if (cancelled > 0) {
+        toast.success(
+          `${t("admin.registrants.toasts.cancelled")} (${cancelled} ${
+            cancelled === 1 ? "reunião cancelada" : "reuniões canceladas"
+          })`,
+        );
+      } else {
+        toast.success(t("admin.registrants.toasts.cancelled"));
+      }
       setCancelTarget(null);
       setReactivateTarget(null);
       invalidate();

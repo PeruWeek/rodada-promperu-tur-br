@@ -27,6 +27,115 @@ async function audit(action: string, userId: string, payload: Record<string, unk
   console.log(`[admin-auth] action=${action} actor=${userId}`, payload);
 }
 
+// Cancela todas as reuniões futuras (start_at > now) do visitante em qualquer
+// evento, libera os slots dos expositores, notifica cada expositor e registra
+// uma linha de audit_logs por evento afetado.
+//
+// Usado quando um inscrito é inativado (is_active = false). Preserva o
+// histórico (status = 'cancelled', cancel_reason preenchido) e não deleta nada.
+async function cancelFutureMeetingsForRegistrant(params: {
+  authUserId: string;
+  actorUserId: string;
+  reason: string;
+}): Promise<{ cancelledCount: number }> {
+  const { data: profile } = await supabaseAdmin
+    .from("profiles")
+    .select("id, full_name")
+    .eq("auth_user_id", params.authUserId)
+    .maybeSingle();
+  if (!profile) return { cancelledCount: 0 };
+
+  const nowIso = new Date().toISOString();
+  const { data: futureMeetings, error: mErr } = await supabaseAdmin
+    .from("meetings")
+    .select("id, event_id, table_id, slot_id, time_slots!meetings_slot_id_fkey!inner(start_at)")
+    .eq("visitor_profile_id", profile.id)
+    .eq("status", "scheduled")
+    .gt("time_slots.start_at", nowIso);
+  if (mErr) throw new Error(mErr.message);
+
+  const rows = (futureMeetings ?? []) as unknown as Array<{
+    id: string;
+    event_id: string;
+    table_id: string;
+    slot_id: string;
+    time_slots: { start_at: string } | null;
+  }>;
+  if (rows.length === 0) return { cancelledCount: 0 };
+
+  const meetingIds = rows.map((m) => m.id);
+  const { error: updErr } = await supabaseAdmin
+    .from("meetings")
+    .update({ status: "cancelled", cancel_reason: params.reason })
+    .in("id", meetingIds);
+  if (updErr) throw new Error(updErr.message);
+
+  // Notify exhibitors (in-app). Best-effort; never blocks the deactivation.
+  const tableIds = Array.from(new Set(rows.map((m) => m.table_id)));
+  const { data: tables } = await supabaseAdmin
+    .from("event_tables")
+    .select("id, table_number, exhibitor_profile_id")
+    .in("id", tableIds);
+  const tableById = new Map(
+    (tables ?? []).map((t) => [t.id, t] as const),
+  );
+
+  const notifications = rows
+    .map((m) => {
+      const t = tableById.get(m.table_id);
+      if (!t?.exhibitor_profile_id) return null;
+      return {
+        event_id: m.event_id,
+        recipient_profile_id: t.exhibitor_profile_id,
+        type: "meeting_cancelled" as const,
+        channel: "in_app" as const,
+        status: "sent" as const,
+        title: "Reunião cancelada",
+        body: `${profile.full_name} teve o acesso inativado; a reunião foi cancelada e o horário liberado.`,
+        data: {
+          meeting_id: m.id,
+          slot_start: m.time_slots?.start_at ?? null,
+          table_number: t.table_number,
+          reason: params.reason,
+        },
+      };
+    })
+    .filter((n): n is NonNullable<typeof n> => n !== null);
+  if (notifications.length) {
+    await supabaseAdmin.from("notifications").insert(notifications);
+  }
+
+  // audit_logs: uma linha por evento afetado (event_id é obrigatório).
+  const byEvent = new Map<string, string[]>();
+  for (const m of rows) {
+    const arr = byEvent.get(m.event_id) ?? [];
+    arr.push(m.id);
+    byEvent.set(m.event_id, arr);
+  }
+  const { data: actorProfile } = await supabaseAdmin
+    .from("profiles")
+    .select("id")
+    .eq("auth_user_id", params.actorUserId)
+    .maybeSingle();
+  const actorProfileId = actorProfile?.id ?? null;
+  const auditRows = Array.from(byEvent.entries()).map(([event_id, ids]) => ({
+    event_id,
+    actor_profile_id: actorProfileId,
+    action: "registrant.deactivated.meetings_cancelled",
+    payload: {
+      target_auth_user_id: params.authUserId,
+      target_profile_id: profile.id,
+      meeting_ids: ids,
+      reason: params.reason,
+    },
+  }));
+  if (auditRows.length) {
+    await supabaseAdmin.from("audit_logs").insert(auditRows);
+  }
+
+  return { cancelledCount: rows.length };
+}
+
 const emailSchema = z
   .string()
   .trim()
@@ -229,11 +338,24 @@ export const adminUpdateUserProfile = createServerFn({ method: "POST" })
       .update(patch)
       .eq("auth_user_id", data.userId);
     if (error) throw new Error(error.message);
+    // Ao inativar um inscrito, cancelar reuniões futuras dele para liberar
+    // a agenda dos expositores. Reativar (is_active = true) não recria
+    // reuniões — o inscrito precisa reagendar pelo fluxo normal.
+    let cancelledMeetings = 0;
+    if (data.is_active === false) {
+      const result = await cancelFutureMeetingsForRegistrant({
+        authUserId: data.userId,
+        actorUserId: context.userId,
+        reason: "admin_deactivated_registrant",
+      });
+      cancelledMeetings = result.cancelledCount;
+    }
     await audit("admin.profile_update", context.userId, {
       target_user_id: data.userId,
       patch,
+      cancelled_future_meetings: cancelledMeetings,
     });
-    return { ok: true };
+    return { ok: true, cancelledMeetings };
   });
 
 export const adminUpsertUserCompany = createServerFn({ method: "POST" })

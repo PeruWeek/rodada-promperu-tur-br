@@ -454,8 +454,8 @@
       },
       "cancelDialog": {
         "title": "Inativar inscrito",
-        "description": "O usuário {{name}} será inativado e não conseguirá mais acessar a plataforma. Empresa, reuniões e histórico são preservados — a inscrição na rodada não é cancelada. Esta ação é reversível.",
-        "exhibitorImpact": "Este inscrito é expositor. Ao inativar: a empresa e a alocação de mesa permanecem; as reuniões já agendadas continuam visíveis no histórico, mas o expositor não poderá mais entrar na plataforma. Reavalie a mesa/agenda se necessário.",
+        "description": "O usuário {{name}} será inativado e não conseguirá mais acessar a plataforma. As reuniões futuras dele serão canceladas e os horários liberados na agenda dos expositores. Empresa, histórico e reuniões já realizadas são preservados. Reativar o acesso não recria as reuniões — o inscrito precisa reagendar.",
+        "exhibitorImpact": "Este inscrito é expositor. Ao inativar: a empresa e a alocação de mesa permanecem; as reuniões futuras em que ele é participante serão canceladas e os horários liberados. Reuniões já realizadas ficam no histórico. Reavalie a mesa/agenda se necessário.",
         "confirm": "Inativar inscrito"
       },
       "reactivateDialog": {
