@@ -1,65 +1,95 @@
-## Contexto
-A entrega anterior já criou os arquivos base; este plano cobre apenas o delta de refino do gate do botão e da mensagem de agenda completa.
+## Causa raiz confirmada
 
-## Mudanças
+A regressão está em `profiles.company_id` da Naline — **não** em `companies.trade_name/legal_name` e **não** no pipeline.
 
-### 1. `src/components/admin/registrants-tab.tsx`
+### Estado atual verificado
 
-**Probe global de disponibilidade**
+**Companies (rótulos corretos):**
+| id | trade_name | legal_name | tax_id |
+|---|---|---|---|
+| `694245f4` | AQUARELA VIAGEM | COPASTUR TURISMO | (vazio) |
+| `2429b47f` | COPASTUR TURISMO | COPASTUR VIAGENS E TURISMO LTDA | 43.637.214/0001-86 |
 
-Adicionar no topo do componente, antes do return:
+**Profiles:**
+- `e0438f6c` Naline `naline.correia@aquarelagencia.com.br` → hoje em `2429b47f` ❌ (deveria estar em `694245f4`)
+- `8ab580f6` Wellika `@copastur.com.br` → em `2429b47f` ✅
+- `5d7b1826` Emerson e `83a23881` Midori `@aquarelagencia.com.br` → em `694245f4` ✅
 
-```tsx
-const listAvailabilityFn = useServerFn(listExhibitorAvailability);
-const availabilityQuery = useQuery({
-  queryKey: ["exhibitor-availability", "registrants-probe"],
-  queryFn: () => listAvailabilityFn({ data: {} }),
-  staleTime: 30_000,
-});
+**Pipeline (`company_event_pipeline` no evento ativo `d86be1b5`):** as duas empresas têm linhas próprias, sem cross-link nem resíduo.
 
-const availabilityRows = (availabilityQuery.data?.rows ?? []) as ExhibitorAvailabilityRow[];
+### Qual fluxo permitiu religar a Naline (07-01 18:54)
 
-const hasAnyFreeSlot = useMemo(() => {
-  return availabilityRows.some(
-    (r) => r.status !== "lotada" && (r.free_slots?.length ?? 0) > 0
-  );
-}, [availabilityRows]);
+Auditoria da janela `18:53–18:55` em 07-01:
+- 1 evento `profile.company_linked` com `actor_profile_id = NULL`, `old = 694245f4`, `new = 2429b47f`
+- 1 evento `pipeline.scheduling_status` derivado
+- **Nenhum** evento `company_contact_reassigned`
+
+Mapeamento dos writers de `profiles.company_id` no código (grep completo em `src/lib`):
+
+| Fluxo | Arquivo | Reescreve company de perfil já vinculado? | Emite `company_contact_reassigned`? |
+|---|---|---|---|
+| `reassignCompanyContact` | `company-contacts.functions.ts:275` | Sim | **Sim, sempre** (linha 337) |
+| `adminUpsertUserCompany` | `admin-auth.functions.ts:239` | Não — só atualiza `companies` do vínculo existente, ou vincula quando `company_id` é NULL | — |
+| `resolveReviewLink` / `resolveReviewMerge` | `review-queue.functions.ts:228/301` | Só quando `!target.company_id` (`if (!target.company_id && rev.company_id)`) | — |
+| `preRegistrationBulkImport` | `pre-registration.functions.ts:216` | Só quando `!existingProfile.company_id`; nunca sobrescreve perfil com `auth_user_id` | — |
+| `approveExhibitorRequest` | `exhibitor-requests.functions.ts:142` | Cenário de aprovação de expositor (perfil sem company) | — |
+| `staff-registration` bulk | `staff-registration.functions.ts:522` | Cenário de importação staff | — |
+| `qa-simulation` | `qa-simulation.functions.ts:125` | Somente contas QA (`qa_run_id`) | — |
+
+Conclusão: **nenhum fluxo operacional do app pode ter feito a religação de 07-01**, porque a única rota que reescreve `company_id` de um contato já vinculado é `reassignCompanyContact`, e ela sempre grava o par `company_contact_reassigned` no `audit_logs`. Esse par não existe.
+
+**Origem real:** UPDATE direto no banco (SQL Editor / psql / migração ad-hoc) sobre `profiles.company_id`. Só isso dispara o trigger `trg_audit_profiles` (que emite `profile.company_linked`) sem gerar o audit operacional — e explica também o `actor_profile_id = NULL`.
+
+## Correção
+
+### 1. Dado (via `supabase--insert`)
+
+```sql
+UPDATE public.profiles
+SET company_id = '694245f4-9ef4-464d-a595-1310694a9e6e'
+WHERE id = 'e0438f6c-f8dd-4196-9c0f-4912f177611c'
+  AND email = 'naline.correia@aquarelagencia.com.br'
+  AND company_id = '2429b47f-827d-4f2e-9a6b-f971396a752c';
+
+INSERT INTO public.audit_logs (actor_profile_id, action, payload)
+VALUES (
+  NULL,
+  'company_contact_reassigned',
+  jsonb_build_object(
+    'email', 'naline.correia@aquarelagencia.com.br',
+    'profile_id', 'e0438f6c-f8dd-4196-9c0f-4912f177611c',
+    'previous_company_id', '2429b47f-827d-4f2e-9a6b-f971396a752c',
+    'new_company_id', '694245f4-9ef4-464d-a595-1310694a9e6e',
+    'reason', 'Reconciliação: Naline pertence à AQUARELA VIAGEM (694245f4). Regressão registrada em 2026-07-01 18:54 veio de UPDATE direto em banco — não do fluxo reassignCompanyContact.',
+    'source', 'manual_reconciliation'
+  )
+);
 ```
 
-**Novo gate do botão "Agendar"** — remover a condição `(r.profile_meetings_count ?? 0) === 0`. O botão agora aparece quando:
+Triggers cobrem o resto automaticamente:
+- `trg_profiles_recalc_company` reavalia `companies.is_active` de `694245f4` e `2429b47f`.
+- `trg_pipeline_after_profile_company` garante `pipeline_ensure_row(694245f4)`.
+- `trg_meetings_recalc_company_scheduling` não é acionado (não mexe em meetings), mas `pipeline_recalc_scheduling` já reflete o estado correto (a linha `2429b47f` continua `agendado_ok` — Wellika mantém as reuniões da COPASTUR).
 
-- `r.role === "visitor"`
-- `!!r.auth_user_id`
-- `r.is_active === true`
-- `hasAnyFreeSlot === true`
+Sem alterações em `companies` (rótulos corretos) nem em `company_event_pipeline` (sem resíduo).
 
-**Banner "agenda completa"** — renderizar acima da lista quando:
+### 2. Prevenção operacional
 
-```tsx
-!availabilityQuery.isLoading &&
-availabilityRows.length > 0 &&
-!hasAnyFreeSlot
-```
+- O código do app já protege este caminho: a única rota UI, `reassignCompanyContact`, exige `reason` (mínimo 10 chars via UI) e grava audit próprio. Nenhum ajuste de código é necessário.
+- O que permitiu a regressão foi um UPDATE fora do app. Ficará documentado no `audit_logs` que qualquer futura mudança em `naline.correia@aquarelagencia.com.br` que a tire de `694245f4` é regressão — a entrada acima serve como marcador de decisão canônica.
 
-O uso de `availabilityRows.length > 0` em vez de `rows.length > 0` evita falso positivo quando a lista de inscritos tem itens mas a probe não carregou ou retornou vazia.
+### 3. Validação pós-aplicação
 
-**Imports** — adicionar import de `listExhibitorAvailability` e do tipo `ExhibitorAvailabilityRow` de `@/lib/exhibitor-availability.functions`.
+`SELECT` para confirmar:
+- `naline.correia@aquarelagencia.com.br` → `company_id = 694245f4`
+- `wellika.medeiros@copastur.com.br` → `company_id = 2429b47f`
+- Emerson/Midori seguem em `694245f4`
+- `694245f4.is_active` conforme cálculo do trigger
+- Uma linha de pipeline por empresa no evento ativo
 
-### 2. i18n
+## Entrega ao final
 
-Adicionar em `admin.registrants.book`:
-
-- pt-BR: `"agendaComplete": "Agenda operacional completa — não há mais horários livres em nenhuma expositora elegível."`
-- es: `"agendaComplete": "Agenda operativa completa — no hay más horarios libres en ninguna expositora elegible."`
-
-As demais chaves já foram adicionadas na entrega anterior.
-
-### 3. Fluxo de status
-
-- Badge continua governado por `bucketGroupFromMeetings(r.profile_meetings_count)`.
-- Após sucesso do dialog: `BOOKING_INVALIDATE_KEYS` invalida `["exhibitor-availability", ...]`, refletindo no probe e sumindo do botão quando aplicável.
-
-## Arquivos alterados
-- `src/components/admin/registrants-tab.tsx`
-- `src/lib/i18n/pt-BR.json`
-- `src/lib/i18n/es.json`
+1. **Causa raiz:** UPDATE direto em `profiles.company_id` em 2026-07-01 18:54, fora do fluxo `reassignCompanyContact` (sem `company_contact_reassigned`, `actor_profile_id = NULL`).
+2. **Dados alterados:** 1 linha em `profiles` + 1 entrada em `audit_logs`. Nenhum arquivo de código.
+3. **Resumo:** Naline volta para `694245f4` (AQUARELA VIAGEM). Rótulos e pipeline não precisam de correção.
+4. **Como fica evitado:** UI já expõe apenas `reassignCompanyContact` (com motivo obrigatório e audit próprio). A entrada em `audit_logs` marca a decisão canônica para futuras investigações.
