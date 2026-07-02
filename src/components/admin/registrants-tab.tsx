@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { AlertCircle, ArrowUpDown, Ban, ClipboardCheck, Download, FileArchive, FileSpreadsheet, FileText, Files, Mail, Search, UserCog, UserCheck } from "lucide-react";
+import { AlertCircle, ArrowUpDown, Ban, CalendarPlus, ClipboardCheck, Download, FileArchive, FileSpreadsheet, FileText, Files, Mail, Search, UserCog, UserCheck } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -49,6 +49,7 @@ import {
 import { resendBuyerWelcome } from "@/lib/email-admin.functions";
 import { staffListRegistrationCompletion } from "@/lib/staff-registration.functions";
 import { CompleteRegistrationDialog } from "@/components/admin/complete-registration-dialog";
+import { BookForRegistrantDialog } from "@/components/admin/book-for-registrant-dialog";
 import { hasRole, useProfile } from "@/hooks/use-profile";
 import {
   bucketGroupFromMeetings,
@@ -188,6 +189,7 @@ export function RegistrantsTab({
   const [welcomeTarget, setWelcomeTarget] = useState<RegistrantRow | null>(null);
   const [welcomeForce, setWelcomeForce] = useState(false);
   const [welcomeSending, setWelcomeSending] = useState(false);
+  const [bookTarget, setBookTarget] = useState<RegistrantRow | null>(null);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState<PageSizeOption>(50);
 
@@ -534,7 +536,7 @@ export function RegistrantsTab({
                           variant="outline"
                           className={
                             group === "com_agendamento"
-                              ? "border-emerald-500 text-emerald-700 dark:text-emerald-400"
+                              ? "border-emerald-500 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400"
                               : "border-muted-foreground/40 text-muted-foreground"
                           }
                           title="Reuniões agendadas deste contato (mesma contagem do PDF individual)"
@@ -582,6 +584,19 @@ export function RegistrantsTab({
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
+                {r.role === "visitor" &&
+                  (r.profile_meetings_count ?? 0) === 0 &&
+                  !!r.auth_user_id &&
+                  r.is_active === true && (
+                    <Button
+                      size="sm"
+                      variant="default"
+                      onClick={() => setBookTarget(r)}
+                      title={t("admin.registrants.actions.book")}
+                    >
+                      <CalendarPlus size={14} /> {t("admin.registrants.actions.book")}
+                    </Button>
+                  )}
                 <Button
                   size="sm"
                   variant="outline"
@@ -830,6 +845,11 @@ export function RegistrantsTab({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <BookForRegistrantDialog
+        target={bookTarget}
+        onClose={() => setBookTarget(null)}
+      />
     </Card>
   );
 }
