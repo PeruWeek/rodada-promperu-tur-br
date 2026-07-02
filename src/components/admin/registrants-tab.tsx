@@ -43,6 +43,10 @@ import {
   type RegistrantRow,
 } from "@/lib/staff-exports.functions";
 import {
+  listExhibitorAvailability,
+  type ExhibitorAvailabilityRow,
+} from "@/lib/exhibitor-availability.functions";
+import {
   adminUpdateUserEmail,
   adminUpdateUserProfile,
 } from "@/lib/admin-auth.functions";
