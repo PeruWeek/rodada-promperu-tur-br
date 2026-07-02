@@ -26,6 +26,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 import { formatSlotFull } from "@/components/booking-dialog";
 import { BOOKING_INVALIDATE_KEYS } from "@/lib/booking-invalidate-keys";
+import { supabase } from "@/integrations/supabase/client";
 import {
   bookMeetingForVisitor,
   listExhibitorAvailability,
@@ -81,17 +82,49 @@ export function BookForRegistrantDialog({
     queryFn: () => listFn({ data: {} }),
   });
 
+  // Slots já ocupados por QUALQUER perfil da mesma empresa do inscrito-alvo.
+  // Usado para bloquear duplicidade "1 empresa por horário" no frontend.
+  const eventId = data?.event_id ?? null;
+  const { data: companyBusy } = useQuery({
+    queryKey: ["company-busy-slots", eventId, target?.company_id],
+    enabled: open && !!eventId && !!target?.company_id,
+    queryFn: async () => {
+      const { data: rows, error } = await supabase
+        .from("meetings")
+        .select(
+          "time_slots!inner(start_at,end_at), visitor:profiles!visitor_profile_id!inner(company_id)",
+        )
+        .eq("event_id", eventId!)
+        .eq("status", "scheduled")
+        .eq("visitor.company_id", target!.company_id);
+      if (error) throw new Error(error.message);
+      const set = new Set<string>();
+      for (const r of rows ?? []) {
+        const ts = (r as any).time_slots;
+        if (ts?.start_at && ts?.end_at) set.add(`${ts.start_at}|${ts.end_at}`);
+      }
+      return set;
+    },
+  });
+
   const exhibitors = useMemo<ExhibitorAvailabilityRow[]>(() => {
     const rows = (data?.rows ?? []) as ExhibitorAvailabilityRow[];
-    const eligible = rows.filter(
-      (r) => r.status !== "lotada" && (r.free_slots?.length ?? 0) > 0,
+    const busy = companyBusy ?? new Set<string>();
+    const withFilteredSlots = rows.map((r) => ({
+      ...r,
+      free_slots: (r.free_slots ?? []).filter(
+        (s) => !busy.has(`${s.start_at}|${s.end_at}`),
+      ),
+    }));
+    const eligible = withFilteredSlots.filter(
+      (r) => r.status !== "lotada" && r.free_slots.length > 0,
     );
     const q = search.trim().toLowerCase();
     if (!q) return eligible;
     return eligible.filter((r) =>
       (r.trade_name ?? "").toLowerCase().includes(q),
     );
-  }, [data, search]);
+  }, [data, search, companyBusy]);
 
   const selectedExhibitor = useMemo(
     () => exhibitors.find((r) => r.company_id === selectedCompanyId) ?? null,
@@ -100,7 +133,6 @@ export function BookForRegistrantDialog({
 
   const mutation = useMutation({
     mutationFn: async () => {
-      const eventId = data?.event_id ?? null;
       if (!target || !selectedExhibitor || !selectedSlotId || !eventId) {
         throw new Error("Seleção incompleta");
       }
@@ -108,6 +140,13 @@ export function BookForRegistrantDialog({
         (s) => s.slot_id === selectedSlotId,
       );
       if (!slot) throw new Error("Slot inválido");
+      // Race final: se o slot ficou ocupado pela mesma empresa entre abrir
+      // o dialog e confirmar, aborta antes de bater no backend.
+      if (companyBusy?.has(`${slot.start_at}|${slot.end_at}`)) {
+        throw new Error(
+          "Esta empresa já possui uma reunião agendada neste horário.",
+        );
+      }
       return bookFn({
         data: {
           visitorProfileId: target.profile_id,
