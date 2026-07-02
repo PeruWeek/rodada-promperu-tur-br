@@ -100,7 +100,8 @@ export function BookForRegistrantDialog({
 
   const mutation = useMutation({
     mutationFn: async () => {
-      if (!target || !selectedExhibitor || !selectedSlotId) {
+      const eventId = data?.event_id ?? null;
+      if (!target || !selectedExhibitor || !selectedSlotId || !eventId) {
         throw new Error("Seleção incompleta");
       }
       const slot = selectedExhibitor.free_slots.find(
@@ -112,7 +113,7 @@ export function BookForRegistrantDialog({
           visitorProfileId: target.profile_id,
           slotId: slot.slot_id,
           tableId: slot.table_id,
-          eventId: selectedExhibitor.event_id,
+          eventId,
         },
       });
     },
