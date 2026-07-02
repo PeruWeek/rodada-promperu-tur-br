@@ -439,7 +439,17 @@
       "actions": {
         "cancel": "Cancelar inscrição",
         "reactivate": "Reativar inscrição",
-        "replace": "Substituir contato"
+        "replace": "Substituir contato",
+        "book": "Agendar"
+      },
+      "book": {
+        "title": "Agendar reunião",
+        "subtitle": "Selecione um expositor e um horário livre para {{name}} ({{company}}).",
+        "pickExhibitor": "Expositor",
+        "pickSlot": "Horário livre",
+        "searchPlaceholder": "Buscar expositor por nome…",
+        "noExhibitors": "Nenhum expositor com vaga livre no evento atual.",
+        "confirm": "Confirmar agendamento"
       },
       "cancelDialog": {
         "title": "Cancelar inscrição",
