@@ -64,7 +64,7 @@ export const bookMeeting = createServerFn({ method: "POST" })
     // at the same start time, regardless of which table.
     const { data: newSlot, error: nsErr } = await supabaseAdmin
       .from("time_slots")
-      .select("start_at")
+      .select("start_at, end_at")
       .eq("id", data.slotId)
       .maybeSingle();
     if (nsErr) throw new Error(nsErr.message);
@@ -97,6 +97,30 @@ export const bookMeeting = createServerFn({ method: "POST" })
       throw new Error(
         "Você já tem uma reunião agendada com este expositor. Cada participante pode ter no máximo 1 reunião por mesa.",
       );
+    }
+
+    // Company-slot guard: same visitor company cannot occupy the same
+    // (start_at, end_at) window in the same event across different tables.
+    // The DB trigger `trg_meetings_one_company_per_slot` enforces the hard
+    // guarantee; this is the friendly error path.
+    if (profile.company_id) {
+      const { data: companyClash } = await supabaseAdmin
+        .from("meetings")
+        .select(
+          "id, visitor:profiles!visitor_profile_id(company_id), time_slots!inner(start_at, end_at)",
+        )
+        .eq("event_id", data.eventId)
+        .eq("status", "scheduled")
+        .eq("time_slots.start_at", newSlot.start_at)
+        .eq("time_slots.end_at", newSlot.end_at);
+      const clash = (companyClash ?? []).some(
+        (m: any) => m.visitor?.company_id === profile.company_id,
+      );
+      if (clash) {
+        throw new Error(
+          "Esta empresa já possui uma reunião agendada neste horário.",
+        );
+      }
     }
 
     const { data: meeting, error: mErr } = await supabase
