@@ -41,6 +41,7 @@ const STATUS_SCHEDULED_ALLOWLIST = new Set<string>([
   "lib/llm/skills.server.ts",
   "lib/cliente-overview.ts",
   "lib/companies-report.ts",
+  "components/admin/book-for-registrant-dialog.tsx",
 ]);
 
 /** Modules explicitly allowed to declare an `SlotClassification`-like literal. */
