@@ -30,6 +30,9 @@ import {
   setStaffTableAssignment,
 } from "@/lib/staff.functions";
 import { generalCheckIn, listCheckinEligible } from "@/lib/checkin.functions";
+import { LiveOpsPanel } from "@/components/admin/checkin/live-ops-panel";
+import { FillinQueue } from "@/components/admin/checkin/fillin-queue";
+import { PostEventSummary } from "@/components/admin/checkin/postevent-summary";
 import { listExhibitorRequests, reviewExhibitorRequest } from "@/lib/exhibitor-requests.functions";
 import { listBulkAgendas } from "@/lib/staff-exports.functions";
 import { buildConsolidatedAgendaPdf, downloadAgendaZip } from "@/lib/exports/bulk-agenda";
