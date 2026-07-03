@@ -37,7 +37,13 @@ const DEDUPE_AUDIT_ACTIONS = [
   "sanitize_meeting_conflict_v2",
 ] as const;
 
-const WINNER_STATUSES = ["scheduled", "done", "no_show"] as const;
+const WINNER_STATUSES = ["scheduled", "done", "no_show"] as const satisfies readonly (
+  | "cancelled"
+  | "done"
+  | "needs_reschedule"
+  | "no_show"
+  | "scheduled"
+)[];
 
 type LossSource =
   | "admin_manual"
@@ -232,7 +238,7 @@ export const listLostBookings = createServerFn({ method: "POST" })
       .from("meetings")
       .select("id, table_id, slot_id, visitor_profile_id, status, created_at")
       .eq("event_id", eventId)
-      .in("status", WINNER_STATUSES as unknown as string[])
+      .in("status", WINNER_STATUSES as unknown as any)
       .in("table_id", tableIds)
       .in("slot_id", slotIds);
     const candidates = (candidatesRaw ?? []) as Array<{
