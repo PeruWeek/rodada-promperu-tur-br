@@ -279,6 +279,25 @@ export const suggestRecoverySlots = createServerFn({ method: "POST" })
       }
     }
 
+    // Guard 4 do backend (`bookMeetingForVisitor`): a empresa do visitor
+    // não pode ter reunião no mesmo `start_at` em OUTRA mesa. Mapeamos
+    // start_at → conjunto de table_ids onde a empresa já tem meeting
+    // scheduled. Um slot só é viável se, para o `start_at` correspondente,
+    // (a) a empresa não aparece, ou (b) o único table_id registrado é o
+    // próprio table_id do slot sugerido.
+    const companyStartTables = new Map<string, Set<string>>();
+    if (profile.company_id) {
+      for (const m of meetingList) {
+        const cid = m.visitor?.company_id ?? null;
+        if (cid !== profile.company_id) continue;
+        const s = m.time_slots?.start_at;
+        if (!s || !m.table_id) continue;
+        const set = companyStartTables.get(s) ?? new Set<string>();
+        set.add(m.table_id);
+        companyStartTables.set(s, set);
+      }
+    }
+
     // Índice de meetings por (table_id, slot_id).
     type SlotInfo = {
       companies: Set<string>;
@@ -317,6 +336,16 @@ export const suggestRecoverySlots = createServerFn({ method: "POST" })
       // Regras comuns: sem conflito pessoal por horário e sem reunião já dele nesta mesa.
       if (myStarts.has(s.start_at)) continue;
       if (myTables.has(s.table_id)) continue;
+
+      // Guard 4 (empresa em outra mesa no mesmo start_at) — espelho exato
+      // da checagem do backend. Sem isso, slots aparecem como `livre` e
+      // falham no rebook com "Esta empresa já possui uma reunião ...".
+      const companyTables = companyStartTables.get(s.start_at);
+      if (companyTables && companyTables.size > 0) {
+        const onlyThisTable =
+          companyTables.size === 1 && companyTables.has(s.table_id);
+        if (!onlyThisTable) continue;
+      }
 
       const info = bySlot.get(keyOf(s.table_id, s.id));
       if (info?.selfPresent) continue;
