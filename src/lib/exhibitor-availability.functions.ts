@@ -456,18 +456,24 @@ export const bookMeetingForVisitor = createServerFn({ method: "POST" })
       );
     }
 
-    // Guarda 3.5 — no máximo 1 reunião ativa por (table_id, slot_id).
-    // Garantia dura pelo índice único parcial `uq_meetings_table_slot_scheduled`.
+    // Guarda 3.5 — regra "1 slot = 1 EMPRESA" na mesa. Bloqueia apenas se
+    // já houver reunião de OUTRA empresa neste (table_id, slot_id). Mesma
+    // empresa é permitida. Enforço duro pelo trigger
+    // `trg_meetings_no_conflict` (advisory lock + checagem de empresa).
     const { data: slotTaken } = await supabaseAdmin
       .from("meetings")
-      .select("id")
+      .select("id, visitor:profiles!visitor_profile_id(company_id)")
       .eq("table_id", data.tableId)
       .eq("slot_id", data.slotId)
-      .eq("status", "scheduled")
-      .maybeSingle();
-    if (slotTaken) {
+      .eq("status", "scheduled");
+    const otherCompanyOnSlot = (slotTaken ?? []).some(
+      (m: any) =>
+        m.visitor?.company_id &&
+        m.visitor.company_id !== visitor.company_id,
+    );
+    if (otherCompanyOnSlot) {
       throw new Error(
-        "Este horário acabou de ser reservado por outro participante. Escolha outro slot.",
+        "Este horário já está ocupado por outra empresa nesta mesa. Escolha outro slot.",
       );
     }
 
