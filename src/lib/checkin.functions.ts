@@ -1300,15 +1300,20 @@ export const restoreCancelledMeetings = createServerFn({ method: "POST" })
         continue;
       }
 
-      // Guarda 3.5 — (table_id, slot_id) já ocupado
+      // Guarda 3.5 — (table_id, slot_id) ocupado por OUTRA empresa.
+      // Mesma empresa é permitida (regra "1 slot = 1 empresa").
       const { data: slotTaken } = await supabaseAdmin
         .from("meetings")
-        .select("id")
+        .select("id, visitor:profiles!visitor_profile_id(company_id)")
         .eq("table_id", tableId)
         .eq("slot_id", slotId)
-        .eq("status", "scheduled")
-        .maybeSingle();
-      if (slotTaken) {
+        .eq("status", "scheduled");
+      const otherCompanyOnSlot = (slotTaken ?? []).some(
+        (m: any) =>
+          m.visitor?.company_id &&
+          m.visitor.company_id !== visitor.company_id,
+      );
+      if (otherCompanyOnSlot) {
         await block("slot_table_taken");
         continue;
       }
