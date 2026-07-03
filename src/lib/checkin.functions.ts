@@ -762,27 +762,7 @@ export const suggestFillins = createServerFn({ method: "POST" })
     if (!(await isAdminOrStaff(context.userId)))
       throw new Error("Forbidden: admin/staff only");
 
-    const live = await (getLiveOperations as unknown as (args: {
-      data: { eventId: string };
-    }) => Promise<Awaited<ReturnType<typeof loadEventOrLatest>> extends null
-      ? never
-      : {
-          idleProfileIds: string[];
-          presentProfiles: Array<{
-            id: string;
-            full_name: string | null;
-            company: string | null;
-            role: string | null;
-            availableForFillin: boolean;
-          }>;
-          freeTables: Array<{
-            tableId: string;
-            tableNumber: number | null;
-            exhibitorProfileId: string | null;
-            exhibitorName: string | null;
-            exhibitorCompany: string | null;
-          }>;
-        }>)({ data: { eventId: data.eventId } });
+    const live = await computeLiveOperations(data.eventId);
 
     const idleVisitors = live.presentProfiles.filter(
       (p) =>
