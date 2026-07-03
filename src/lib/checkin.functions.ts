@@ -364,16 +364,8 @@ async function loadEventOrLatest(eventId?: string | null) {
 
 const RISK_MIN = 5;
 
-export const getLiveOperations = createServerFn({ method: "POST" })
-  .inputValidator((input) =>
-    z.object({ eventId: z.string().uuid().optional() }).parse(input),
-  )
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ data, context }) => {
-    if (!(await isAdminOrStaff(context.userId)))
-      throw new Error("Forbidden: admin/staff only");
-
-    const event = await loadEventOrLatest(data.eventId);
+async function computeLiveOperations(eventIdOpt?: string | null) {
+  const event = await loadEventOrLatest(eventIdOpt);
     if (!event) {
       return {
         eventId: null,
