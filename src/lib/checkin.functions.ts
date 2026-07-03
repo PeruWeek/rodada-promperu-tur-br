@@ -40,7 +40,7 @@ async function audit(
     event_id: eventId,
     actor_profile_id: actor,
     action,
-    payload,
+    payload: payload as never,
   });
 }
 
