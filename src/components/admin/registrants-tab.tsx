@@ -959,6 +959,68 @@ export function RegistrantsTab({
         target={bookTarget}
         onClose={() => setBookTarget(null)}
       />
+
+      <VisitorMeetingsDialog
+        target={meetingsTarget}
+        onClose={() => setMeetingsTarget(null)}
+        listMeetings={listVisitorMeetingsFn}
+        cancelMeeting={adminCancelMeetingFn}
+        onCancelledOne={(v) => {
+          if (meetingsTarget) {
+            qc.invalidateQueries({
+              queryKey: ["visitor-meetings", meetingsTarget.profile_id],
+            });
+          }
+          if (v.emailFailed) {
+            toast.success(t("admin.registrants.toasts.meetingCancelledEmailFailed"));
+          } else {
+            toast.success(t("admin.registrants.toasts.meetingCancelled"));
+          }
+          invalidate();
+        }}
+      />
+
+      <AlertDialog
+        open={!!cancelAllTarget}
+        onOpenChange={(o) => {
+          if (!o) {
+            setCancelAllTarget(null);
+            setCancelAllReason("");
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {t("admin.registrants.meetings.cancelAllTitle")}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("admin.registrants.meetings.cancelAllBody")}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <Textarea
+            value={cancelAllReason}
+            onChange={(e) => setCancelAllReason(e.target.value)}
+            maxLength={500}
+            placeholder={t("admin.registrants.meetings.reasonPlaceholder")}
+          />
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() =>
+                cancelAllTarget &&
+                cancelAllMut.mutate({
+                  visitorProfileId: cancelAllTarget.profile_id,
+                  reason: cancelAllReason.trim() || undefined,
+                })
+              }
+              disabled={cancelAllMut.isPending}
+            >
+              {t("admin.registrants.meetings.cancelAllConfirm")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }
