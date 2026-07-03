@@ -201,6 +201,45 @@ export function RegistrantsTab({
   const [welcomeForce, setWelcomeForce] = useState(false);
   const [welcomeSending, setWelcomeSending] = useState(false);
   const [bookTarget, setBookTarget] = useState<RegistrantRow | null>(null);
+  const [meetingsTarget, setMeetingsTarget] = useState<RegistrantRow | null>(null);
+  const [cancelAllTarget, setCancelAllTarget] = useState<RegistrantRow | null>(null);
+  const [cancelAllReason, setCancelAllReason] = useState("");
+  const adminCancelMeetingFn = useServerFn(adminCancelMeeting);
+  const adminCancelAllFn = useServerFn(adminCancelVisitorFutureMeetings);
+  const listVisitorMeetingsFn = useServerFn(listVisitorMeetings);
+  const cancelAllMut = useMutation({
+    mutationFn: async (v: { visitorProfileId: string; reason?: string }) =>
+      adminCancelAllFn({ data: v }),
+    onSuccess: (res, v) => {
+      const cancelled = res.cancelled.length;
+      const failed = res.failed.length;
+      const emailFailed = res.cancelled.filter((c) => c.emailFailed).length;
+      if (failed > 0) {
+        toast.warning(
+          t("admin.registrants.toasts.meetingsCancelledPartial", {
+            cancelled,
+            failed,
+          }),
+        );
+      } else if (emailFailed > 0) {
+        toast.success(
+          t("admin.registrants.toasts.meetingsCancelledEmailPartial", {
+            count: cancelled,
+            emailFailed,
+          }),
+        );
+      } else {
+        toast.success(
+          t("admin.registrants.toasts.meetingsCancelled", { count: cancelled }),
+        );
+      }
+      setCancelAllTarget(null);
+      setCancelAllReason("");
+      qc.invalidateQueries({ queryKey: ["visitor-meetings", v.visitorProfileId] });
+      invalidate();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
   const listAvailabilityFn = useServerFn(listExhibitorAvailability);
   const availabilityQuery = useQuery({
     queryKey: ["exhibitor-availability", "registrants-probe"],
