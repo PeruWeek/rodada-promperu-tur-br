@@ -1,10 +1,10 @@
 import { createServerFn } from "@tanstack/react-start";
-import { getRequest } from "@tanstack/react-start/server";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { assertNotCliente } from "@/lib/role-server";
+import { assertAdminRole, assertNotCliente } from "@/lib/role-server";
+import { performMeetingCancellation, sendMeetingEmail } from "@/lib/booking.server";
 import {
   assertCanBook,
   buildCompanyBusyStartTables,
@@ -136,29 +136,14 @@ export const listVisitorBookingSlots = createServerFn({ method: "POST" })
     };
   });
 
-async function sendMeetingEmail(params: {
-  templateName: "meeting-confirmation" | "meeting-cancelled";
-  recipientEmail: string;
-  idempotencyKey: string;
-  templateData: Record<string, unknown>;
-}) {
+// `sendMeetingEmail` and `performMeetingCancellation` live in booking.server.ts
+// so the visitor cancel flow and the admin cancel flows share the exact same
+// mutation core (blindaged UPDATE + best-effort side effects).
+async function safeSendMeetingEmail(
+  params: Parameters<typeof sendMeetingEmail>[0],
+) {
   try {
-    const request = getRequest();
-    const authHeader = request?.headers.get("authorization");
-    if (!authHeader || !request) return;
-    const origin = new URL(request.url).origin;
-    const res = await fetch(`${origin}/lovable/email/transactional/send`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: authHeader,
-      },
-      body: JSON.stringify(params),
-    });
-    if (!res.ok) {
-      const body = await res.text().catch(() => "");
-      console.warn("[email] send failed", res.status, body.slice(0, 200));
-    }
+    await sendMeetingEmail(params);
   } catch (err) {
     console.warn("[email] send threw", err);
   }
