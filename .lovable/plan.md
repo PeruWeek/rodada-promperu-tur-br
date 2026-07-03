@@ -1,94 +1,46 @@
-## Objetivo
-Nova aba admin **"Histórico de perdas"** — visão read-only que mostra reuniões canceladas por dedupe/conflito com a "vencedora" do mesmo `table_id + slot_id`. Não restaura, não altera motor de agendamento.
 
-## Garantia de isolamento (regra dura)
-Proibido alterar:
-- `src/lib/booking.functions.ts`, `exhibitor-availability.functions.ts`, `dedupe-recovery.functions.ts`
-- `booking-dialog.tsx`, `book-for-registrant-dialog.tsx`, `dedupe-recovery-tab.tsx`, demais abas atuais
-- qualquer trigger, índice, RPC de dedupe, `auto-sanitize`, migrations existentes
-- RLS, roles, dependências
+## Causa raiz
 
-Permitido: 2 arquivos novos + 1 `TabsTrigger`/`TabsContent` no bloco admin de `admin.tsx` + strings em `i18n/pt-BR.json` e `es.json`. Zero migration.
+`suggestRecoverySlots` (em `src/lib/dedupe-recovery.functions.ts`) reproduz apenas 3 das 4 guardas de `bookMeetingForVisitor`:
 
-## Arquivos
-```
-src/lib/lost-bookings.functions.ts            (new — server-fn admin-only, read-only)
-src/components/admin/lost-bookings-tab.tsx    (new — UI: filtros, tabela, agregação por empresa)
-src/routes/_authenticated/admin.tsx           (add: 1 TabsTrigger + 1 TabsContent, admin-only)
-src/lib/i18n/pt-BR.json                        (add strings)
-src/lib/i18n/es.json                           (add strings)
-```
+| Guarda backend | Recovery reproduz? |
+|---|---|
+| G2 — visitor já tem reunião no mesmo `start_at` (qualquer mesa) | ✅ `myStarts` |
+| G3 — visitor já tem reunião na mesma mesa | ✅ `myTables` |
+| G3.5 — outra empresa já ocupa `(table_id, slot_id)` | ✅ `bySlot.companies` |
+| **G4 — a empresa do visitor já tem reunião no mesmo `start_at` em OUTRA mesa** | ❌ **não checado** |
 
-## Fonte de dados
-Somente leitura de `meetings`, `time_slots`, `event_tables`, `profiles`, `companies`, `audit_logs`. Nenhuma tabela nova.
+Consequência real: se o colega João (mesma empresa) tem reunião às 10:30 na mesa 5, e a mesa 12 tem o slot das 10:30 vazio, `suggestRecoverySlots` classifica como `free`. Ao confirmar, o backend dispara G4: *"Esta empresa já possui uma reunião agendada neste horário em outra mesa."* → o slot exibido como `livre` é rejeitado como `ocupado`.
 
-### `listLostBookings` (server-fn admin-only, evento ativo)
-Entrada opcional: `eventId`, `companyId`, `profileId`, `reason` (multi), `dateFrom`, `dateTo`, `groupBy: 'contact' | 'company'` (default `contact`), `limit` (default 500, máx 2000).
+O mesmo vale para o branch `same_company`: se além do colega no próprio slot existir um segundo colega da mesma empresa em outra mesa no mesmo `start_at`, G4 também rejeita.
 
-Algoritmo:
-1. **Perdedoras** — `meetings` do evento com `status = 'cancelled'` e `cancel_reason` em:
-   - `admin_dedupe_table_slot_company`
-   - `auto-sanitize:duplicate_table_slot_different_company`
-   - qualquer `auto-sanitize:*` (bucket "outro motivo técnico")
-2. **Vencedora histórica por `(table_id, slot_id)`** — sem usar `meetings.updated_at`:
-   - Universo: reuniões com o mesmo `table_id + slot_id` e `status IN ('scheduled','done','no_show')`.
-   - Regra: a mais antiga que **permaneceu válida** no conflito = `MIN(created_at)` entre esse universo, com `created_at <= loser.created_at` quando existir candidata anterior; caso contrário, a `MIN(created_at)` do universo (a "sobrevivente" pode ter sido criada depois quando a perdedora foi cancelada por auto-sanitize; mantemos a mais antiga viva como vencedora canônica).
-   - **Reforço via `audit_logs`**: buscar `action='admin_dedupe_table_slot_company'` ou similar com payload citando o mesmo `table_id + slot_id` e/ou `meeting_id` da perdedora; se o log referenciar uma `winner_meeting_id` / `kept_meeting_id`, esse ID sobrescreve a heurística de `MIN(created_at)`. Log ausente → cai na heurística; log presente e consistente → marca `winner_source: 'audit_log'` (senão `'min_created_at'`).
-   - Se nenhuma candidata viva existir, `winner = null` e `loss_source = "Outro motivo técnico"`.
-3. JOIN em `time_slots` (start_at/end_at), `event_tables` (table_number), `profiles` (loser + winner) e `companies`.
-4. `loss_source`:
-   - `admin_dedupe_table_slot_company` → "Dedupe manual/admin"
-   - `auto-sanitize:duplicate_table_slot_different_company` → "Auto-sanitize (outra empresa)"
-   - vencedora identificada com `created_at < loser.created_at` → "Perdeu para outra empresa (chegou antes)"
-   - resto → "Outro motivo técnico"
-5. Ordena por `cancelled_at desc` (default) ou `impact desc` (agrupado).
-6. **Paginação/truncamento**: aplica `limit` ao final e retorna:
-   ```ts
-   { rows, by_company, total_found, truncated: total_found > rows.length, limit }
-   ```
+Bug secundário: as sugestões não são invalidadas após um rebook bem-sucedido, então o admin pode ver um slot já consumido por ele mesmo.
 
-Saída por item:
-```ts
-{
-  meeting_id, cancelled_at, cancel_reason, loss_source,
-  loser: { profile_id, full_name, email, company_id, company_trade_name },
-  slot: { table_id, table_number, slot_id, start_at, end_at },
-  winner: {
-    meeting_id, created_at, status,           // status ∈ scheduled|done|no_show
-    profile_id, full_name, company_id, company_trade_name,
-    winner_source: 'audit_log' | 'min_created_at'
-  } | null,
-}
-```
+## Correção
 
-## UI (`lost-bookings-tab.tsx`)
-Aba `TabsTrigger value="lostBookings"` só no bloco admin.
+**Arquivo:** `src/lib/dedupe-recovery.functions.ts` (único arquivo backend alterado)
 
-- Filtros: empresa (search), contato (search), motivo (multi-check), intervalo de data (cancelamento)
-- Toggle "Por contato | Por empresa"
-- Tabela por contato: Contato · Empresa · Email · Mesa · Horário perdido · Cancelado em · Motivo · Empresa vencedora · Contato vencedor · Status da vencedora · Criada em (vencedora) · Fonte (`audit_log`/`heurística`) · Ação
-- Tabela por empresa: Empresa · Contatos impactados · Perdas totais · Breakdown por motivo · Última perda
-- Ordenação: "Mais recente" (default) / "Maior impacto"
-- **Banner de truncamento** quando `truncated=true`: "Mostrando X de Y — refine os filtros ou aumente o limite."
-- Ação por item: **"Abrir reacomodação"** — apenas navega para a aba `dedupeRecovery` com `profileId` pré-selecionado. Nenhuma escrita.
-- Vazio: mensagem operacional. Erro: toast amigável, nunca `error.message` cru.
+1. Além de `myStarts`/`myTables`, computar `companyStartTables: Map<start_at, Set<table_id>>` a partir de `meetingList`, considerando apenas meetings cuja `visitor.company_id === profile.company_id` (quando `profile.company_id != null`).
+2. Ao avaliar um slot `s` para a mesa `t`:
+   - `free`: exigir também `!companyStartTables.has(s.start_at)` OU (o único table_id registrado é `t` — cobre o caso de colega já sentado na mesma mesa, tratado no branch `same_company`).
+   - `same_company`: além das checagens atuais, exigir que `companyStartTables.get(s.start_at)` contenha somente `t` (nenhuma outra mesa da mesma empresa naquele horário).
+3. Não alterar semântica da UI dos rótulos: `free`, `same_company` continuam existindo; agora refletem exatamente o que o backend aceita.
 
-## Validação obrigatória após implementação
-1. `git diff --stat` provando zero mudança nos arquivos protegidos e migrations.
-2. `admin.tsx` recebe apenas 1 `TabsTrigger` + 1 `TabsContent` novos.
-3. Suíte de testes intacta e verde.
-4. Nenhum arquivo novo em `supabase/migrations/`.
-5. Exemplos reais consultados via `supabase--read_query`:
-   - ≥1 caso da **Ambiental Travel Experience** com vencedora resolvida (via `audit_log` quando disponível, senão `min_created_at`).
-   - ≥1 caso da **Top Service** idem.
-   Todos os campos preenchidos, incluindo `winner.status` e `winner_source`.
-6. Verificar que ao menos 1 caso resolveu via `winner_source='audit_log'` e ao menos 1 via `min_created_at`, provando os dois caminhos.
+**Arquivo:** `src/components/admin/dedupe-recovery-tab.tsx` (UI)
 
-## Critérios de aceite
-- Aba nova só para admin; nenhuma tela existente afetada.
-- Resolução da vencedora **não usa `meetings.updated_at`** em nenhum ponto.
-- Vencedora considera `status ∈ (scheduled, done, no_show)`.
-- `audit_logs` reforça o vínculo quando disponível; heurística `MIN(created_at)` é fallback.
-- Payload sempre retorna `total_found` + `truncated`.
-- Botão "Abrir reacomodação" apenas navega — não grava nada.
-- Fluxos de booking e aba "Reacomodação" permanecem byte-a-byte idênticos.
+4. Após `rebookImpacted` retornar `ok: true`, invalidar as queries `["dedupe-recovery-suggestions", profileId]` e `["dedupe-impacted", ...]` para forçar refetch antes de nova sugestão. Se já existe, apenas garantir que a invalidação ocorra.
+5. Configurar `useQuery` das sugestões com `staleTime: 0` e `refetchOnWindowFocus: true` (leve, só nessa aba) para reduzir janela de stale.
+6. No handler que confirma a sugestão, se o backend responder `SLOT_TAKEN_OTHER_COMPANY` ou `SLOT_CONFLICT`, refetch imediato das sugestões e mostrar toast "Sugestões atualizadas".
+
+## Isolamento
+
+- **Zero mudanças** em `bookMeetingForVisitor`, `booking.functions.ts`, triggers, migrations, índices, RLS, `lost-bookings.functions.ts`, `dedupe-recovery-bus.ts`.
+- Ajuste é 100% na classificação e no refetch da aba Reacomodação.
+- Semântica de `bookForRegistrant`/booking normal permanece intocada.
+
+## Evidências que vou coletar após aprovar
+
+- Antes: caso real da Top Service onde slot X está `free` mas rebook falha com clash de empresa.
+- Depois: mesmo caso, slot X não aparece nem como `free` nem como `same_company`; slots realmente livres continuam agendando com sucesso.
+- Query SQL usada para reproduzir G4 e provar que o filtro `companyStartTables` remove exatamente os slots que o backend rejeita.
+- Lista final de arquivos alterados (2): `src/lib/dedupe-recovery.functions.ts`, `src/components/admin/dedupe-recovery-tab.tsx`.
