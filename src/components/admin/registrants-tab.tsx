@@ -3,13 +3,14 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { AlertCircle, ArrowUpDown, Ban, CalendarPlus, ClipboardCheck, Download, FileArchive, FileSpreadsheet, FileText, Files, Mail, Search, UserCog, UserCheck } from "lucide-react";
+import { AlertCircle, ArrowUpDown, Ban, CalendarClock, CalendarPlus, CalendarX, ClipboardCheck, Download, FileArchive, FileSpreadsheet, FileText, Files, Mail, Search, UserCog, UserCheck } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
@@ -50,6 +51,11 @@ import {
   adminUpdateUserEmail,
   adminUpdateUserProfile,
 } from "@/lib/admin-auth.functions";
+import {
+  adminCancelMeeting,
+  adminCancelVisitorFutureMeetings,
+  listVisitorMeetings,
+} from "@/lib/booking.functions";
 import { resendBuyerWelcome } from "@/lib/email-admin.functions";
 import { staffListRegistrationCompletion } from "@/lib/staff-registration.functions";
 import { CompleteRegistrationDialog } from "@/components/admin/complete-registration-dialog";
