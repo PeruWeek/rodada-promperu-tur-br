@@ -1113,3 +1113,263 @@ export type PostEventRow = {
   tables: string;
   blocks: string;
 };
+
+// ============================================================================
+// Restore cancelled meetings — admin only, applies the exact booking guards.
+// No blind UPDATE, no bypass, no side-effects (no email, no notification).
+// Each attempt is audited (meeting.restored | meeting.restore_blocked).
+// ============================================================================
+
+type RestoreReason =
+  | "visitor_time_conflict"
+  | "same_exhibitor_duplicate"
+  | "slot_table_taken"
+  | "company_time_conflict"
+  | "slot_not_found"
+  | "update_race";
+
+export type RestoreMeetingResult = {
+  meetingId: string;
+  tableId: string;
+  slotId: string;
+  tableNumber: number | null;
+  slotStart: string | null;
+  slotEnd: string | null;
+  exhibitorCompany: string | null;
+  outcome: "restored" | "blocked";
+  reason?: RestoreReason;
+};
+
+export const restoreCancelledMeetings = createServerFn({ method: "POST" })
+  .inputValidator((input) =>
+    z
+      .object({
+        visitorProfileId: z.string().uuid(),
+        eventId: z.string().uuid().optional(),
+        meetingIds: z.array(z.string().uuid()).optional(),
+      })
+      .parse(input),
+  )
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    if (!(await isAdmin(context.userId))) {
+      throw new Error("Forbidden: admin only");
+    }
+
+    let eventId = data.eventId ?? null;
+    if (!eventId) {
+      const { data: ev } = await supabaseAdmin
+        .from("events")
+        .select("id")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      eventId = ev?.id ?? null;
+    }
+    if (!eventId) throw new Error("Nenhum evento ativo encontrado");
+
+    const { data: visitor, error: vErr } = await supabaseAdmin
+      .from("profiles")
+      .select("id, company_id")
+      .eq("id", data.visitorProfileId)
+      .maybeSingle();
+    if (vErr) throw new Error(vErr.message);
+    if (!visitor) throw new Error("Visitante não encontrado");
+
+    let query = supabaseAdmin
+      .from("meetings")
+      .select(
+        "id, event_id, table_id, slot_id, status, " +
+          "time_slots!inner(start_at, end_at), " +
+          "event_tables!inner(table_number, exhibitor_profile_id)",
+      )
+      .eq("visitor_profile_id", visitor.id)
+      .eq("event_id", eventId)
+      .eq("status", "cancelled")
+      .order("start_at", { ascending: true, referencedTable: "time_slots" });
+    if (data.meetingIds && data.meetingIds.length > 0) {
+      query = query.in("id", data.meetingIds);
+    }
+    const { data: candidates, error: cErr } = await query;
+    if (cErr) throw new Error(cErr.message);
+
+    // Resolve trade_name dos expositores (relatório)
+    const exhibitorIds = Array.from(
+      new Set(
+        (candidates ?? [])
+          .map((m: any) => m.event_tables?.exhibitor_profile_id as string | undefined)
+          .filter(Boolean) as string[],
+      ),
+    );
+    const exhibitorCompanyByProfile = new Map<string, string | null>();
+    if (exhibitorIds.length > 0) {
+      const { data: profs } = await supabaseAdmin
+        .from("profiles")
+        .select("id, company_id")
+        .in("id", exhibitorIds);
+      const companyIds = Array.from(
+        new Set(
+          (profs ?? [])
+            .map((p) => p.company_id as string | null)
+            .filter(Boolean) as string[],
+        ),
+      );
+      const compMap = new Map<string, string>();
+      if (companyIds.length > 0) {
+        const { data: comps } = await supabaseAdmin
+          .from("companies")
+          .select("id, trade_name")
+          .in("id", companyIds);
+        for (const c of comps ?? [])
+          compMap.set(c.id as string, c.trade_name as string);
+      }
+      for (const p of profs ?? []) {
+        exhibitorCompanyByProfile.set(
+          p.id as string,
+          p.company_id ? compMap.get(p.company_id as string) ?? null : null,
+        );
+      }
+    }
+
+    const results: RestoreMeetingResult[] = [];
+
+    for (const cand of candidates ?? []) {
+      const meetingId = cand.id as string;
+      const tableId = cand.table_id as string;
+      const slotId = cand.slot_id as string;
+      const ts = (cand as any).time_slots as
+        | { start_at: string; end_at: string }
+        | null;
+      const et = (cand as any).event_tables as
+        | { table_number: number | null; exhibitor_profile_id: string | null }
+        | null;
+
+      const base: RestoreMeetingResult = {
+        meetingId,
+        tableId,
+        slotId,
+        tableNumber: et?.table_number ?? null,
+        slotStart: ts?.start_at ?? null,
+        slotEnd: ts?.end_at ?? null,
+        exhibitorCompany: et?.exhibitor_profile_id
+          ? exhibitorCompanyByProfile.get(et.exhibitor_profile_id) ?? null
+          : null,
+        outcome: "blocked",
+      };
+
+      const block = async (reason: RestoreReason) => {
+        results.push({ ...base, outcome: "blocked", reason });
+        await audit(context.userId, eventId!, "meeting.restore_blocked", {
+          meetingId,
+          tableId,
+          slotId,
+          visitorProfileId: visitor.id,
+          reason,
+        });
+      };
+
+      if (!ts) {
+        await block("slot_not_found");
+        continue;
+      }
+
+      // Guarda 2 — visitante já tem scheduled no mesmo start_at?
+      const { data: existingMeetings } = await supabaseAdmin
+        .from("meetings")
+        .select("id, time_slots!inner(start_at)")
+        .eq("visitor_profile_id", visitor.id)
+        .eq("status", "scheduled");
+      const visitorTimeConflict = (existingMeetings ?? []).some(
+        (m: any) => m.time_slots?.start_at === ts.start_at,
+      );
+      if (visitorTimeConflict) {
+        await block("visitor_time_conflict");
+        continue;
+      }
+
+      // Guarda 3 — mesma mesa/expositor
+      const { data: sameTable } = await supabaseAdmin
+        .from("meetings")
+        .select("id")
+        .eq("visitor_profile_id", visitor.id)
+        .eq("table_id", tableId)
+        .eq("status", "scheduled")
+        .maybeSingle();
+      if (sameTable) {
+        await block("same_exhibitor_duplicate");
+        continue;
+      }
+
+      // Guarda 3.5 — (table_id, slot_id) já ocupado
+      const { data: slotTaken } = await supabaseAdmin
+        .from("meetings")
+        .select("id")
+        .eq("table_id", tableId)
+        .eq("slot_id", slotId)
+        .eq("status", "scheduled")
+        .maybeSingle();
+      if (slotTaken) {
+        await block("slot_table_taken");
+        continue;
+      }
+
+      // Guarda 4 — empresa da visitante já com scheduled no mesmo (start_at,end_at)
+      if (visitor.company_id) {
+        const { data: companyClash } = await supabaseAdmin
+          .from("meetings")
+          .select(
+            "id, visitor:profiles!visitor_profile_id(company_id), time_slots!inner(start_at, end_at)",
+          )
+          .eq("event_id", eventId)
+          .eq("status", "scheduled")
+          .eq("time_slots.start_at", ts.start_at)
+          .eq("time_slots.end_at", ts.end_at);
+        const clash = (companyClash ?? []).some(
+          (m: any) => m.visitor?.company_id === visitor.company_id,
+        );
+        if (clash) {
+          await block("company_time_conflict");
+          continue;
+        }
+      }
+
+      // UPDATE condicional cancelled -> scheduled
+      const { data: updated, error: uErr } = await supabaseAdmin
+        .from("meetings")
+        .update({ status: "scheduled", cancel_reason: null })
+        .eq("id", meetingId)
+        .eq("status", "cancelled")
+        .select("id");
+      if (uErr) {
+        const msg = String(uErr.message || "");
+        if (
+          msg.includes("uq_meetings_table_slot_scheduled") ||
+          msg.includes("meetings_unique_visitor_slot_scheduled") ||
+          msg.includes("uq_meetings_visitor_table_scheduled")
+        ) {
+          await block("slot_table_taken");
+          continue;
+        }
+        throw new Error(uErr.message);
+      }
+      if (!updated || updated.length === 0) {
+        await block("update_race");
+        continue;
+      }
+
+      results.push({ ...base, outcome: "restored" });
+      await audit(context.userId, eventId, "meeting.restored", {
+        meetingId,
+        tableId,
+        slotId,
+        visitorProfileId: visitor.id,
+        previousStatus: "cancelled",
+      });
+    }
+
+    return {
+      eventId,
+      visitorProfileId: visitor.id,
+      results,
+    };
+  });
