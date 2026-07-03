@@ -591,6 +591,32 @@ function TablesTab({ readOnly = false }: { readOnly?: boolean } = {}) {
 }
 
 function CheckinTab() {
+  const { t } = useTranslation();
+  return (
+    <Tabs defaultValue="arrivals" className="w-full">
+      <TabsList className="flex flex-wrap">
+        <TabsTrigger value="arrivals">{t("admin.checkin.tabs.arrivals")}</TabsTrigger>
+        <TabsTrigger value="live">{t("admin.checkin.tabs.live")}</TabsTrigger>
+        <TabsTrigger value="fillin">{t("admin.checkin.tabs.fillin")}</TabsTrigger>
+        <TabsTrigger value="post">{t("admin.checkin.tabs.post")}</TabsTrigger>
+      </TabsList>
+      <TabsContent value="arrivals" className="mt-3">
+        <ArrivalsPanel />
+      </TabsContent>
+      <TabsContent value="live" className="mt-3">
+        <LiveOpsPanel />
+      </TabsContent>
+      <TabsContent value="fillin" className="mt-3">
+        <FillinQueue />
+      </TabsContent>
+      <TabsContent value="post" className="mt-3">
+        <PostEventSummary />
+      </TabsContent>
+    </Tabs>
+  );
+}
+
+function ArrivalsPanel() {
   const { t, i18n } = useTranslation();
   const qc = useQueryClient();
   const [q, setQ] = useState("");
