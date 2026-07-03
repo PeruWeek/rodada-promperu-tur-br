@@ -734,6 +734,17 @@ async function computeLiveOperations(eventIdOpt?: string | null) {
       atRiskMeetings,
       freeTables,
     };
+}
+
+export const getLiveOperations = createServerFn({ method: "POST" })
+  .inputValidator((input) =>
+    z.object({ eventId: z.string().uuid().optional() }).parse(input),
+  )
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    if (!(await isAdminOrStaff(context.userId)))
+      throw new Error("Forbidden: admin/staff only");
+    return computeLiveOperations(data.eventId ?? null);
   });
 
 // Fill-in suggestions: idle visitors × free tables at a given slot.
