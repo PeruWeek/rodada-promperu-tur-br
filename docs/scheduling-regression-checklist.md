@@ -23,6 +23,10 @@ Repetir os 6 casos acima operando como admin/staff/cliente.
 
 - [ ] `slots_booked` conta pares únicos `(table_id, slot_id)`, não meetings brutos.
 - [ ] Status nunca é `lotada` quando `slots_free > 0`.
+- [ ] Card `Com agendamento · N` do expositor NUNCA excede o total de slots
+      físicos da(s) mesa(s) da empresa. Métrica vem de
+      `v_company_event_pipeline.scheduled_meetings_count` (ramo `exhibitor`),
+      que deve estar contando `DISTINCT (table_id, slot_id)`.
 
 ```sql
 -- Pares fisicamente ocupados por mesa
