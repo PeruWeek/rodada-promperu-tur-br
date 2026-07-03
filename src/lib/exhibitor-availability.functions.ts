@@ -273,6 +273,16 @@ export const listExhibitorAvailability = createServerFn({ method: "POST" })
     // Só instancia acumuladores para empresas ativas com mesa (loop abaixo).
 
     const bookedSlotIds = new Set(meetings.map((m) => m.slot_id));
+    // Slots ocupados por MESA — regra "1 slot = 1 empresa": múltiplas
+    // reuniões da mesma empresa no mesmo (table_id, slot_id) consomem
+    // apenas 1 vaga física. Contagem de meetings brutos inflaria a
+    // lotação e produziria "lotada" com slot livre.
+    const bookedSlotsPerTable = new Map<string, Set<string>>();
+    for (const m of meetings) {
+      const set = bookedSlotsPerTable.get(m.table_id) ?? new Set<string>();
+      set.add(m.slot_id);
+      bookedSlotsPerTable.set(m.table_id, set);
+    }
     const meetingsByTable = new Map<string, typeof meetings>();
     for (const m of meetings) {
       const arr = meetingsByTable.get(m.table_id) ?? [];
@@ -303,7 +313,7 @@ export const listExhibitorAvailability = createServerFn({ method: "POST" })
       }
 
       const tMeetings = meetingsByTable.get(t.id) ?? [];
-      acc.slots_booked += tMeetings.length;
+      acc.slots_booked += (bookedSlotsPerTable.get(t.id)?.size ?? 0);
       for (const m of tMeetings) {
         const slot = slots.find((s) => s.id === m.slot_id);
         const v = visitorById.get(m.visitor_profile_id);
