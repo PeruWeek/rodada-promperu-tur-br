@@ -3,13 +3,14 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { AlertCircle, ArrowUpDown, Ban, CalendarPlus, ClipboardCheck, Download, FileArchive, FileSpreadsheet, FileText, Files, Mail, Search, UserCog, UserCheck } from "lucide-react";
+import { AlertCircle, ArrowUpDown, Ban, CalendarClock, CalendarPlus, CalendarX, ClipboardCheck, Download, FileArchive, FileSpreadsheet, FileText, Files, Mail, Search, UserCog, UserCheck } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
@@ -50,6 +51,11 @@ import {
   adminUpdateUserEmail,
   adminUpdateUserProfile,
 } from "@/lib/admin-auth.functions";
+import {
+  adminCancelMeeting,
+  adminCancelVisitorFutureMeetings,
+  listVisitorMeetings,
+} from "@/lib/booking.functions";
 import { resendBuyerWelcome } from "@/lib/email-admin.functions";
 import { staffListRegistrationCompletion } from "@/lib/staff-registration.functions";
 import { CompleteRegistrationDialog } from "@/components/admin/complete-registration-dialog";
@@ -195,6 +201,45 @@ export function RegistrantsTab({
   const [welcomeForce, setWelcomeForce] = useState(false);
   const [welcomeSending, setWelcomeSending] = useState(false);
   const [bookTarget, setBookTarget] = useState<RegistrantRow | null>(null);
+  const [meetingsTarget, setMeetingsTarget] = useState<RegistrantRow | null>(null);
+  const [cancelAllTarget, setCancelAllTarget] = useState<RegistrantRow | null>(null);
+  const [cancelAllReason, setCancelAllReason] = useState("");
+  const adminCancelMeetingFn = useServerFn(adminCancelMeeting);
+  const adminCancelAllFn = useServerFn(adminCancelVisitorFutureMeetings);
+  const listVisitorMeetingsFn = useServerFn(listVisitorMeetings);
+  const cancelAllMut = useMutation({
+    mutationFn: async (v: { visitorProfileId: string; reason?: string }) =>
+      adminCancelAllFn({ data: v }),
+    onSuccess: (res, v) => {
+      const cancelled = res.cancelled.length;
+      const failed = res.failed.length;
+      const emailFailed = res.cancelled.filter((c) => c.emailFailed).length;
+      if (failed > 0) {
+        toast.warning(
+          t("admin.registrants.toasts.meetingsCancelledPartial", {
+            cancelled,
+            failed,
+          }),
+        );
+      } else if (emailFailed > 0) {
+        toast.success(
+          t("admin.registrants.toasts.meetingsCancelledEmailPartial", {
+            count: cancelled,
+            emailFailed,
+          }),
+        );
+      } else {
+        toast.success(
+          t("admin.registrants.toasts.meetingsCancelled", { count: cancelled }),
+        );
+      }
+      setCancelAllTarget(null);
+      setCancelAllReason("");
+      qc.invalidateQueries({ queryKey: ["visitor-meetings", v.visitorProfileId] });
+      invalidate();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
   const listAvailabilityFn = useServerFn(listExhibitorAvailability);
   const availabilityQuery = useQuery({
     queryKey: ["exhibitor-availability", "registrants-probe"],
@@ -662,6 +707,32 @@ export function RegistrantsTab({
                 )}
                 {isAdmin && r.auth_user_id && (
                   <>
+                    {r.role === "visitor" && (r.profile_meetings_count ?? 0) > 0 && (
+                      <>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setMeetingsTarget(r)}
+                          title={t("admin.registrants.actions.viewMeetings")}
+                        >
+                          <CalendarClock size={14} />{" "}
+                          {t("admin.registrants.actions.viewMeetings")}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-destructive hover:text-destructive"
+                          onClick={() => {
+                            setCancelAllReason("");
+                            setCancelAllTarget(r);
+                          }}
+                          title={t("admin.registrants.actions.cancelFutureMeetings")}
+                        >
+                          <CalendarX size={14} />{" "}
+                          {t("admin.registrants.actions.cancelFutureMeetings")}
+                        </Button>
+                      </>
+                    )}
                     {r.role === "visitor" && (
                       <Button
                         size="sm"
@@ -888,6 +959,68 @@ export function RegistrantsTab({
         target={bookTarget}
         onClose={() => setBookTarget(null)}
       />
+
+      <VisitorMeetingsDialog
+        target={meetingsTarget}
+        onClose={() => setMeetingsTarget(null)}
+        listMeetings={listVisitorMeetingsFn}
+        cancelMeeting={adminCancelMeetingFn}
+        onCancelledOne={(v) => {
+          if (meetingsTarget) {
+            qc.invalidateQueries({
+              queryKey: ["visitor-meetings", meetingsTarget.profile_id],
+            });
+          }
+          if (v.emailFailed) {
+            toast.success(t("admin.registrants.toasts.meetingCancelledEmailFailed"));
+          } else {
+            toast.success(t("admin.registrants.toasts.meetingCancelled"));
+          }
+          invalidate();
+        }}
+      />
+
+      <AlertDialog
+        open={!!cancelAllTarget}
+        onOpenChange={(o) => {
+          if (!o) {
+            setCancelAllTarget(null);
+            setCancelAllReason("");
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {t("admin.registrants.meetings.cancelAllTitle")}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("admin.registrants.meetings.cancelAllBody")}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <Textarea
+            value={cancelAllReason}
+            onChange={(e) => setCancelAllReason(e.target.value)}
+            maxLength={500}
+            placeholder={t("admin.registrants.meetings.reasonPlaceholder")}
+          />
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() =>
+                cancelAllTarget &&
+                cancelAllMut.mutate({
+                  visitorProfileId: cancelAllTarget.profile_id,
+                  reason: cancelAllReason.trim() || undefined,
+                })
+              }
+              disabled={cancelAllMut.isPending}
+            >
+              {t("admin.registrants.meetings.cancelAllConfirm")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }
@@ -966,6 +1099,185 @@ function ReplaceContactDialog({
             {submitting
               ? t("common.loading")
               : t("admin.registrants.replaceDialog.confirm")}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+type VisitorMeetingRowUI = {
+  meeting_id: string;
+  event_id: string;
+  start_at: string;
+  end_at: string;
+  table_id: string;
+  table_number: number | null;
+  slot_id: string;
+  exhibitor_name: string;
+};
+
+function VisitorMeetingsDialog({
+  target,
+  onClose,
+  listMeetings,
+  cancelMeeting,
+  onCancelledOne,
+}: {
+  target: RegistrantRow | null;
+  onClose: () => void;
+  listMeetings: (opts: {
+    data: { visitorProfileId: string };
+  }) => Promise<{ rows: VisitorMeetingRowUI[] }>;
+  cancelMeeting: (opts: {
+    data: { meetingId: string; reason?: string };
+  }) => Promise<{ ok: true; emailFailed: boolean }>;
+  onCancelledOne: (v: { meetingId: string; emailFailed: boolean }) => void;
+}) {
+  const { t, i18n } = useTranslation();
+  const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [reason, setReason] = useState("");
+  const [pendingId, setPendingId] = useState<string | null>(null);
+
+  const q = useQuery({
+    queryKey: ["visitor-meetings", target?.profile_id],
+    queryFn: () =>
+      listMeetings({ data: { visitorProfileId: target!.profile_id } }),
+    enabled: !!target,
+  });
+
+  return (
+    <Dialog
+      open={!!target}
+      onOpenChange={(o) => {
+        if (!o) {
+          setConfirmId(null);
+          setReason("");
+          onClose();
+        }
+      }}
+    >
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>
+            {t("admin.registrants.meetings.dialogTitle", {
+              name: target?.full_name ?? "",
+            })}
+          </DialogTitle>
+        </DialogHeader>
+        {q.isLoading ? (
+          <Skeleton className="h-32 w-full" />
+        ) : (q.data?.rows.length ?? 0) === 0 ? (
+          <p className="py-6 text-center text-sm text-muted-foreground">
+            {t("admin.registrants.meetings.empty")}
+          </p>
+        ) : (
+          <div className="max-h-[50vh] space-y-2 overflow-y-auto">
+            {(q.data?.rows ?? []).map((m) => {
+              const dt = m.start_at
+                ? new Date(m.start_at).toLocaleString(
+                    i18n.language === "es" ? "es" : "pt-BR",
+                    {
+                      day: "2-digit",
+                      month: "2-digit",
+                      year: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    },
+                  )
+                : "";
+              const isConfirming = confirmId === m.meeting_id;
+              return (
+                <div
+                  key={m.meeting_id}
+                  className="rounded-md border border-border p-3"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-medium">
+                        {m.exhibitor_name}
+                        {m.table_number != null ? ` · Mesa ${m.table_number}` : ""}
+                      </div>
+                      <div className="text-xs text-muted-foreground">{dt}</div>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-destructive hover:text-destructive"
+                      onClick={() => {
+                        setConfirmId(isConfirming ? null : m.meeting_id);
+                        setReason("");
+                      }}
+                    >
+                      <Ban size={14} />{" "}
+                      {t("admin.registrants.meetings.cancelOneConfirm")}
+                    </Button>
+                  </div>
+                  {isConfirming && (
+                    <div className="mt-3 space-y-2 rounded-md bg-muted/40 p-2">
+                      <p className="text-xs text-muted-foreground">
+                        {t("admin.registrants.meetings.cancelOneBody")}
+                      </p>
+                      <Textarea
+                        value={reason}
+                        onChange={(e) => setReason(e.target.value)}
+                        maxLength={500}
+                        placeholder={t(
+                          "admin.registrants.meetings.reasonPlaceholder",
+                        )}
+                      />
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => {
+                            setConfirmId(null);
+                            setReason("");
+                          }}
+                        >
+                          {t("common.cancel")}
+                        </Button>
+                        <Button
+                          size="sm"
+                          disabled={pendingId === m.meeting_id}
+                          onClick={async () => {
+                            setPendingId(m.meeting_id);
+                            try {
+                              const res = await cancelMeeting({
+                                data: {
+                                  meetingId: m.meeting_id,
+                                  reason: reason.trim() || undefined,
+                                },
+                              });
+                              setConfirmId(null);
+                              setReason("");
+                              onCancelledOne({
+                                meetingId: m.meeting_id,
+                                emailFailed: res.emailFailed,
+                              });
+                              q.refetch();
+                            } catch (e) {
+                              toast.error((e as Error).message);
+                            } finally {
+                              setPendingId(null);
+                            }
+                          }}
+                        >
+                          {pendingId === m.meeting_id
+                            ? t("common.loading")
+                            : t("admin.registrants.meetings.cancelOneConfirm")}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose}>
+            {t("common.cancel")}
           </Button>
         </DialogFooter>
       </DialogContent>
