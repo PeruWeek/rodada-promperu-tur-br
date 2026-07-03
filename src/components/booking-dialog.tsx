@@ -6,7 +6,7 @@ import { Calendar } from "lucide-react";
 import { toast } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
-import { bookMeeting } from "@/lib/booking.functions";
+import { bookMeeting, listVisitorBookingSlots } from "@/lib/booking.functions";
 import { trackMauticEvent } from "@/lib/mautic";
 import { Button } from "@/components/ui/button";
 import {
@@ -34,68 +34,12 @@ export function BookingDialog({
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
   const qc = useQueryClient();
   const book = useServerFn(bookMeeting);
+  const listSlotsFn = useServerFn(listVisitorBookingSlots);
 
   const { data, isLoading } = useQuery({
     queryKey: ["booking-slots", exhibitorProfileId],
     enabled: open,
-    queryFn: async () => {
-      // table for this exhibitor
-      const { data: table } = await supabase
-        .from("event_tables")
-        .select("id, event_id, table_number")
-        .eq("exhibitor_profile_id", exhibitorProfileId)
-        .maybeSingle();
-      if (!table)
-        return {
-          table: null,
-          slots: [] as Array<{ id: string; start_at: string; end_at: string }>,
-          taken: new Set<string>(),
-          myBookedSlotIds: new Set<string>(),
-          myBookedStarts: new Set<string>(),
-        };
-
-      const [{ data: slots }, { data: taken }, { data: me }] = await Promise.all([
-        supabase
-          .from("time_slots")
-          .select("id, start_at, end_at")
-          .eq("table_id", table.id)
-          .eq("is_active", true)
-          .order("start_at"),
-        supabase
-          .from("meetings")
-          .select("slot_id")
-          .eq("table_id", table.id)
-          .eq("status", "scheduled"),
-        supabase.auth.getUser(),
-      ]);
-
-      let myBookedSlotIds = new Set<string>();
-      let myBookedStarts = new Set<string>();
-      if (me?.user) {
-        // RLS restricts to the visitor's own meetings.
-        const { data: myMeetings } = await supabase
-          .from("meetings")
-          .select("slot_id")
-          .eq("status", "scheduled");
-        const ids = (myMeetings ?? []).map((m) => m.slot_id);
-        myBookedSlotIds = new Set(ids);
-        if (ids.length) {
-          const { data: mySlots } = await supabase
-            .from("time_slots")
-            .select("id, start_at")
-            .in("id", ids);
-          myBookedStarts = new Set((mySlots ?? []).map((s) => s.start_at));
-        }
-      }
-
-      return {
-        table,
-        slots: slots ?? [],
-        taken: new Set((taken ?? []).map((m) => m.slot_id)),
-        myBookedSlotIds,
-        myBookedStarts,
-      };
-    },
+    queryFn: () => listSlotsFn({ data: { exhibitorProfileId } }),
   });
 
   const mutation = useMutation({
@@ -174,6 +118,11 @@ export function BookingDialog({
     return [{ period: t("booking.morning"), items: [...data.slots] }];
   }, [data, t]);
 
+  const busyStarts = useMemo(
+    () => new Set(data?.visitor_busy_starts ?? []),
+    [data],
+  );
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -204,11 +153,24 @@ export function BookingDialog({
                 <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{g.period}</p>
                 <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
                   {g.items.map((s) => {
-                    const isTaken = data.taken.has(s.id);
-                    const isMine =
-                      data.myBookedSlotIds.has(s.id) || data.myBookedStarts.has(s.start_at);
-                    const disabled = isTaken || isMine;
+                    const isMine = s.status === "mine";
+                    const isOtherCompany = s.status === "other_company";
+                    const isSameCompany = s.status === "same_company";
+                    const timeClash = !isMine && busyStarts.has(s.start_at);
+                    // "1 slot = 1 empresa": mesma empresa é vaga válida.
+                    // Bloqueia se já for do próprio user, de outra empresa,
+                    // ou se colide com outro compromisso do próprio user.
+                    const disabled = isMine || isOtherCompany || timeClash;
                     const label = formatSlot(s.start_at, i18n.language);
+                    const title = isMine
+                      ? t("booking.selfConflict")
+                      : isOtherCompany
+                        ? "Ocupado por outra empresa"
+                        : isSameCompany
+                          ? "Ocupado por colega da sua empresa — você pode participar"
+                          : timeClash
+                            ? t("booking.selfConflict")
+                            : undefined;
                     return (
                       <button
                         key={s.id}
@@ -224,11 +186,16 @@ export function BookingDialog({
                             ? "border-primary bg-primary text-primary-foreground"
                             : disabled
                               ? "cursor-not-allowed border-border bg-muted text-muted-foreground line-through opacity-60"
-                              : "border-border hover:border-primary hover:bg-accent"
+                              : isSameCompany
+                                ? "border-amber-500/60 bg-amber-500/10 hover:border-primary hover:bg-accent"
+                                : "border-border hover:border-primary hover:bg-accent"
                         }`}
-                        title={isMine ? t("booking.selfConflict") : isTaken ? t("booking.taken") : undefined}
+                        title={title}
                       >
                         {label}
+                        {isSameCompany && (
+                          <span className="ml-1 text-[10px] opacity-70">•</span>
+                        )}
                       </button>
                     );
                   })}
