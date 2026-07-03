@@ -168,9 +168,17 @@ export function BookForRegistrantDialog({
         (s) => s.slot_id === selectedSlotId,
       );
       if (!slot) throw new Error("Slot inválido");
-      // Race final: se o slot ficou ocupado pela mesma empresa entre abrir
-      // o dialog e confirmar, aborta antes de bater no backend.
-      if (companyBusy?.has(`${slot.start_at}|${slot.end_at}`)) {
+      const joinableIds = (
+        selectedExhibitor as unknown as { __joinable_slot_ids?: Set<string> }
+      ).__joinable_slot_ids;
+      const isJoiningSameCompanySlot = joinableIds?.has(slot.slot_id) ?? false;
+      // Race final: se a empresa já tem reunião NESTE horário em outra mesa,
+      // aborta. Ignora quando estamos entrando no MESMO (table, slot) de um
+      // colega — regra "1 slot = 1 empresa" permite explicitamente.
+      if (
+        !isJoiningSameCompanySlot &&
+        companyBusy?.has(`${slot.start_at}|${slot.end_at}`)
+      ) {
         throw new Error(
           "Esta empresa já possui uma reunião agendada neste horário.",
         );
