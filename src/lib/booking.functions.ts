@@ -187,29 +187,67 @@ export const bookMeeting = createServerFn({ method: "POST" })
     if (nsErr) throw new Error(nsErr.message);
     if (!newSlot) throw new Error("Slot not found");
 
-    const [{ data: myMtgs }, { data: pairMtgs }, { data: startMtgs }] =
+    // 2-step para evitar filtro/ordenação ambígua em `meetings -> time_slots`
+    // (a tabela tem 2 FKs: slot_id e original_slot_id, e PostgREST não aceita
+    // path `time_slots!fk.coluna` em .eq/.gte/.order → erro
+    // "column meetings.time_slots does not exist").
+    const [{ data: myMtgsRaw }, { data: pairMtgsRaw }, { data: sameEventMtgsRaw }] =
       await Promise.all([
         supabaseAdmin
           .from("meetings")
-          .select("id, table_id, slot_id, visitor_profile_id, time_slots!meetings_slot_id_fkey!inner(start_at,end_at)")
+          .select("id, table_id, slot_id, visitor_profile_id")
           .eq("visitor_profile_id", profile.id)
           .eq("status", "scheduled"),
         supabaseAdmin
           .from("meetings")
-          .select("id, table_id, slot_id, visitor_profile_id, visitor:profiles!visitor_profile_id(company_id), time_slots!meetings_slot_id_fkey!inner(start_at,end_at)")
+          .select("id, table_id, slot_id, visitor_profile_id, visitor:profiles!visitor_profile_id(company_id)")
           .eq("table_id", data.tableId)
           .eq("slot_id", data.slotId)
           .eq("status", "scheduled"),
         profile.company_id
           ? supabaseAdmin
               .from("meetings")
-              .select("id, table_id, slot_id, visitor_profile_id, visitor:profiles!visitor_profile_id(company_id), time_slots!meetings_slot_id_fkey!inner(start_at,end_at)")
+              .select("id, table_id, slot_id, visitor_profile_id, visitor:profiles!visitor_profile_id(company_id)")
               .eq("event_id", data.eventId)
               .eq("status", "scheduled")
-              .eq("time_slots!meetings_slot_id_fkey.start_at", newSlot.start_at)
-              .eq("time_slots!meetings_slot_id_fkey.end_at", newSlot.end_at)
           : Promise.resolve({ data: [] as any[] }),
       ]);
+
+    const allSlotIds = Array.from(
+      new Set(
+        [
+          ...((myMtgsRaw ?? []) as any[]),
+          ...((pairMtgsRaw ?? []) as any[]),
+          ...((sameEventMtgsRaw ?? []) as any[]),
+        ]
+          .map((m) => m.slot_id)
+          .filter((v): v is string => !!v),
+      ),
+    );
+    const slotMap = new Map<string, { start_at: string; end_at: string }>();
+    if (allSlotIds.length > 0) {
+      const { data: slotsRows } = await supabaseAdmin
+        .from("time_slots")
+        .select("id, start_at, end_at")
+        .in("id", allSlotIds);
+      for (const s of (slotsRows ?? []) as any[]) {
+        slotMap.set(s.id, { start_at: s.start_at, end_at: s.end_at });
+      }
+    }
+    const withSlot = (m: any) => ({
+      ...m,
+      time_slots: slotMap.get(m.slot_id) ?? { start_at: "", end_at: "" },
+    });
+    const myMtgs = ((myMtgsRaw ?? []) as any[]).map(withSlot);
+    const pairMtgs = ((pairMtgsRaw ?? []) as any[]).map(withSlot);
+    // Filtro do sameEventMeetingsAtStart aplicado em JS (start_at + end_at do novo slot)
+    const startMtgs = ((sameEventMtgsRaw ?? []) as any[])
+      .map(withSlot)
+      .filter(
+        (m) =>
+          m.time_slots.start_at === newSlot.start_at &&
+          m.time_slots.end_at === newSlot.end_at,
+      );
 
     const toLite = (m: any): MeetingLite => ({
       id: m.id,
@@ -472,17 +510,34 @@ export const adminCancelVisitorFutureMeetings = createServerFn({ method: "POST" 
 
     const adminProfile = await loadAdminProfileByAuthUserId(userId);
 
-    // Load scheduled + future meeting ids for this visitor via time_slots join.
+    // 2-step: pega scheduled desse visitante, depois filtra por start_at
+    // consultando time_slots por id (evita path ambíguo em .gte).
     const nowIso = new Date().toISOString();
-    const { data: candidates, error: candErr } = await supabaseAdmin
+    const { data: candidatesRaw, error: candErr } = await supabaseAdmin
       .from("meetings")
-      .select("id, time_slots!meetings_slot_id_fkey!inner(start_at)")
+      .select("id, slot_id")
       .eq("visitor_profile_id", data.visitorProfileId)
-      .eq("status", "scheduled")
-      .gte("time_slots!meetings_slot_id_fkey.start_at", nowIso);
+      .eq("status", "scheduled");
     if (candErr) throw new Error(candErr.message);
-
-    const ids = ((candidates ?? []) as Array<{ id: string }>).map((m) => m.id);
+    const candSlotIds = Array.from(
+      new Set(
+        ((candidatesRaw ?? []) as any[])
+          .map((m) => m.slot_id)
+          .filter((v): v is string => !!v),
+      ),
+    );
+    const futureSlotIds = new Set<string>();
+    if (candSlotIds.length > 0) {
+      const { data: futureSlots } = await supabaseAdmin
+        .from("time_slots")
+        .select("id")
+        .in("id", candSlotIds)
+        .gte("start_at", nowIso);
+      for (const s of (futureSlots ?? []) as any[]) futureSlotIds.add(s.id);
+    }
+    const ids = ((candidatesRaw ?? []) as any[])
+      .filter((m) => m.slot_id && futureSlotIds.has(m.slot_id))
+      .map((m) => m.id as string);
 
     const cancelled: Array<{
       meetingId: string;
@@ -558,17 +613,40 @@ export const listVisitorMeetings = createServerFn({ method: "POST" })
     const { userId } = context;
     await assertAdminRole(supabaseAdmin, userId);
 
+    // 2-step: meetings + event_tables (FK única) e time_slots por id — evita
+    // filtro/ordenação por caminho ambíguo (meetings tem 2 FKs para time_slots).
     const nowIso = new Date().toISOString();
-    const { data: rows, error } = await supabaseAdmin
+    const { data: rowsRaw, error } = await supabaseAdmin
       .from("meetings")
       .select(
-        "id, event_id, table_id, slot_id, time_slots!meetings_slot_id_fkey!inner(start_at, end_at), event_tables!inner(table_number, exhibitor_profile_id)",
+        "id, event_id, table_id, slot_id, event_tables!inner(table_number, exhibitor_profile_id)",
       )
       .eq("visitor_profile_id", data.visitorProfileId)
-      .eq("status", "scheduled")
-      .gte("time_slots!meetings_slot_id_fkey.start_at", nowIso)
-      .order("start_at", { referencedTable: "time_slots", ascending: true });
+      .eq("status", "scheduled");
     if (error) throw new Error(error.message);
+
+    const slotIds = Array.from(
+      new Set(
+        ((rowsRaw ?? []) as any[])
+          .map((r) => r.slot_id)
+          .filter((v): v is string => !!v),
+      ),
+    );
+    const slotById = new Map<string, { start_at: string; end_at: string }>();
+    if (slotIds.length > 0) {
+      const { data: slotsData } = await supabaseAdmin
+        .from("time_slots")
+        .select("id, start_at, end_at")
+        .in("id", slotIds)
+        .gte("start_at", nowIso);
+      for (const s of (slotsData ?? []) as any[]) {
+        slotById.set(s.id, { start_at: s.start_at, end_at: s.end_at });
+      }
+    }
+    const rows = ((rowsRaw ?? []) as any[])
+      .filter((r) => r.slot_id && slotById.has(r.slot_id))
+      .map((r) => ({ ...r, time_slots: slotById.get(r.slot_id)! }))
+      .sort((a, b) => a.time_slots.start_at.localeCompare(b.time_slots.start_at));
 
     const exhibitorIds = Array.from(
       new Set(
