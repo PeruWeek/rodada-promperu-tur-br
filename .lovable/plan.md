@@ -1,88 +1,108 @@
+## Objetivo
+Tela admin **NOVA e ISOLADA** para reacomodar contatos impactados por dedupe (perderam reuniões pela regra `1 slot = 1 empresa`), sem tocar em trigger, índice, dedupe, lotação, disponibilidade ou fluxo de booking existente.
 
-# Credenciamento → Sala de Operação da Rodada
+## Garantia de isolamento (regra dura)
+Proibido alterar:
+- `src/lib/booking.functions.ts`
+- `src/lib/exhibitor-availability.functions.ts`
+- `src/components/booking-dialog.tsx`
+- `src/components/admin/book-for-registrant-dialog.tsx`
+- `src/components/admin/registrants-tab.tsx`, `exhibitor-availability-tab.tsx` e demais abas atuais
+- qualquer migration existente (triggers, índices, RPC `admin_dedupe_table_slot_company`, `auto-sanitize`)
 
-Preserva integralmente o fluxo atual de **Chegadas** (`busca + lista + Marcar chegada`), que abre como sub-aba padrão e vira `<ArrivalsPanel />` sem mudança de comportamento. Adiciona três sub-abas em cima dos mesmos dados. UX rápida, auditável, no máximo 1 ação primária + 1 secundária por linha.
+Permitido:
+- criar 2 arquivos novos
+- adicionar 1 `TabsTrigger` + 1 `TabsContent` **somente no bloco admin** de `src/routes/_authenticated/admin.tsx`
+- adicionar strings em `i18n/pt-BR.json` e `es.json`
 
-## 1. Estrutura da tela
+Nenhuma migration nova. Nenhuma alteração de RLS. Nenhuma alteração de dependências.
 
-```text
-[ Chegadas (default) ] [ Ao vivo ] [ Encaixe ] [ Pós-evento ]
-```
+## Escopo
 
-- **Chegadas** — `<ArrivalsPanel />`: comportamento idêntico ao de hoje; abre por padrão.
-- **Ao vivo** — faixa de 5 KPIs (polling 30 s) + lista filtrada pelo KPI selecionado.
-- **Encaixe** — fila de pareamento com confirmação em 1 clique.
-- **Pós-evento** — read-only + CSV.
+### 1. `listDedupeImpacted` (default `mode='urgent'`)
+Server-fn admin-only, evento ativo. Retorna por contato:
+- `profile_id`, `full_name`, `email`, `company_id`, `company_trade_name`
+- `scheduled_count`, `total_history`
+- `cancelled_by_dedupe` (`cancel_reason` in `admin_dedupe_table_slot_company`, `auto-sanitize:duplicate_table_slot_different_company`)
 
-## 2. KPIs ao vivo (polling 30 s, cada KPI filtra a lista)
+Filtros:
+- `urgent` (default): `scheduled_count = 1 AND total_history > 1 AND cancelled_by_dedupe > 0`
+- `all`: qualquer `cancelled_by_dedupe > 0`
 
-Calculados a partir de `general_checkins`, `meetings`, `meeting_checkins`, `time_slots`, `event_tables`:
+Ordena por `cancelled_by_dedupe desc, total_history desc`. Também expõe agregação por empresa.
 
-- **Presentes agora** — `count(distinct profile_id)` em `general_checkins` por `event_id`.
-- **Em reunião agora** — `meetings.status='scheduled'` cujo `time_slot` cobre `now()`.
-- **Ociosos agora** — presentes com role `visitor|exhibitor` sem `meeting scheduled` no slot corrente.
-- **Reuniões em risco** — `scheduled` com `slot.start_at < now() - 5 min` e sem `meeting_checkins`.
-- **Mesas livres no bloco** — `event_tables` ativas − mesas com reunião `scheduled` no slot corrente.
+### 2. `suggestRecoverySlots(profile_id)`
+Slots viáveis priorizados:
+1. **Same-company** — slot já ocupado por colega da mesma empresa, sem conflito de horário nem duplicidade de mesa para o contato.
+2. **Livres** — slot totalmente livre, sem outra empresa no slot, sem conflito pessoal, sem já ter reunião na mesa.
 
-## 3. Encaixe
+Somente leitura.
 
-- Base: visitantes ociosos × mesas livres no slot atual, filtrados por `available_for_fillin=true`.
-- Ordenação: matching simples segmentos/interesses × serviços; fallback alfabético.
-- 1 clique reaproveita **exatamente** o caminho existente de booking (mesmas travas `slot × table × visitor`). Sem bypass.
-- Telemetria `is_fillin=true` via `context` do `audit_logs`. Sem coluna nova em `meetings`.
+### 3. `rebookImpacted` — auditoria pós-fato com status claro
+Nunca grava sucesso antes de acontecer.
 
-## 4. Pós-evento (read-only + CSV)
+1. Chama `bookForRegistrant({...})`.
+2. Sucesso → `audit_logs` `action='dedupe_recovery_rebook'`, payload `{ status: 'succeeded', profile_id, meeting_id, target_table_id, target_slot_id, source, prior_cancelled_by_dedupe }`. Retorna `{ ok: true, meetingId }`.
+3. Erro → `audit_logs` mesmo `action`, payload `{ status: 'failed', profile_id, target_table_id, target_slot_id, source, error_code, error_message }`. Retorna `{ ok: false, code, friendlyMessage }` (não relança).
 
-Consolida a edição por participante. Sem ações operacionais.
+Mapeamento `error_message → code`:
+- "outra empresa" / "one_company_per_slot" → `SLOT_TAKEN_OTHER_COMPANY`
+- "já tem reunião" no mesmo horário → `VISITOR_TIME_CONFLICT`
+- "no máximo 1 reunião por mesa" → `DUPLICATE_TABLE`
+- "Conflito" genérico → `SLOT_CONFLICT`
+- resto → `UNKNOWN`
 
-Colunas mínimas do CSV: `empresa`, `participante`, `perfil`, `presença`, `reuniões agendadas`, `reuniões realizadas`, `no-show`, `atraso médio`, `mesa`, `bloco`.
+Detalhe técnico só em `audit_logs`.
 
-## 5. Campos mínimos (aditivos, defaults preservam comportamento)
+### 4. UX de erro amigável (pt-BR)
+- `SLOT_TAKEN_OTHER_COMPANY`: "Este horário acabou de ser ocupado por outra empresa. Escolha outro slot sugerido."
+- `VISITOR_TIME_CONFLICT`: "O contato já tem uma reunião em outro expositor neste horário."
+- `DUPLICATE_TABLE`: "O contato já possui reunião com esta mesa."
+- `SLOT_CONFLICT`: "Este horário deixou de estar disponível. Recarregue as sugestões."
+- `UNKNOWN`: "Não foi possível reagendar. A ação foi registrada; tente outro slot."
 
-### `general_checkins`
-- `source text default 'staff_manual'` — origem operacional (`entrance | staff_manual | qr | self`).
-- `note text null` — observação curta (≤ 140 char), sob demanda.
-- `available_for_fillin boolean default true` — toggle rápido no card.
+Componente nunca renderiza `error.message` cru. Após falha, refaz `suggestRecoverySlots`.
 
-### `meeting_checkins`
-- `note text null`.
-- `late_minutes` já existe → auto-cálculo `now() - slot.start_at` quando staff marca `status='present'` após o início; editável.
+### 5. UI
+`TabsTrigger value="dedupeRecovery"` só no bloco admin de `admin.tsx`. Conteúdo:
+- Toggle "Urgentes (padrão) | Todos"
+- Toggle "Por contato | Por empresa"
+- Tabela: Contato · Empresa · Email · Scheduled · Total · Canceladas por dedupe · Ação "Reacomodar"
+- Drawer com sugestões (badge "mesma empresa" antes de "livre"), botão "Reagendar" por linha
+- Sucesso: toast + invalidação de queries próprias
+- Falha: toast amigável + refresh das sugestões
 
-Sem novos campos em `meetings` / `event_tables`. Toda a leitura operacional é derivada.
+## Validação obrigatória após implementação
+Vou reportar explicitamente:
 
-## 6. Server functions (admin/staff)
+1. **Booking do visitante inalterado** — abrir `booking-dialog.tsx` num expositor com colega da mesma empresa e confirmar que:
+   - slot `same_company` continua selecionável com o mesmo rótulo
+   - slot `other_company` continua bloqueado
+   - agendamento normal ainda passa por `bookMeeting`
+   `git diff --stat` deve mostrar zero mudança em `booking-dialog.tsx` e `booking.functions.ts`.
 
-Em `src/lib/checkin.functions.ts`:
+2. **Admin normal inalterado** — abrir `book-for-registrant-dialog.tsx` e a aba Registrantes/Agendamentos, confirmar comportamento idêntico. `git diff --stat` deve mostrar zero mudança nesses arquivos.
 
-- `getLiveOperations({ eventId })` → `{ slotCurrent, slotNext, presentProfiles, inMeetingProfiles, idleProfiles, atRiskMeetings, freeTables, kpis }`.
-- `suggestFillins({ eventId, slotId })` → pares ordenados `{ visitor, table, exhibitor, score }`.
-- `setAvailableForFillin({ checkinId, value })`.
-- `setCheckinNote({ checkinId, note })`.
-- `undoGeneralCheckIn({ checkinId })` — admin apenas.
+3. **Nova aba só adiciona** — `admin.tsx` recebe apenas 1 `TabsTrigger` + 1 `TabsContent` novos no bloco admin; nenhum trigger/content existente removido ou renomeado.
 
-`generalCheckIn` e `meetingCheckIn` mantêm contrato. `meetingCheckIn` ganha só o auto-cálculo de `late_minutes` quando `status='present'`.
+4. **Lista exata de arquivos alterados** ao final, com contagem `+add/-del`:
+   ```
+   src/lib/dedupe-recovery.functions.ts           (new)
+   src/components/admin/dedupe-recovery-tab.tsx   (new)
+   src/routes/_authenticated/admin.tsx            (add tab only)
+   src/lib/i18n/pt-BR.json                        (add strings)
+   src/lib/i18n/es.json                           (add strings)
+   ```
+   Qualquer arquivo fora dessa lista = regressão, abortar.
 
-Toda mutação (check-in, no-show, encaixe, undo, notas, toggle) grava em `audit_logs` com `actor_profile_id` e `context={ eventId, slotId, kind }`.
+5. **Suite de testes** (`src/lib/__tests__/*`) executada intacta e verde.
 
-## 7. UI
-
-- `src/routes/_authenticated/admin.tsx` — `CheckinTab` vira wrapper de sub-abas (default `Chegadas`); corpo atual extraído para `<ArrivalsPanel />`.
-- Novos componentes em `src/components/admin/checkin/`:
-  - `kpi-strip.tsx` — 5 KPIs clicáveis.
-  - `live-ops-panel.tsx` — KPIs + lista filtrada.
-  - `fillin-queue.tsx` — sugestões e confirmação.
-  - `postevent-summary.tsx` — read-only + botão CSV.
-- i18n: novas chaves `admin.checkin.live.*`, `admin.checkin.fillin.*`, `admin.checkin.post.*`, `admin.checkin.kpi.*` (pt-BR + es).
-
-## 8. Fora de escopo
-
-Websocket/realtime, QR nativo, reagendamento automático, mudanças em pipeline/aprovação/slots além do necessário.
+6. **Sem migration** — `supabase/migrations/` sem novos arquivos.
 
 ## Critérios de aceite
-
-- "Chegadas" idêntica ao comportamento atual e abre como sub-aba padrão.
-- "Ao vivo" mostra 5 KPIs corretos com polling 30 s; cada KPI filtra a lista.
-- "Encaixe" cria a reunião em 1 clique reaproveitando as travas de conflito existentes (sem bypass).
-- "Pós-evento" é read-only e exporta CSV com as colunas mínimas listadas.
-- Undo de chegada só admin; tudo em `audit_logs`.
-- Sem campos novos preenchidos, o sistema continua funcionando (defaults cobrem).
+- Default carrega apenas casos urgentes (`scheduled=1 AND total>1`) — os 7 contatos já identificados.
+- Modo "Todos" também mostra impactados com ≥2 reuniões restantes.
+- Para Juliana, drawer oferece os slots same-company da Carla (13:45, 16:00, 16:15, 16:30, 16:45).
+- Reagendamento sempre via `bookForRegistrant`; auditoria com `status: succeeded|failed` correspondendo ao resultado real.
+- Falha nunca mostra erro cru; admin vê mensagem operacional; detalhe técnico só em `audit_logs`.
+- Fluxos de booking (visitante e admin) permanecem byte-a-byte idênticos.
