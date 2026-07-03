@@ -129,18 +129,21 @@ export const bookMeeting = createServerFn({ method: "POST" })
       const { data: companyClash } = await supabaseAdmin
         .from("meetings")
         .select(
-          "id, visitor:profiles!visitor_profile_id(company_id), time_slots!inner(start_at, end_at)",
+          "id, table_id, slot_id, visitor:profiles!visitor_profile_id(company_id), time_slots!inner(start_at, end_at)",
         )
         .eq("event_id", data.eventId)
         .eq("status", "scheduled")
         .eq("time_slots.start_at", newSlot.start_at)
         .eq("time_slots.end_at", newSlot.end_at);
       const clash = (companyClash ?? []).some(
-        (m: any) => m.visitor?.company_id === profile.company_id,
+        (m: any) =>
+          m.visitor?.company_id === profile.company_id &&
+          // Mesma empresa NO MESMO (mesa, slot) é permitida
+          !(m.table_id === data.tableId && m.slot_id === data.slotId),
       );
       if (clash) {
         throw new Error(
-          "Esta empresa já possui uma reunião agendada neste horário.",
+          "Esta empresa já possui uma reunião agendada neste horário em outra mesa.",
         );
       }
     }
