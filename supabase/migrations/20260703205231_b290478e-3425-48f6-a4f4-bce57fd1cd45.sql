@@ -1,0 +1,1 @@
+ALTER VIEW public.v_company_event_pipeline SET (security_invoker = on);
