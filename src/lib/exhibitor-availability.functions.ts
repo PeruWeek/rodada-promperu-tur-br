@@ -33,6 +33,7 @@ export type BookedSlot = {
   visitor_profile_id: string;
   visitor_name: string;
   visitor_company_name: string | null;
+  visitor_company_id: string | null;
 };
 
 export type ExhibitorAvailabilityStatus =
