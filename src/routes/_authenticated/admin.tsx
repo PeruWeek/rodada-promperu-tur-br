@@ -47,6 +47,7 @@ import { ClienteOverview } from "@/components/admin/cliente/cliente-overview";
 import { PreRegistrationsTab } from "@/components/admin/pre-registrations-tab";
 import { QaSimulationTab } from "@/components/admin/qa-simulation-tab";
 import { ReviewQueueTab } from "@/components/admin/review-queue-tab";
+import { DedupeRecoveryTab } from "@/components/admin/dedupe-recovery-tab";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -164,6 +165,7 @@ function AdminPage() {
             <TabsTrigger value="bookingReminders">Lembretes</TabsTrigger>
             <TabsTrigger value="audit">Auditoria</TabsTrigger>
             <TabsTrigger value="qaSim">QA Sim</TabsTrigger>
+            <TabsTrigger value="dedupeRecovery">Reacomodação</TabsTrigger>
           </TabsList>
           <TabsContent value="dashboard" className="mt-4"><PipelineDashboard isAdmin /></TabsContent>
           <TabsContent value="tables" className="mt-4"><TablesTab /></TabsContent>
@@ -182,6 +184,7 @@ function AdminPage() {
           <TabsContent value="bookingReminders" className="mt-4"><BookingRemindersTab /></TabsContent>
           <TabsContent value="audit" className="mt-4"><AuditTab /></TabsContent>
           <TabsContent value="qaSim" className="mt-4"><QaSimulationTab /></TabsContent>
+          <TabsContent value="dedupeRecovery" className="mt-4"><DedupeRecoveryTab /></TabsContent>
         </Tabs>
       )}
     </div>
