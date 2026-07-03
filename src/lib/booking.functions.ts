@@ -510,17 +510,34 @@ export const adminCancelVisitorFutureMeetings = createServerFn({ method: "POST" 
 
     const adminProfile = await loadAdminProfileByAuthUserId(userId);
 
-    // Load scheduled + future meeting ids for this visitor via time_slots join.
+    // 2-step: pega scheduled desse visitante, depois filtra por start_at
+    // consultando time_slots por id (evita path ambíguo em .gte).
     const nowIso = new Date().toISOString();
-    const { data: candidates, error: candErr } = await supabaseAdmin
+    const { data: candidatesRaw, error: candErr } = await supabaseAdmin
       .from("meetings")
-      .select("id, time_slots!meetings_slot_id_fkey!inner(start_at)")
+      .select("id, slot_id")
       .eq("visitor_profile_id", data.visitorProfileId)
-      .eq("status", "scheduled")
-      .gte("time_slots!meetings_slot_id_fkey.start_at", nowIso);
+      .eq("status", "scheduled");
     if (candErr) throw new Error(candErr.message);
-
-    const ids = ((candidates ?? []) as Array<{ id: string }>).map((m) => m.id);
+    const candSlotIds = Array.from(
+      new Set(
+        ((candidatesRaw ?? []) as any[])
+          .map((m) => m.slot_id)
+          .filter((v): v is string => !!v),
+      ),
+    );
+    const futureSlotIds = new Set<string>();
+    if (candSlotIds.length > 0) {
+      const { data: futureSlots } = await supabaseAdmin
+        .from("time_slots")
+        .select("id")
+        .in("id", candSlotIds)
+        .gte("start_at", nowIso);
+      for (const s of (futureSlots ?? []) as any[]) futureSlotIds.add(s.id);
+    }
+    const ids = ((candidatesRaw ?? []) as any[])
+      .filter((m) => m.slot_id && futureSlotIds.has(m.slot_id))
+      .map((m) => m.id as string);
 
     const cancelled: Array<{
       meetingId: string;
