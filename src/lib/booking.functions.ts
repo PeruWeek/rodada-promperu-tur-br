@@ -187,29 +187,67 @@ export const bookMeeting = createServerFn({ method: "POST" })
     if (nsErr) throw new Error(nsErr.message);
     if (!newSlot) throw new Error("Slot not found");
 
-    const [{ data: myMtgs }, { data: pairMtgs }, { data: startMtgs }] =
+    // 2-step para evitar filtro/ordenação ambígua em `meetings -> time_slots`
+    // (a tabela tem 2 FKs: slot_id e original_slot_id, e PostgREST não aceita
+    // path `time_slots!fk.coluna` em .eq/.gte/.order → erro
+    // "column meetings.time_slots does not exist").
+    const [{ data: myMtgsRaw }, { data: pairMtgsRaw }, { data: sameEventMtgsRaw }] =
       await Promise.all([
         supabaseAdmin
           .from("meetings")
-          .select("id, table_id, slot_id, visitor_profile_id, time_slots!meetings_slot_id_fkey!inner(start_at,end_at)")
+          .select("id, table_id, slot_id, visitor_profile_id")
           .eq("visitor_profile_id", profile.id)
           .eq("status", "scheduled"),
         supabaseAdmin
           .from("meetings")
-          .select("id, table_id, slot_id, visitor_profile_id, visitor:profiles!visitor_profile_id(company_id), time_slots!meetings_slot_id_fkey!inner(start_at,end_at)")
+          .select("id, table_id, slot_id, visitor_profile_id, visitor:profiles!visitor_profile_id(company_id)")
           .eq("table_id", data.tableId)
           .eq("slot_id", data.slotId)
           .eq("status", "scheduled"),
         profile.company_id
           ? supabaseAdmin
               .from("meetings")
-              .select("id, table_id, slot_id, visitor_profile_id, visitor:profiles!visitor_profile_id(company_id), time_slots!meetings_slot_id_fkey!inner(start_at,end_at)")
+              .select("id, table_id, slot_id, visitor_profile_id, visitor:profiles!visitor_profile_id(company_id)")
               .eq("event_id", data.eventId)
               .eq("status", "scheduled")
-              .eq("time_slots!meetings_slot_id_fkey.start_at", newSlot.start_at)
-              .eq("time_slots!meetings_slot_id_fkey.end_at", newSlot.end_at)
           : Promise.resolve({ data: [] as any[] }),
       ]);
+
+    const allSlotIds = Array.from(
+      new Set(
+        [
+          ...((myMtgsRaw ?? []) as any[]),
+          ...((pairMtgsRaw ?? []) as any[]),
+          ...((sameEventMtgsRaw ?? []) as any[]),
+        ]
+          .map((m) => m.slot_id)
+          .filter((v): v is string => !!v),
+      ),
+    );
+    const slotMap = new Map<string, { start_at: string; end_at: string }>();
+    if (allSlotIds.length > 0) {
+      const { data: slotsRows } = await supabaseAdmin
+        .from("time_slots")
+        .select("id, start_at, end_at")
+        .in("id", allSlotIds);
+      for (const s of (slotsRows ?? []) as any[]) {
+        slotMap.set(s.id, { start_at: s.start_at, end_at: s.end_at });
+      }
+    }
+    const withSlot = (m: any) => ({
+      ...m,
+      time_slots: slotMap.get(m.slot_id) ?? { start_at: "", end_at: "" },
+    });
+    const myMtgs = ((myMtgsRaw ?? []) as any[]).map(withSlot);
+    const pairMtgs = ((pairMtgsRaw ?? []) as any[]).map(withSlot);
+    // Filtro do sameEventMeetingsAtStart aplicado em JS (start_at + end_at do novo slot)
+    const startMtgs = ((sameEventMtgsRaw ?? []) as any[])
+      .map(withSlot)
+      .filter(
+        (m) =>
+          m.time_slots.start_at === newSlot.start_at &&
+          m.time_slots.end_at === newSlot.end_at,
+      );
 
     const toLite = (m: any): MeetingLite => ({
       id: m.id,
