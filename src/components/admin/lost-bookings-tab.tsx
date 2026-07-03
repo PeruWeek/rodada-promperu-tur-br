@@ -17,6 +17,7 @@ import {
   listLostBookings,
   type LostBookingRow,
 } from "@/lib/lost-bookings.functions";
+import { requestRecovery } from "@/lib/dedupe-recovery-bus";
 
 const REASON_OPTIONS = [
   { value: "admin_dedupe_table_slot", label: "Dedupe admin (mesa/horário)" },
@@ -149,19 +150,24 @@ export function LostBookingsTab() {
   }
 
   function openRecovery(row: LostBookingRow) {
-    try {
-      navigator.clipboard?.writeText(row.loser.profile_id).catch(() => {});
-    } catch {
-      /* noop */
-    }
+    // Publica a intenção ANTES de trocar de aba: quando a
+    // DedupeRecoveryTab montar (ou já estiver montada), ela consome o
+    // preselect e abre o drawer sozinha.
+    requestRecovery({
+      profile_id: row.loser.profile_id,
+      full_name: row.loser.full_name ?? null,
+      email: row.loser.email ?? null,
+      company_id: row.loser.company_id ?? null,
+      company_trade_name: row.loser.company_trade_name ?? null,
+    });
     const ok = goToRecoveryTab();
     if (ok) {
       toast.success(
-        `Abrindo Reacomodação. Contato: ${row.loser.full_name ?? row.loser.profile_id} (ID copiado).`,
+        `Abrindo reacomodação de ${row.loser.full_name ?? row.loser.profile_id}.`,
       );
     } else {
       toast.message(
-        "Abra a aba \"Reacomodação\" para reagendar este contato. ID copiado.",
+        "Abra a aba \"Reacomodação\" para reagendar este contato.",
       );
     }
   }

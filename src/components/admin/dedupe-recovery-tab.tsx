@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
@@ -25,6 +25,11 @@ import {
   type RecoverySlotSuggestion,
 } from "@/lib/dedupe-recovery.functions";
 import { BOOKING_INVALIDATE_KEYS } from "@/lib/booking-invalidate-keys";
+import {
+  consumePendingRecovery,
+  subscribeRecovery,
+  type RecoveryPreselect,
+} from "@/lib/dedupe-recovery-bus";
 
 function fmtDateTime(iso: string) {
   try {
@@ -48,6 +53,29 @@ export function DedupeRecoveryTab() {
   const [mode, setMode] = useState<"urgent" | "all">("urgent");
   const [view, setView] = useState<"contact" | "company">("contact");
   const [target, setTarget] = useState<DedupeImpactedRow | null>(null);
+
+  // Consome preselect vindo da aba "Histórico de perdas".
+  useEffect(() => {
+    function apply(p: NonNullable<RecoveryPreselect>) {
+      setTarget({
+        profile_id: p.profile_id,
+        full_name: p.full_name,
+        email: p.email,
+        company_id: p.company_id,
+        company_trade_name: p.company_trade_name,
+        // valores mínimos — o drawer só precisa do profile_id para sugerir slots.
+        scheduled_count: 0,
+        total_history: 0,
+        cancelled_by_dedupe: 0,
+      });
+    }
+    const initial = consumePendingRecovery();
+    if (initial) apply(initial);
+    const unsub = subscribeRecovery((p) => {
+      if (p) apply(p);
+    });
+    return unsub;
+  }, []);
 
   const listQuery = useQuery({
     queryKey: ["dedupe-recovery", "list", mode],
