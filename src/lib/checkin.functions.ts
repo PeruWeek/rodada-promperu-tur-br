@@ -910,3 +910,206 @@ export const undoGeneralCheckIn = createServerFn({ method: "POST" })
     );
     return { ok: true };
   });
+
+// ============================================================
+// Post-event summary (read-only): presence, no-show, late, block.
+// ============================================================
+
+export const getPostEventSummary = createServerFn({ method: "POST" })
+  .inputValidator((input) =>
+    z.object({ eventId: z.string().uuid().optional() }).parse(input),
+  )
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    if (!(await isAdminOrStaff(context.userId)))
+      throw new Error("Forbidden: admin/staff only");
+    const event = await loadEventOrLatest(data.eventId ?? null);
+    if (!event) return { eventId: null, rows: [] as PostEventRow[] };
+    const eventId = event.id as string;
+
+    const [{ data: meetings }, { data: chks }, { data: mcks }, { data: tables }] =
+      await Promise.all([
+        supabaseAdmin
+          .from("meetings")
+          .select("id, event_id, visitor_profile_id, table_id, slot_id, status")
+          .eq("event_id", eventId),
+        supabaseAdmin
+          .from("general_checkins")
+          .select("profile_id, checkin_at")
+          .eq("event_id", eventId),
+        supabaseAdmin
+          .from("meeting_checkins")
+          .select("meeting_id, status, late_minutes"),
+        supabaseAdmin
+          .from("event_tables")
+          .select("id, table_number, exhibitor_profile_id")
+          .eq("event_id", eventId),
+      ]);
+    const meetingList = meetings ?? [];
+    const chkSet = new Set((chks ?? []).map((c) => c.profile_id as string));
+    const mckMap = new Map(
+      (mcks ?? []).map((m) => [m.meeting_id as string, m]),
+    );
+    const tableMap = new Map((tables ?? []).map((t) => [t.id as string, t]));
+
+    // Collect participants: union of meeting visitors + table exhibitors + present.
+    const participantIds = new Set<string>();
+    for (const m of meetingList) {
+      if (m.visitor_profile_id) participantIds.add(m.visitor_profile_id as string);
+      const t = m.table_id ? tableMap.get(m.table_id as string) : null;
+      if (t?.exhibitor_profile_id)
+        participantIds.add(t.exhibitor_profile_id as string);
+    }
+    for (const t of tables ?? []) {
+      if (t.exhibitor_profile_id)
+        participantIds.add(t.exhibitor_profile_id as string);
+    }
+    for (const c of chks ?? []) participantIds.add(c.profile_id as string);
+
+    const ids = Array.from(participantIds);
+    const { data: profs } = ids.length
+      ? await supabaseAdmin
+          .from("profiles")
+          .select("id, full_name, company_id, auth_user_id")
+          .in("id", ids)
+      : { data: [] as Array<{ id: string; full_name: string | null; company_id: string | null; auth_user_id: string | null }> };
+    const authIds = (profs ?? []).map((p) => p.auth_user_id).filter(Boolean) as string[];
+    const { data: roles } = authIds.length
+      ? await supabaseAdmin
+          .from("user_roles")
+          .select("user_id, role")
+          .in("user_id", authIds)
+      : { data: [] as Array<{ user_id: string; role: string }> };
+    const rolesByAuth = new Map<string, string[]>();
+    for (const r of roles ?? []) {
+      const arr = rolesByAuth.get(r.user_id) ?? [];
+      arr.push(r.role);
+      rolesByAuth.set(r.user_id, arr);
+    }
+    const compIds = Array.from(
+      new Set((profs ?? []).map((p) => p.company_id).filter(Boolean) as string[]),
+    );
+    const { data: comps } = compIds.length
+      ? await supabaseAdmin.from("companies").select("id, trade_name").in("id", compIds)
+      : { data: [] as Array<{ id: string; trade_name: string }> };
+    const compMap = new Map(
+      (comps ?? []).map((c) => [c.id as string, c.trade_name as string]),
+    );
+
+    // Slots for block label.
+    const slotIds = Array.from(
+      new Set(meetingList.map((m) => m.slot_id).filter(Boolean) as string[]),
+    );
+    const { data: slots } = slotIds.length
+      ? await supabaseAdmin
+          .from("time_slots")
+          .select("id, start_at, end_at")
+          .in("id", slotIds)
+      : { data: [] as Array<{ id: string; start_at: string; end_at: string }> };
+    const slotMap = new Map((slots ?? []).map((s) => [s.id as string, s]));
+
+    const primaryRole = (rs: string[] | undefined) => {
+      if (!rs || rs.length === 0) return null;
+      const order = ["admin", "staff", "cliente", "exhibitor", "visitor"];
+      for (const r of order) if (rs.includes(r)) return r;
+      return null;
+    };
+
+    const rows: PostEventRow[] = [];
+    for (const p of profs ?? []) {
+      const role = primaryRole(rolesByAuth.get(p.auth_user_id ?? ""));
+      if (role === "admin" || role === "staff" || role === "cliente") continue;
+
+      const myMeetings = meetingList.filter((m) => {
+        if (role === "visitor") return m.visitor_profile_id === p.id;
+        if (role === "exhibitor") {
+          const t = m.table_id ? tableMap.get(m.table_id as string) : null;
+          return t?.exhibitor_profile_id === p.id;
+        }
+        return false;
+      });
+      const scheduled = myMeetings.filter((m) => m.status === "scheduled").length;
+      const done = myMeetings.filter((m) => m.status === "done").length;
+      const noShow = myMeetings.filter((m) => m.status === "no_show").length;
+      const lates = myMeetings
+        .map((m) => mckMap.get(m.id as string)?.late_minutes as number | null | undefined)
+        .filter((v): v is number => typeof v === "number" && v > 0);
+      const avgLate = lates.length
+        ? Math.round(lates.reduce((a, b) => a + b, 0) / lates.length)
+        : 0;
+
+      const tableNumbers = Array.from(
+        new Set(
+          myMeetings
+            .map((m) => {
+              const t = m.table_id ? tableMap.get(m.table_id as string) : null;
+              return t?.table_number ?? null;
+            })
+            .filter((v): v is number => typeof v === "number"),
+        ),
+      );
+      // For exhibitors, also include their owned tables.
+      if (role === "exhibitor") {
+        for (const t of tables ?? []) {
+          if (
+            t.exhibitor_profile_id === p.id &&
+            typeof t.table_number === "number" &&
+            !tableNumbers.includes(t.table_number)
+          )
+            tableNumbers.push(t.table_number);
+        }
+      }
+
+      const blocks = Array.from(
+        new Set(
+          myMeetings
+            .map((m) => {
+              const s = m.slot_id ? slotMap.get(m.slot_id as string) : null;
+              if (!s) return null;
+              const start = new Date(s.start_at);
+              const end = new Date(s.end_at);
+              const fmt = (d: Date) =>
+                d.toLocaleTimeString("pt-BR", {
+                  timeZone: "America/Sao_Paulo",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                });
+              return `${fmt(start)}–${fmt(end)}`;
+            })
+            .filter(Boolean) as string[],
+        ),
+      ).sort();
+
+      rows.push({
+        company: p.company_id ? compMap.get(p.company_id) ?? "" : "",
+        participant: p.full_name ?? "",
+        profile: role ?? "",
+        presence: chkSet.has(p.id as string) ? "presente" : "ausente",
+        scheduled,
+        done,
+        no_show: noShow,
+        avg_late_min: avgLate,
+        tables: tableNumbers.join(", "),
+        blocks: blocks.join(" | "),
+      });
+    }
+    rows.sort(
+      (a, b) =>
+        a.company.localeCompare(b.company) ||
+        a.participant.localeCompare(b.participant),
+    );
+    return { eventId, rows };
+  });
+
+export type PostEventRow = {
+  company: string;
+  participant: string;
+  profile: string;
+  presence: "presente" | "ausente";
+  scheduled: number;
+  done: number;
+  no_show: number;
+  avg_late_min: number;
+  tables: string;
+  blocks: string;
+};
