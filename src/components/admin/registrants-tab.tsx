@@ -1105,3 +1105,182 @@ function ReplaceContactDialog({
     </Dialog>
   );
 }
+
+type VisitorMeetingRowUI = {
+  meeting_id: string;
+  event_id: string;
+  start_at: string;
+  end_at: string;
+  table_id: string;
+  table_number: number | null;
+  slot_id: string;
+  exhibitor_name: string;
+};
+
+function VisitorMeetingsDialog({
+  target,
+  onClose,
+  listMeetings,
+  cancelMeeting,
+  onCancelledOne,
+}: {
+  target: RegistrantRow | null;
+  onClose: () => void;
+  listMeetings: (opts: {
+    data: { visitorProfileId: string };
+  }) => Promise<{ rows: VisitorMeetingRowUI[] }>;
+  cancelMeeting: (opts: {
+    data: { meetingId: string; reason?: string };
+  }) => Promise<{ ok: true; emailFailed: boolean }>;
+  onCancelledOne: (v: { meetingId: string; emailFailed: boolean }) => void;
+}) {
+  const { t, i18n } = useTranslation();
+  const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [reason, setReason] = useState("");
+  const [pendingId, setPendingId] = useState<string | null>(null);
+
+  const q = useQuery({
+    queryKey: ["visitor-meetings", target?.profile_id],
+    queryFn: () =>
+      listMeetings({ data: { visitorProfileId: target!.profile_id } }),
+    enabled: !!target,
+  });
+
+  return (
+    <Dialog
+      open={!!target}
+      onOpenChange={(o) => {
+        if (!o) {
+          setConfirmId(null);
+          setReason("");
+          onClose();
+        }
+      }}
+    >
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>
+            {t("admin.registrants.meetings.dialogTitle", {
+              name: target?.full_name ?? "",
+            })}
+          </DialogTitle>
+        </DialogHeader>
+        {q.isLoading ? (
+          <Skeleton className="h-32 w-full" />
+        ) : (q.data?.rows.length ?? 0) === 0 ? (
+          <p className="py-6 text-center text-sm text-muted-foreground">
+            {t("admin.registrants.meetings.empty")}
+          </p>
+        ) : (
+          <div className="max-h-[50vh] space-y-2 overflow-y-auto">
+            {(q.data?.rows ?? []).map((m) => {
+              const dt = m.start_at
+                ? new Date(m.start_at).toLocaleString(
+                    i18n.language === "es" ? "es" : "pt-BR",
+                    {
+                      day: "2-digit",
+                      month: "2-digit",
+                      year: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    },
+                  )
+                : "";
+              const isConfirming = confirmId === m.meeting_id;
+              return (
+                <div
+                  key={m.meeting_id}
+                  className="rounded-md border border-border p-3"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-medium">
+                        {m.exhibitor_name}
+                        {m.table_number != null ? ` · Mesa ${m.table_number}` : ""}
+                      </div>
+                      <div className="text-xs text-muted-foreground">{dt}</div>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-destructive hover:text-destructive"
+                      onClick={() => {
+                        setConfirmId(isConfirming ? null : m.meeting_id);
+                        setReason("");
+                      }}
+                    >
+                      <Ban size={14} />{" "}
+                      {t("admin.registrants.meetings.cancelOneConfirm")}
+                    </Button>
+                  </div>
+                  {isConfirming && (
+                    <div className="mt-3 space-y-2 rounded-md bg-muted/40 p-2">
+                      <p className="text-xs text-muted-foreground">
+                        {t("admin.registrants.meetings.cancelOneBody")}
+                      </p>
+                      <Textarea
+                        value={reason}
+                        onChange={(e) => setReason(e.target.value)}
+                        maxLength={500}
+                        placeholder={t(
+                          "admin.registrants.meetings.reasonPlaceholder",
+                        )}
+                      />
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => {
+                            setConfirmId(null);
+                            setReason("");
+                          }}
+                        >
+                          {t("common.cancel")}
+                        </Button>
+                        <Button
+                          size="sm"
+                          disabled={pendingId === m.meeting_id}
+                          onClick={async () => {
+                            setPendingId(m.meeting_id);
+                            try {
+                              const res = await cancelMeeting({
+                                data: {
+                                  meetingId: m.meeting_id,
+                                  reason: reason.trim() || undefined,
+                                },
+                              });
+                              setConfirmId(null);
+                              setReason("");
+                              onCancelledOne({
+                                meetingId: m.meeting_id,
+                                emailFailed: res.emailFailed,
+                              });
+                              q.refetch();
+                            } catch (e) {
+                              toast.error((e as Error).message);
+                            } finally {
+                              setPendingId(null);
+                            }
+                          }}
+                        >
+                          {pendingId === m.meeting_id
+                            ? t("common.loading")
+                            : t("admin.registrants.meetings.cancelOneConfirm")}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose}>
+            {t("common.cancel")}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
