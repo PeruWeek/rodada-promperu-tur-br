@@ -421,7 +421,9 @@
         "cancel": "Desactivar inscrito",
         "reactivate": "Reactivar acceso",
         "replace": "Sustituir contacto",
-        "book": "Agendar"
+        "book": "Agendar",
+        "viewMeetings": "Ver reuniones",
+        "cancelFutureMeetings": "Cancelar reuniones futuras"
       },
       "book": {
         "title": "Agendar reunión",
@@ -456,7 +458,23 @@
       "toasts": {
         "cancelled": "Inscrito desactivado.",
         "reactivated": "Acceso reactivado.",
-        "replaced": "Contacto sustituido."
+        "replaced": "Contacto sustituido.",
+        "meetingCancelled": "Reunión cancelada.",
+        "meetingCancelledEmailFailed": "Reunión cancelada. Aviso: no se pudo enviar el correo al expositor.",
+        "meetingsCancelled": "{{count}} reunión(es) cancelada(s).",
+        "meetingsCancelledEmailPartial": "{{count}} reunión(es) cancelada(s). {{emailFailed}} sin envío de correo.",
+        "meetingsCancelledPartial": "{{cancelled}} cancelada(s), {{failed}} fallaron."
+      },
+      "meetings": {
+        "dialogTitle": "Reuniones agendadas de {{name}}",
+        "empty": "Este inscrito no tiene reuniones futuras agendadas.",
+        "reasonPlaceholder": "Motivo de la cancelación (opcional, hasta 500 caracteres)",
+        "cancelOneTitle": "¿Cancelar esta reunión?",
+        "cancelOneBody": "La reunión será cancelada y el horario liberado cuando no exista otra reunión de la misma empresa en el mismo par mesa/horario. El registro, acceso e inscripción del visitante permanecen intactos.",
+        "cancelAllTitle": "¿Cancelar todas las reuniones futuras?",
+        "cancelAllBody": "Esto NO desactiva al inscrito. Registro, acceso e inscripción se preservan. Solo se cancelarán las reuniones futuras y los slots se liberarán cuando no haya otra reunión de la misma empresa en el mismo horario.",
+        "cancelOneConfirm": "Cancelar reunión",
+        "cancelAllConfirm": "Cancelar todas"
       },
       "bulk": {
         "pdf": "PDF consolidado",
