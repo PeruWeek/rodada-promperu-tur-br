@@ -440,7 +440,9 @@
         "cancel": "Inativar inscrito",
         "reactivate": "Reativar acesso",
         "replace": "Substituir contato",
-        "book": "Agendar"
+        "book": "Agendar",
+        "viewMeetings": "Ver reuniões",
+        "cancelFutureMeetings": "Cancelar reuniões futuras"
       },
       "book": {
         "title": "Agendar reunião",
@@ -475,7 +477,23 @@
       "toasts": {
         "cancelled": "Inscrito inativado.",
         "reactivated": "Acesso reativado.",
-        "replaced": "Contato substituído."
+        "replaced": "Contato substituído.",
+        "meetingCancelled": "Reunião cancelada.",
+        "meetingCancelledEmailFailed": "Reunião cancelada. Aviso: não foi possível enviar o e-mail ao expositor.",
+        "meetingsCancelled": "{{count}} reunião(ões) cancelada(s).",
+        "meetingsCancelledEmailPartial": "{{count}} reunião(ões) cancelada(s). {{emailFailed}} sem envio de e-mail.",
+        "meetingsCancelledPartial": "{{cancelled}} cancelada(s), {{failed}} falharam."
+      },
+      "meetings": {
+        "dialogTitle": "Reuniões agendadas de {{name}}",
+        "empty": "Este inscrito não possui reuniões futuras agendadas.",
+        "reasonPlaceholder": "Motivo do cancelamento (opcional, até 500 caracteres)",
+        "cancelOneTitle": "Cancelar esta reunião?",
+        "cancelOneBody": "A reunião será cancelada e o horário liberado quando não houver outra reunião da mesma empresa no mesmo par mesa/horário. Cadastro, acesso e inscrição do visitante permanecem intactos.",
+        "cancelAllTitle": "Cancelar todas as reuniões futuras?",
+        "cancelAllBody": "Isso NÃO desativa o inscrito. Cadastro, acesso e inscrição continuam preservados. Apenas as reuniões futuras serão canceladas e os slots liberados quando não houver outra reunião da mesma empresa no mesmo horário.",
+        "cancelOneConfirm": "Cancelar reunião",
+        "cancelAllConfirm": "Cancelar todas"
       },
       "bulk": {
         "pdf": "PDF consolidado",
