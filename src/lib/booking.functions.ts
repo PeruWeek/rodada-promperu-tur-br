@@ -72,12 +72,12 @@ export const listVisitorBookingSlots = createServerFn({ method: "POST" })
           .order("start_at"),
         supabaseAdmin
           .from("meetings")
-          .select("slot_id, table_id, time_slots!inner(start_at,end_at), visitor_profile_id, visitor:profiles!visitor_profile_id(company_id)")
+          .select("slot_id, table_id, time_slots!meetings_slot_id_fkey!inner(start_at,end_at), visitor_profile_id, visitor:profiles!visitor_profile_id(company_id)")
           .eq("table_id", table.id)
           .eq("status", "scheduled"),
         supabaseAdmin
           .from("meetings")
-          .select("slot_id, table_id, time_slots!inner(start_at)")
+          .select("slot_id, table_id, time_slots!meetings_slot_id_fkey!inner(start_at)")
           .eq("visitor_profile_id", profile.id)
           .eq("status", "scheduled"),
       ]);
@@ -191,23 +191,23 @@ export const bookMeeting = createServerFn({ method: "POST" })
       await Promise.all([
         supabaseAdmin
           .from("meetings")
-          .select("id, table_id, slot_id, visitor_profile_id, time_slots!inner(start_at,end_at)")
+          .select("id, table_id, slot_id, visitor_profile_id, time_slots!meetings_slot_id_fkey!inner(start_at,end_at)")
           .eq("visitor_profile_id", profile.id)
           .eq("status", "scheduled"),
         supabaseAdmin
           .from("meetings")
-          .select("id, table_id, slot_id, visitor_profile_id, visitor:profiles!visitor_profile_id(company_id), time_slots!inner(start_at,end_at)")
+          .select("id, table_id, slot_id, visitor_profile_id, visitor:profiles!visitor_profile_id(company_id), time_slots!meetings_slot_id_fkey!inner(start_at,end_at)")
           .eq("table_id", data.tableId)
           .eq("slot_id", data.slotId)
           .eq("status", "scheduled"),
         profile.company_id
           ? supabaseAdmin
               .from("meetings")
-              .select("id, table_id, slot_id, visitor_profile_id, visitor:profiles!visitor_profile_id(company_id), time_slots!inner(start_at,end_at)")
+              .select("id, table_id, slot_id, visitor_profile_id, visitor:profiles!visitor_profile_id(company_id), time_slots!meetings_slot_id_fkey!inner(start_at,end_at)")
               .eq("event_id", data.eventId)
               .eq("status", "scheduled")
-              .eq("time_slots.start_at", newSlot.start_at)
-              .eq("time_slots.end_at", newSlot.end_at)
+              .eq("time_slots!meetings_slot_id_fkey.start_at", newSlot.start_at)
+              .eq("time_slots!meetings_slot_id_fkey.end_at", newSlot.end_at)
           : Promise.resolve({ data: [] as any[] }),
       ]);
 
@@ -476,10 +476,10 @@ export const adminCancelVisitorFutureMeetings = createServerFn({ method: "POST" 
     const nowIso = new Date().toISOString();
     const { data: candidates, error: candErr } = await supabaseAdmin
       .from("meetings")
-      .select("id, time_slots!inner(start_at)")
+      .select("id, time_slots!meetings_slot_id_fkey!inner(start_at)")
       .eq("visitor_profile_id", data.visitorProfileId)
       .eq("status", "scheduled")
-      .gte("time_slots.start_at", nowIso);
+      .gte("time_slots!meetings_slot_id_fkey.start_at", nowIso);
     if (candErr) throw new Error(candErr.message);
 
     const ids = ((candidates ?? []) as Array<{ id: string }>).map((m) => m.id);
@@ -562,11 +562,11 @@ export const listVisitorMeetings = createServerFn({ method: "POST" })
     const { data: rows, error } = await supabaseAdmin
       .from("meetings")
       .select(
-        "id, event_id, table_id, slot_id, time_slots!inner(start_at, end_at), event_tables!inner(table_number, exhibitor_profile_id)",
+        "id, event_id, table_id, slot_id, time_slots!meetings_slot_id_fkey!inner(start_at, end_at), event_tables!inner(table_number, exhibitor_profile_id)",
       )
       .eq("visitor_profile_id", data.visitorProfileId)
       .eq("status", "scheduled")
-      .gte("time_slots.start_at", nowIso)
+      .gte("time_slots!meetings_slot_id_fkey.start_at", nowIso)
       .order("start_at", { referencedTable: "time_slots", ascending: true });
     if (error) throw new Error(error.message);
 
