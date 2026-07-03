@@ -31,6 +31,7 @@ import {
   bookMeetingForVisitor,
   listExhibitorAvailability,
   type ExhibitorAvailabilityRow,
+  type FreeSlot,
 } from "@/lib/exhibitor-availability.functions";
 import type { RegistrantRow } from "@/lib/staff-exports.functions";
 
@@ -110,21 +111,48 @@ export function BookForRegistrantDialog({
   const exhibitors = useMemo<ExhibitorAvailabilityRow[]>(() => {
     const rows = (data?.rows ?? []) as ExhibitorAvailabilityRow[];
     const busy = companyBusy ?? new Set<string>();
-    const withFilteredSlots = rows.map((r) => ({
-      ...r,
-      free_slots: (r.free_slots ?? []).filter(
+    const companyId = target?.company_id ?? null;
+    // Slots livres reais: exclui horários em que a empresa do inscrito já
+    // tem reunião em OUTRA mesa (conflito 1-empresa-por-horário).
+    // Slots "joináveis": ocupados no MESMO (table_id, slot_id) por colega
+    // da mesma empresa — a regra "1 slot = 1 empresa" permite entrar.
+    const withMergedSlots = rows.map((r) => {
+      const cleanFree = (r.free_slots ?? []).filter(
         (s) => !busy.has(`${s.start_at}|${s.end_at}`),
-      ),
-    }));
-    const eligible = withFilteredSlots.filter(
-      (r) => r.status !== "lotada" && r.free_slots.length > 0,
-    );
+      );
+      const joinable: FreeSlot[] = companyId
+        ? (r.booked_slots ?? [])
+            .filter((b) => b.visitor_company_id === companyId)
+            .filter(
+              (b) =>
+                !cleanFree.some(
+                  (f) => f.slot_id === b.slot_id && f.table_id === b.table_id,
+                ),
+            )
+            .map((b) => ({
+              slot_id: b.slot_id,
+              table_id: b.table_id,
+              table_number: b.table_number,
+              start_at: b.start_at,
+              end_at: b.end_at,
+            }))
+        : [];
+      const merged = [...cleanFree, ...joinable].sort((a, b) =>
+        a.start_at.localeCompare(b.start_at),
+      );
+      return {
+        ...r,
+        free_slots: merged,
+        __joinable_slot_ids: new Set(joinable.map((s) => s.slot_id)),
+      } as ExhibitorAvailabilityRow & { __joinable_slot_ids: Set<string> };
+    });
+    const eligible = withMergedSlots.filter((r) => r.free_slots.length > 0);
     const q = search.trim().toLowerCase();
     if (!q) return eligible;
     return eligible.filter((r) =>
       (r.trade_name ?? "").toLowerCase().includes(q),
     );
-  }, [data, search, companyBusy]);
+  }, [data, search, companyBusy, target?.company_id]);
 
   const selectedExhibitor = useMemo(
     () => exhibitors.find((r) => r.company_id === selectedCompanyId) ?? null,
@@ -263,6 +291,11 @@ export function BookForRegistrantDialog({
                     <SelectItem key={s.slot_id} value={s.slot_id}>
                       {formatSlotFull(s.start_at, i18n.language)} ·{" "}
                       {t("availability.tableLabel")} {s.table_number}
+                      {(selectedExhibitor as unknown as {
+                        __joinable_slot_ids?: Set<string>;
+                      }).__joinable_slot_ids?.has(s.slot_id)
+                        ? " · (mesma empresa)"
+                        : ""}
                     </SelectItem>
                   ))}
                 </SelectContent>
