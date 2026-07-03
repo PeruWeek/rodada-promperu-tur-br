@@ -457,7 +457,6 @@ export const bookMeetingForVisitor = createServerFn({ method: "POST" })
     if (vErr) throw new Error(vErr.message);
     if (!visitor) throw new Error("Visitante não encontrado");
 
-    // Guarda 1 — slot existe
     const { data: newSlot, error: nsErr } = await supabaseAdmin
       .from("time_slots")
       .select("start_at, end_at")
@@ -466,77 +465,58 @@ export const bookMeetingForVisitor = createServerFn({ method: "POST" })
     if (nsErr) throw new Error(nsErr.message);
     if (!newSlot) throw new Error("Slot not found");
 
-    // Guarda 2 — conflito por HORÁRIO do visitante (mesmo start_at, qualquer mesa)
-    const { data: existingMeetings } = await supabaseAdmin
-      .from("meetings")
-      .select("id, slot_id, time_slots!inner(start_at)")
-      .eq("visitor_profile_id", visitor.id)
-      .eq("status", "scheduled");
-    const hasConflict = (existingMeetings ?? []).some(
-      (m: any) => m.time_slots?.start_at === newSlot.start_at,
-    );
-    if (hasConflict) {
-      throw new Error("Conflito: você já tem reunião agendada neste horário.");
-    }
+    // Guardas canônicas — delegadas a scheduling-rules.assertCanBook.
+    // Concorrência real segue coberta pelos triggers do banco.
+    const [{ data: myMtgs }, { data: pairMtgs }, { data: startMtgs }] =
+      await Promise.all([
+        supabaseAdmin
+          .from("meetings")
+          .select("id, table_id, slot_id, visitor_profile_id, time_slots!inner(start_at,end_at)")
+          .eq("visitor_profile_id", visitor.id)
+          .eq("status", "scheduled"),
+        supabaseAdmin
+          .from("meetings")
+          .select("id, table_id, slot_id, visitor_profile_id, visitor:profiles!visitor_profile_id(company_id), time_slots!inner(start_at,end_at)")
+          .eq("table_id", data.tableId)
+          .eq("slot_id", data.slotId)
+          .eq("status", "scheduled"),
+        visitor.company_id
+          ? supabaseAdmin
+              .from("meetings")
+              .select("id, table_id, slot_id, visitor_profile_id, visitor:profiles!visitor_profile_id(company_id), time_slots!inner(start_at,end_at)")
+              .eq("event_id", data.eventId)
+              .eq("status", "scheduled")
+              .eq("time_slots.start_at", newSlot.start_at)
+              .eq("time_slots.end_at", newSlot.end_at)
+          : Promise.resolve({ data: [] as any[] }),
+      ]);
 
-    // Guarda 3 — mesma mesa/expositor (unique)
-    const { data: sameTable } = await supabaseAdmin
-      .from("meetings")
-      .select("id")
-      .eq("visitor_profile_id", visitor.id)
-      .eq("table_id", data.tableId)
-      .eq("status", "scheduled")
-      .maybeSingle();
-    if (sameTable) {
-      throw new Error(
-        "Você já tem uma reunião agendada com este expositor. Cada participante pode ter no máximo 1 reunião por mesa.",
-      );
-    }
+    const toLite = (m: any): MeetingLite => ({
+      id: m.id,
+      table_id: m.table_id,
+      slot_id: m.slot_id,
+      visitor_profile_id: m.visitor_profile_id,
+      visitor_company_id: m.visitor?.company_id ?? null,
+      start_at: m.time_slots?.start_at ?? "",
+      end_at: m.time_slots?.end_at ?? "",
+    });
 
-    // Guarda 3.5 — regra "1 slot = 1 EMPRESA" na mesa. Bloqueia apenas se
-    // já houver reunião de OUTRA empresa neste (table_id, slot_id). Mesma
-    // empresa é permitida. Enforço duro pelo trigger
-    // `trg_meetings_no_conflict` (advisory lock + checagem de empresa).
-    const { data: slotTaken } = await supabaseAdmin
-      .from("meetings")
-      .select("id, visitor:profiles!visitor_profile_id(company_id)")
-      .eq("table_id", data.tableId)
-      .eq("slot_id", data.slotId)
-      .eq("status", "scheduled");
-    const otherCompanyOnSlot = (slotTaken ?? []).some(
-      (m: any) =>
-        m.visitor?.company_id &&
-        m.visitor.company_id !== visitor.company_id,
-    );
-    if (otherCompanyOnSlot) {
-      throw new Error(
-        "Este horário já está ocupado por outra empresa nesta mesa. Escolha outro slot.",
-      );
-    }
-
-    // Guarda 4 — mesma empresa visitante já no mesmo (start_at, end_at) do evento
-    // em qualquer mesa. Enforçado no banco por trg_meetings_one_company_per_slot;
-    // aqui é apenas o caminho amigável de erro.
-    if (visitor.company_id) {
-      const { data: companyClash } = await supabaseAdmin
-        .from("meetings")
-        .select(
-          "id, table_id, slot_id, visitor:profiles!visitor_profile_id(company_id), time_slots!inner(start_at, end_at)",
-        )
-        .eq("event_id", data.eventId)
-        .eq("status", "scheduled")
-        .eq("time_slots.start_at", newSlot.start_at)
-        .eq("time_slots.end_at", newSlot.end_at);
-      const clash = (companyClash ?? []).some(
-        (m: any) =>
-          m.visitor?.company_id === visitor.company_id &&
-          !(m.table_id === data.tableId && m.slot_id === data.slotId),
-      );
-      if (clash) {
-        throw new Error(
-          "Esta empresa já possui uma reunião agendada neste horário em outra mesa.",
-        );
-      }
+    try {
+      assertCanBook({
+        visitor: { id: visitor.id, company_id: visitor.company_id },
+        slot: {
+          id: data.slotId,
+          table_id: data.tableId,
+          start_at: newSlot.start_at,
+          end_at: newSlot.end_at,
+        },
+        visitorScheduledMeetings: ((myMtgs ?? []) as any[]).map(toLite),
+        meetingsOnPair: ((pairMtgs ?? []) as any[]).map(toLite),
+        sameEventMeetingsAtStart: ((startMtgs ?? []) as any[]).map(toLite),
+      });
+    } catch (e) {
+      if (e instanceof SchedulingError) throw new Error(e.friendlyMessage);
+      throw e;
     }
 
     const { data: meeting, error: mErr } = await supabaseAdmin
