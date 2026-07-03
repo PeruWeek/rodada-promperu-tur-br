@@ -707,6 +707,32 @@ export function RegistrantsTab({
                 )}
                 {isAdmin && r.auth_user_id && (
                   <>
+                    {r.role === "visitor" && (r.profile_meetings_count ?? 0) > 0 && (
+                      <>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setMeetingsTarget(r)}
+                          title={t("admin.registrants.actions.viewMeetings")}
+                        >
+                          <CalendarClock size={14} />{" "}
+                          {t("admin.registrants.actions.viewMeetings")}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-destructive hover:text-destructive"
+                          onClick={() => {
+                            setCancelAllReason("");
+                            setCancelAllTarget(r);
+                          }}
+                          title={t("admin.registrants.actions.cancelFutureMeetings")}
+                        >
+                          <CalendarX size={14} />{" "}
+                          {t("admin.registrants.actions.cancelFutureMeetings")}
+                        </Button>
+                      </>
+                    )}
                     {r.role === "visitor" && (
                       <Button
                         size="sm"
