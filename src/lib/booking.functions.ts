@@ -6,6 +6,120 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { assertNotCliente } from "@/lib/role-server";
 
+/**
+ * Slots do BookingDialog do visitante — classificados por relação com a
+ * empresa do visitante. Fonte da verdade para a regra "1 slot = 1 empresa":
+ * slots ocupados pela MESMA empresa são selecionáveis; outra empresa é
+ * bloqueio duro (o próprio slot já foi tomado por concorrente).
+ */
+export type VisitorBookingSlot = {
+  id: string;
+  start_at: string;
+  end_at: string;
+  /**
+   * - free: nada agendado
+   * - mine: reunião do próprio usuário
+   * - same_company: outra pessoa da mesma empresa já agendou aqui — usuário pode entrar
+   * - other_company: outra empresa segurou o slot — bloqueado
+   */
+  status: "free" | "mine" | "same_company" | "other_company";
+};
+
+export type VisitorBookingSlotsResult = {
+  table: { id: string; event_id: string; table_number: number } | null;
+  slots: VisitorBookingSlot[];
+  /** slots (start_at) em que o usuário já tem reunião em outra mesa — conflito de horário */
+  visitor_busy_starts: string[];
+};
+
+export const listVisitorBookingSlots = createServerFn({ method: "POST" })
+  .inputValidator((input) =>
+    z.object({ exhibitorProfileId: z.string().uuid() }).parse(input),
+  )
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }): Promise<VisitorBookingSlotsResult> => {
+    const { userId } = context;
+
+    const { data: profile } = await supabaseAdmin
+      .from("profiles")
+      .select("id, company_id")
+      .eq("auth_user_id", userId)
+      .maybeSingle();
+    if (!profile) return { table: null, slots: [], visitor_busy_starts: [] };
+
+    const { data: table } = await supabaseAdmin
+      .from("event_tables")
+      .select("id, event_id, table_number")
+      .eq("exhibitor_profile_id", data.exhibitorProfileId)
+      .maybeSingle();
+    if (!table) return { table: null, slots: [], visitor_busy_starts: [] };
+
+    const [{ data: slots }, { data: meetingsOnTable }, { data: myMeetings }] =
+      await Promise.all([
+        supabaseAdmin
+          .from("time_slots")
+          .select("id, start_at, end_at")
+          .eq("table_id", table.id)
+          .eq("is_active", true)
+          .order("start_at"),
+        supabaseAdmin
+          .from("meetings")
+          .select("slot_id, visitor_profile_id, visitor:profiles!visitor_profile_id(company_id)")
+          .eq("table_id", table.id)
+          .eq("status", "scheduled"),
+        supabaseAdmin
+          .from("meetings")
+          .select("slot_id, table_id, time_slots!inner(start_at)")
+          .eq("visitor_profile_id", profile.id)
+          .eq("status", "scheduled"),
+      ]);
+
+    // Índice do slot na mesa alvo → { mine, sameCompany, otherCompany }
+    const bySlot = new Map<
+      string,
+      { mine: boolean; sameCompany: boolean; otherCompany: boolean }
+    >();
+    for (const m of (meetingsOnTable ?? []) as any[]) {
+      const cur = bySlot.get(m.slot_id) ?? {
+        mine: false,
+        sameCompany: false,
+        otherCompany: false,
+      };
+      if (m.visitor_profile_id === profile.id) cur.mine = true;
+      const cid = m.visitor?.company_id ?? null;
+      if (cid && profile.company_id && cid === profile.company_id) {
+        cur.sameCompany = true;
+      } else if (cid && cid !== profile.company_id) {
+        cur.otherCompany = true;
+      }
+      bySlot.set(m.slot_id, cur);
+    }
+
+    // Horários (start_at) em que o visitante já tem reunião em OUTRAS mesas —
+    // conflito de agenda pessoal (guarda 2 do bookMeeting).
+    const visitorBusyStarts = new Set<string>();
+    for (const m of (myMeetings ?? []) as any[]) {
+      if (m.table_id === table.id) continue;
+      const s = m.time_slots?.start_at;
+      if (s) visitorBusyStarts.add(s);
+    }
+
+    const classified: VisitorBookingSlot[] = (slots ?? []).map((s) => {
+      const info = bySlot.get(s.id);
+      let status: VisitorBookingSlot["status"] = "free";
+      if (info?.mine) status = "mine";
+      else if (info?.otherCompany) status = "other_company";
+      else if (info?.sameCompany) status = "same_company";
+      return { id: s.id, start_at: s.start_at, end_at: s.end_at, status };
+    });
+
+    return {
+      table: { id: table.id, event_id: table.event_id, table_number: table.table_number },
+      slots: classified,
+      visitor_busy_starts: [...visitorBusyStarts],
+    };
+  });
+
 async function sendMeetingEmail(params: {
   templateName: "meeting-confirmation" | "meeting-cancelled";
   recipientEmail: string;

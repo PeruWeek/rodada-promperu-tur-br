@@ -33,6 +33,7 @@ export type BookedSlot = {
   visitor_profile_id: string;
   visitor_name: string;
   visitor_company_name: string | null;
+  visitor_company_id: string | null;
 };
 
 export type ExhibitorAvailabilityStatus =
@@ -228,6 +229,7 @@ export const listExhibitorAvailability = createServerFn({ method: "POST" })
         v.id,
         {
           name: v.full_name,
+          companyId: v.company_id ?? null,
           companyName:
             (visitorCompanies ?? []).find((c) => c.id === v.company_id)?.trade_name ?? null,
         },
@@ -314,6 +316,7 @@ export const listExhibitorAvailability = createServerFn({ method: "POST" })
           visitor_profile_id: m.visitor_profile_id,
           visitor_name: v?.name ?? "—",
           visitor_company_name: v?.companyName ?? null,
+          visitor_company_id: v?.companyId ?? null,
         });
       }
     }
