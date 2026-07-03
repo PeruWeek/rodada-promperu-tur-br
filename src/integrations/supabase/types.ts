@@ -944,28 +944,37 @@ export type Database = {
       }
       general_checkins: {
         Row: {
+          available_for_fillin: boolean
           checked_in_by_profile_id: string | null
           checkin_at: string
           event_id: string
           id: string
           method: Database["public"]["Enums"]["checkin_method"]
+          note: string | null
           profile_id: string
+          source: string
         }
         Insert: {
+          available_for_fillin?: boolean
           checked_in_by_profile_id?: string | null
           checkin_at?: string
           event_id: string
           id?: string
           method?: Database["public"]["Enums"]["checkin_method"]
+          note?: string | null
           profile_id: string
+          source?: string
         }
         Update: {
+          available_for_fillin?: boolean
           checked_in_by_profile_id?: string | null
           checkin_at?: string
           event_id?: string
           id?: string
           method?: Database["public"]["Enums"]["checkin_method"]
+          note?: string | null
           profile_id?: string
+          source?: string
         }
         Relationships: [
           {
@@ -998,6 +1007,7 @@ export type Database = {
           id: string
           late_minutes: number | null
           meeting_id: string
+          note: string | null
           status: Database["public"]["Enums"]["meeting_checkin_status"]
         }
         Insert: {
@@ -1006,6 +1016,7 @@ export type Database = {
           id?: string
           late_minutes?: number | null
           meeting_id: string
+          note?: string | null
           status?: Database["public"]["Enums"]["meeting_checkin_status"]
         }
         Update: {
@@ -1014,6 +1025,7 @@ export type Database = {
           id?: string
           late_minutes?: number | null
           meeting_id?: string
+          note?: string | null
           status?: Database["public"]["Enums"]["meeting_checkin_status"]
         }
         Relationships: [
