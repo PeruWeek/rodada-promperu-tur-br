@@ -613,17 +613,40 @@ export const listVisitorMeetings = createServerFn({ method: "POST" })
     const { userId } = context;
     await assertAdminRole(supabaseAdmin, userId);
 
+    // 2-step: meetings + event_tables (FK única) e time_slots por id — evita
+    // filtro/ordenação por caminho ambíguo (meetings tem 2 FKs para time_slots).
     const nowIso = new Date().toISOString();
-    const { data: rows, error } = await supabaseAdmin
+    const { data: rowsRaw, error } = await supabaseAdmin
       .from("meetings")
       .select(
-        "id, event_id, table_id, slot_id, time_slots!meetings_slot_id_fkey!inner(start_at, end_at), event_tables!inner(table_number, exhibitor_profile_id)",
+        "id, event_id, table_id, slot_id, event_tables!inner(table_number, exhibitor_profile_id)",
       )
       .eq("visitor_profile_id", data.visitorProfileId)
-      .eq("status", "scheduled")
-      .gte("time_slots!meetings_slot_id_fkey.start_at", nowIso)
-      .order("start_at", { referencedTable: "time_slots", ascending: true });
+      .eq("status", "scheduled");
     if (error) throw new Error(error.message);
+
+    const slotIds = Array.from(
+      new Set(
+        ((rowsRaw ?? []) as any[])
+          .map((r) => r.slot_id)
+          .filter((v): v is string => !!v),
+      ),
+    );
+    const slotById = new Map<string, { start_at: string; end_at: string }>();
+    if (slotIds.length > 0) {
+      const { data: slotsData } = await supabaseAdmin
+        .from("time_slots")
+        .select("id, start_at, end_at")
+        .in("id", slotIds)
+        .gte("start_at", nowIso);
+      for (const s of (slotsData ?? []) as any[]) {
+        slotById.set(s.id, { start_at: s.start_at, end_at: s.end_at });
+      }
+    }
+    const rows = ((rowsRaw ?? []) as any[])
+      .filter((r) => r.slot_id && slotById.has(r.slot_id))
+      .map((r) => ({ ...r, time_slots: slotById.get(r.slot_id)! }))
+      .sort((a, b) => a.time_slots.start_at.localeCompare(b.time_slots.start_at));
 
     const exhibitorIds = Array.from(
       new Set(
