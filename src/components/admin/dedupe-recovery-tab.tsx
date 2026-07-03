@@ -86,6 +86,9 @@ export function DedupeRecoveryTab() {
     queryKey: ["dedupe-recovery", "suggestions", target?.profile_id],
     enabled: !!target?.profile_id,
     queryFn: () => suggestFn({ data: { profileId: target!.profile_id } }),
+    staleTime: 0,
+    refetchOnWindowFocus: true,
+    refetchOnMount: "always",
   });
 
   const rebookMutation = useMutation({
@@ -111,9 +114,17 @@ export function DedupeRecoveryTab() {
         setTarget(null);
       } else {
         toast.error(res.friendlyMessage);
+        // Sempre refetch — o slot ficou stale entre a exibição e o clique.
         qc.invalidateQueries({
           queryKey: ["dedupe-recovery", "suggestions", target?.profile_id],
         });
+        if (
+          res.code === "SLOT_TAKEN_OTHER_COMPANY" ||
+          res.code === "SLOT_CONFLICT"
+        ) {
+          void suggestionsQuery.refetch();
+          toast.message("Sugestões atualizadas.");
+        }
       }
     },
     onError: () => {
