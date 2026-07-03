@@ -6,6 +6,12 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { getPrimaryRoleServer } from "@/lib/role-server";
 import { getCurrentEventIdWith } from "@/lib/staff-exports.functions";
 import { bookMeetingForVisitor } from "@/lib/exhibitor-availability.functions";
+import {
+  buildCompanyBusyStartTables,
+  classifySlotForVisitor,
+  indexMeetingsByPair,
+  type MeetingLite,
+} from "@/lib/scheduling-rules";
 
 /**
  * Aba admin "Reacomodação" — solução ISOLADA para reagendar contatos
@@ -268,61 +274,47 @@ export const suggestRecoverySlots = createServerFn({ method: "POST" })
       .eq("status", "scheduled");
     const meetingList = (allMeetings ?? []) as any[];
 
-    // Conflitos pessoais do contato: horários (start_at) já ocupados por ele.
-    const myStarts = new Set<string>();
-    const myTables = new Set<string>();
+    // Conflitos pessoais do contato (delegados aos mesmos sets que o
+    // classificador canônico consome).
+    const visitorBusyStarts = new Set<string>();
+    const visitorTables = new Set<string>();
     for (const m of meetingList) {
-      if (m.visitor_profile_id === profile.id) {
-        const s = m.time_slots?.start_at;
-        if (s) myStarts.add(s);
-        if (m.table_id) myTables.add(m.table_id);
-      }
+      if (m.visitor_profile_id !== profile.id) continue;
+      const s = m.time_slots?.start_at;
+      if (s) visitorBusyStarts.add(s);
+      if (m.table_id) visitorTables.add(m.table_id);
     }
 
-    // Guard 4 do backend (`bookMeetingForVisitor`): a empresa do visitor
-    // não pode ter reunião no mesmo `start_at` em OUTRA mesa. Mapeamos
-    // start_at → conjunto de table_ids onde a empresa já tem meeting
-    // scheduled. Um slot só é viável se, para o `start_at` correspondente,
-    // (a) a empresa não aparece, ou (b) o único table_id registrado é o
-    // próprio table_id do slot sugerido.
-    const companyStartTables = new Map<string, Set<string>>();
-    if (profile.company_id) {
-      for (const m of meetingList) {
-        const cid = m.visitor?.company_id ?? null;
-        if (cid !== profile.company_id) continue;
-        const s = m.time_slots?.start_at;
-        if (!s || !m.table_id) continue;
-        const set = companyStartTables.get(s) ?? new Set<string>();
-        set.add(m.table_id);
-        companyStartTables.set(s, set);
-      }
-    }
+    // Normaliza reuniões para MeetingLite (fonte canônica).
+    const liteMeetings: MeetingLite[] = meetingList.map((m: any) => ({
+      id: m.id,
+      table_id: m.table_id,
+      slot_id: m.slot_id,
+      visitor_profile_id: m.visitor_profile_id,
+      visitor_company_id: m.visitor?.company_id ?? null,
+      start_at: m.time_slots?.start_at ?? "",
+      end_at: m.time_slots?.end_at ?? "",
+    }));
+    const byPair = indexMeetingsByPair(liteMeetings);
+    const companyBusyStartTables = buildCompanyBusyStartTables(
+      liteMeetings,
+      profile.company_id,
+    );
 
-    // Índice de meetings por (table_id, slot_id).
-    type SlotInfo = {
-      companies: Set<string>;
-      sameCompanyMeeting?: { colleague_name: string | null };
-      selfPresent: boolean;
-    };
-    const bySlot = new Map<string, SlotInfo>();
-    const keyOf = (t: string, s: string) => `${t}::${s}`;
+    // Nome do colega da mesma empresa por par (só p/ label da sugestão).
+    const colleagueByPair = new Map<string, string | null>();
     for (const m of meetingList) {
-      const k = keyOf(m.table_id, m.slot_id);
-      const cur =
-        bySlot.get(k) ?? { companies: new Set<string>(), selfPresent: false };
       const cid = m.visitor?.company_id ?? null;
-      if (cid) cur.companies.add(cid);
-      if (m.visitor_profile_id === profile.id) cur.selfPresent = true;
       if (
         profile.company_id &&
         cid === profile.company_id &&
         m.visitor_profile_id !== profile.id
       ) {
-        cur.sameCompanyMeeting = {
-          colleague_name: m.visitor?.full_name ?? null,
-        };
+        colleagueByPair.set(
+          `${m.table_id}::${m.slot_id}`,
+          m.visitor?.full_name ?? null,
+        );
       }
-      bySlot.set(k, cur);
     }
 
     const tableById = new Map(tableList.map((t) => [t.id, t]));
@@ -333,22 +325,19 @@ export const suggestRecoverySlots = createServerFn({ method: "POST" })
     for (const s of slotList) {
       const table = tableById.get(s.table_id);
       if (!table) continue;
-      // Regras comuns: sem conflito pessoal por horário e sem reunião já dele nesta mesa.
-      if (myStarts.has(s.start_at)) continue;
-      if (myTables.has(s.table_id)) continue;
 
-      // Guard 4 (empresa em outra mesa no mesmo start_at) — espelho exato
-      // da checagem do backend. Sem isso, slots aparecem como `livre` e
-      // falham no rebook com "Esta empresa já possui uma reunião ...".
-      const companyTables = companyStartTables.get(s.start_at);
-      if (companyTables && companyTables.size > 0) {
-        const onlyThisTable =
-          companyTables.size === 1 && companyTables.has(s.table_id);
-        if (!onlyThisTable) continue;
-      }
+      const pair = byPair.get(`${s.table_id}::${s.id}`) ?? [];
+      const status = classifySlotForVisitor({
+        slot: { id: s.id, table_id: s.table_id, start_at: s.start_at, end_at: s.end_at },
+        meetingsOnPair: pair,
+        visitorProfileId: profile.id,
+        visitorCompanyId: profile.company_id,
+        visitorBusyStarts,
+        visitorTables,
+        companyBusyStartTables,
+      });
 
-      const info = bySlot.get(keyOf(s.table_id, s.id));
-      if (info?.selfPresent) continue;
+      if (status !== "free" && status !== "same_company") continue;
 
       const base = {
         slot_id: s.id,
@@ -363,23 +352,14 @@ export const suggestRecoverySlots = createServerFn({ method: "POST" })
         end_at: s.end_at,
       };
 
-      if (info?.sameCompanyMeeting) {
-        // Slot compartilhável: só a própria empresa presente.
-        const onlyOwnCompany =
-          info.companies.size === 1 &&
-          profile.company_id !== null &&
-          info.companies.has(profile.company_id);
-        if (onlyOwnCompany) {
-          sameCompany.push({
-            ...base,
-            source: "same_company",
-            colleague_name: info.sameCompanyMeeting.colleague_name,
-          });
-          continue;
-        }
-      }
-
-      if (!info || info.companies.size === 0) {
+      if (status === "same_company") {
+        sameCompany.push({
+          ...base,
+          source: "same_company",
+          colleague_name:
+            colleagueByPair.get(`${s.table_id}::${s.id}`) ?? null,
+        });
+      } else {
         free.push({ ...base, source: "free" });
       }
     }
