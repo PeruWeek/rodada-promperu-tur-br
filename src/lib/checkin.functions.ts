@@ -1233,7 +1233,7 @@ export const restoreCancelledMeetings = createServerFn({ method: "POST" })
 
     const results: RestoreMeetingResult[] = [];
 
-    for (const cand of candidates ?? []) {
+    for (const cand of (candidates ?? []) as any[]) {
       const meetingId = cand.id as string;
       const tableId = cand.table_id as string;
       const slotId = cand.slot_id as string;
