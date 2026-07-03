@@ -149,11 +149,11 @@ export function BookingDialog({
     onError: (err: Error) => {
       const msg = err.message || "";
       if (
-        msg.includes("uq_meetings_table_slot_scheduled") ||
-        msg.includes("acabou de ser reservado")
+        msg.includes("ocupado por outra empresa") ||
+        msg.includes("outra empresa")
       ) {
         toast.error(
-          "Este horário acabou de ser reservado por outro participante. Escolha outro slot.",
+          "Este horário já está ocupado por outra empresa nesta mesa. Escolha outro slot.",
         );
         qc.invalidateQueries({ queryKey: ["booking-slots", exhibitorProfileId] });
       } else if (msg.includes("você já tem reunião") || msg.toLowerCase().includes("já tem reunião")) {

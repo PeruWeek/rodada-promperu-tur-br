@@ -166,11 +166,11 @@ export function BookForRegistrantDialog({
     onError: (e: Error) => {
       const msg = e.message || "";
       if (
-        msg.includes("uq_meetings_table_slot_scheduled") ||
-        msg.includes("acabou de ser reservado")
+        msg.includes("ocupado por outra empresa") ||
+        msg.includes("outra empresa")
       ) {
         toast.error(
-          "Este horário acabou de ser reservado por outro participante. Escolha outro slot.",
+          "Este horário já está ocupado por outra empresa nesta mesa. Escolha outro slot.",
         );
         qc.invalidateQueries({ queryKey: ["exhibitor-availability"] });
         qc.invalidateQueries({ queryKey: ["booking-slots"] });

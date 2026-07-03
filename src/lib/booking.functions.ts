@@ -99,19 +99,25 @@ export const bookMeeting = createServerFn({ method: "POST" })
       );
     }
 
-    // Slot-mesa guard: no máximo 1 reunião ativa por (table_id, slot_id).
-    // Garantia dura pelo índice único parcial `uq_meetings_table_slot_scheduled`;
-    // esta checagem apenas fornece mensagem amigável na corrida perdida.
+    // Slot-mesa guard: regra de negócio é "1 slot = 1 EMPRESA", não
+    // "1 slot = 1 reunião". Múltiplas pessoas da mesma empresa podem
+    // dividir o mesmo (table_id, slot_id). Bloqueia apenas se já houver
+    // reunião de outra empresa. Enforço duro no banco pelo trigger
+    // `trg_meetings_no_conflict` (advisory lock + comparação de empresa).
     const { data: slotTaken } = await supabaseAdmin
       .from("meetings")
-      .select("id")
+      .select("id, visitor:profiles!visitor_profile_id(company_id)")
       .eq("table_id", data.tableId)
       .eq("slot_id", data.slotId)
-      .eq("status", "scheduled")
-      .maybeSingle();
-    if (slotTaken) {
+      .eq("status", "scheduled");
+    const otherCompanyOnSlot = (slotTaken ?? []).some(
+      (m: any) =>
+        m.visitor?.company_id &&
+        m.visitor.company_id !== profile.company_id,
+    );
+    if (otherCompanyOnSlot) {
       throw new Error(
-        "Este horário acabou de ser reservado por outro participante. Escolha outro slot.",
+        "Este horário já está ocupado por outra empresa nesta mesa. Escolha outro slot.",
       );
     }
 
@@ -123,18 +129,21 @@ export const bookMeeting = createServerFn({ method: "POST" })
       const { data: companyClash } = await supabaseAdmin
         .from("meetings")
         .select(
-          "id, visitor:profiles!visitor_profile_id(company_id), time_slots!inner(start_at, end_at)",
+          "id, table_id, slot_id, visitor:profiles!visitor_profile_id(company_id), time_slots!inner(start_at, end_at)",
         )
         .eq("event_id", data.eventId)
         .eq("status", "scheduled")
         .eq("time_slots.start_at", newSlot.start_at)
         .eq("time_slots.end_at", newSlot.end_at);
       const clash = (companyClash ?? []).some(
-        (m: any) => m.visitor?.company_id === profile.company_id,
+        (m: any) =>
+          m.visitor?.company_id === profile.company_id &&
+          // Mesma empresa NO MESMO (mesa, slot) é permitida
+          !(m.table_id === data.tableId && m.slot_id === data.slotId),
       );
       if (clash) {
         throw new Error(
-          "Esta empresa já possui uma reunião agendada neste horário.",
+          "Esta empresa já possui uma reunião agendada neste horário em outra mesa.",
         );
       }
     }
