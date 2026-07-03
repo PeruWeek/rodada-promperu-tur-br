@@ -5,6 +5,14 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { assertNotCliente } from "@/lib/role-server";
+import {
+  assertCanBook,
+  buildCompanyBusyStartTables,
+  classifySlotForVisitor,
+  indexMeetingsByPair,
+  type MeetingLite,
+  SchedulingError,
+} from "@/lib/scheduling-rules";
 
 /**
  * Slots do BookingDialog do visitante — classificados por relação com a
@@ -64,7 +72,7 @@ export const listVisitorBookingSlots = createServerFn({ method: "POST" })
           .order("start_at"),
         supabaseAdmin
           .from("meetings")
-          .select("slot_id, visitor_profile_id, visitor:profiles!visitor_profile_id(company_id)")
+          .select("slot_id, table_id, time_slots!inner(start_at,end_at), visitor_profile_id, visitor:profiles!visitor_profile_id(company_id)")
           .eq("table_id", table.id)
           .eq("status", "scheduled"),
         supabaseAdmin
@@ -74,42 +82,50 @@ export const listVisitorBookingSlots = createServerFn({ method: "POST" })
           .eq("status", "scheduled"),
       ]);
 
-    // Índice do slot na mesa alvo → { mine, sameCompany, otherCompany }
-    const bySlot = new Map<
-      string,
-      { mine: boolean; sameCompany: boolean; otherCompany: boolean }
-    >();
-    for (const m of (meetingsOnTable ?? []) as any[]) {
-      const cur = bySlot.get(m.slot_id) ?? {
-        mine: false,
-        sameCompany: false,
-        otherCompany: false,
-      };
-      if (m.visitor_profile_id === profile.id) cur.mine = true;
-      const cid = m.visitor?.company_id ?? null;
-      if (cid && profile.company_id && cid === profile.company_id) {
-        cur.sameCompany = true;
-      } else if (cid && cid !== profile.company_id) {
-        cur.otherCompany = true;
-      }
-      bySlot.set(m.slot_id, cur);
-    }
+    // Normaliza para MeetingLite (fonte canônica em scheduling-rules).
+    const pairMeetings: MeetingLite[] = ((meetingsOnTable ?? []) as any[])
+      .map((m) => ({
+        table_id: m.table_id ?? table.id,
+        slot_id: m.slot_id,
+        visitor_profile_id: m.visitor_profile_id,
+        visitor_company_id: m.visitor?.company_id ?? null,
+        start_at: m.time_slots?.start_at ?? "",
+        end_at: m.time_slots?.end_at ?? "",
+      }));
+    const byPair = indexMeetingsByPair(pairMeetings);
 
-    // Horários (start_at) em que o visitante já tem reunião em OUTRAS mesas —
-    // conflito de agenda pessoal (guarda 2 do bookMeeting).
+    // Horários (start_at) em que o visitante já tem reunião em OUTRAS mesas.
     const visitorBusyStarts = new Set<string>();
+    const visitorTables = new Set<string>();
     for (const m of (myMeetings ?? []) as any[]) {
-      if (m.table_id === table.id) continue;
-      const s = m.time_slots?.start_at;
-      if (s) visitorBusyStarts.add(s);
+      const s = m.time_slots?.start_at as string | undefined;
+      if (m.table_id && m.table_id !== table.id) {
+        if (s) visitorBusyStarts.add(s);
+      }
+      if (m.table_id) visitorTables.add(m.table_id);
     }
+    // Nota: para o BookingDialog, `visitorTables` inclui esta mesa se ele já
+    // tiver meeting aqui — mas nesse caso o slot correspondente cai em "mine"
+    // via `selfHere` antes da checagem de `visitorTables`.
 
     const classified: VisitorBookingSlot[] = (slots ?? []).map((s) => {
-      const info = bySlot.get(s.id);
-      let status: VisitorBookingSlot["status"] = "free";
-      if (info?.mine) status = "mine";
-      else if (info?.otherCompany) status = "other_company";
-      else if (info?.sameCompany) status = "same_company";
+      const slotLite = {
+        id: s.id,
+        table_id: table.id,
+        start_at: s.start_at,
+        end_at: s.end_at,
+      };
+      const status = classifySlotForVisitor({
+        slot: slotLite,
+        meetingsOnPair: byPair.get(`${table.id}::${s.id}`) ?? [],
+        visitorProfileId: profile.id,
+        visitorCompanyId: profile.company_id,
+        visitorBusyStarts,
+        visitorTables,
+        // Rule 5 not enforced in the same-table BookingDialog view — the
+        // dialog only shows slots on ONE table, so cross-table company
+        // conflict is caught at booking time by `assertCanBook`.
+      });
       return { id: s.id, start_at: s.start_at, end_at: s.end_at, status };
     });
 
