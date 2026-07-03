@@ -1,67 +1,88 @@
 
-## Diagnóstico
+# Credenciamento → Sala de Operação da Rodada
 
-`listCheckinEligible` filtra por `company_event_pipeline.registration_status IN ('cadastro_concluido','aprovado')`. No banco, as 201 linhas de pipeline estão em `em_preenchimento`, então o filtro zera qualquer busca. Além disso o `.or()` só bate em `full_name` e `email` — digitar empresa nunca acha ninguém.
+Preserva integralmente o fluxo atual de **Chegadas** (`busca + lista + Marcar chegada`), que abre como sub-aba padrão e vira `<ArrivalsPanel />` sem mudança de comportamento. Adiciona três sub-abas em cima dos mesmos dados. UX rápida, auditável, no máximo 1 ação primária + 1 secundária por linha.
 
-## Contrato de retorno (preservado)
+## 1. Estrutura da tela
 
-Mantém exatamente o shape atual: `{ eventId, profiles }`. Cada item de `profiles` mantém `id`, `auth_user_id`, `full_name`, `email`, `company_id`, `company`. **Única adição**: novo campo opcional `pipeline_status: string | null` por perfil. Nenhum campo removido, nenhum renomeado — zero quebra no frontend.
+```text
+[ Chegadas (default) ] [ Ao vivo ] [ Encaixe ] [ Pós-evento ]
+```
 
-## Mudanças
+- **Chegadas** — `<ArrivalsPanel />`: comportamento idêntico ao de hoje; abre por padrão.
+- **Ao vivo** — faixa de 5 KPIs (polling 30 s) + lista filtrada pelo KPI selecionado.
+- **Encaixe** — fila de pareamento com confirmação em 1 clique.
+- **Pós-evento** — read-only + CSV.
 
-### `src/lib/checkin.functions.ts` — reescrever `listCheckinEligible`
+## 2. KPIs ao vivo (polling 30 s, cada KPI filtra a lista)
 
-Elegibilidade = **presença operacional no evento**, união de três fontes:
+Calculados a partir de `general_checkins`, `meetings`, `meeting_checkins`, `time_slots`, `event_tables`:
 
-1. `visitor_profile_id` de `meetings` com status `scheduled | done | no_show`;
-2. `exhibitor_profile_id` das `event_tables` referenciadas por essas reuniões;
-3. `exhibitor_profile_id` titular de **qualquer** `event_tables` do evento (mesmo sem reunião).
+- **Presentes agora** — `count(distinct profile_id)` em `general_checkins` por `event_id`.
+- **Em reunião agora** — `meetings.status='scheduled'` cujo `time_slot` cobre `now()`.
+- **Ociosos agora** — presentes com role `visitor|exhibitor` sem `meeting scheduled` no slot corrente.
+- **Reuniões em risco** — `scheduled` com `slot.start_at < now() - 5 min` e sem `meeting_checkins`.
+- **Mesas livres no bloco** — `event_tables` ativas − mesas com reunião `scheduled` no slot corrente.
 
-Handler:
+## 3. Encaixe
 
-- Em paralelo: `meetings` do evento (status ativo) + todas as `event_tables` do evento.
-- Montar `candidateIds = visitorIds ∪ exhibitorIds`; safety net para reuniões cuja mesa não veio no primeiro lote.
-- Se `candidateIds` vazio → retorno cedo com `profiles: []`.
-- Carregar `profiles` via `IN (candidateIds)` — dedup natural por `profiles.id` (Map).
-- Buscar `companies.trade_name` por lote.
-- Buscar `company_event_pipeline.registration_status` por lote — **apenas informativo** (`pipeline_status`).
-- Busca livre **em memória**, depois do merge, sobre `full_name | email | trade_name`, com `trim` + `toLowerCase`. Sem `.or()` no PostgREST.
-- `limit` (padrão 500) aplicado **só quando não há termo de busca**.
+- Base: visitantes ociosos × mesas livres no slot atual, filtrados por `available_for_fillin=true`.
+- Ordenação: matching simples segmentos/interesses × serviços; fallback alfabético.
+- 1 clique reaproveita **exatamente** o caminho existente de booking (mesmas travas `slot × table × visitor`). Sem bypass.
+- Telemetria `is_fillin=true` via `context` do `audit_logs`. Sem coluna nova em `meetings`.
 
-### `src/routes/_authenticated/admin.tsx` — `CheckinTab`
+## 4. Pós-evento (read-only + CSV)
 
-- Placeholder: `t("admin.checkin.searchPlaceholder")` → “Buscar por nome, e-mail ou empresa…”.
-- Estados vazios distintos:
-  - `!data?.event` → `t("admin.checkin.noEvent")`;
-  - evento existe, `profiles=[]`, sem `q` → `t("admin.checkin.emptyEvent")`;
-  - `profiles=[]` com `q` preenchido → `t("admin.checkin.noResults")` (já existente).
-- Se `p.pipeline_status`, badge discreto ao lado do nome com `t("admin.checkin.pipelineStatus." + status, { defaultValue: status })`. Não bloqueia o botão “Marcar chegada”.
+Consolida a edição por participante. Sem ações operacionais.
 
-### `src/lib/i18n/pt-BR.json` e `src/lib/i18n/es.json`
+Colunas mínimas do CSV: `empresa`, `participante`, `perfil`, `presença`, `reuniões agendadas`, `reuniões realizadas`, `no-show`, `atraso médio`, `mesa`, `bloco`.
 
-Dentro de `admin.checkin`:
+## 5. Campos mínimos (aditivos, defaults preservam comportamento)
 
-- `searchPlaceholder`: “Buscar por nome, e-mail ou empresa…” / “Buscar por nombre, email o empresa…”
-- `noEvent`: “Nenhum evento ativo encontrado.” / “Ningún evento activo encontrado.”
-- `emptyEvent`: “Nenhum participante elegível para este evento ainda.” / “Aún no hay participantes elegibles para este evento.”
-- `pipelineStatus`:
-  - `em_preenchimento` — “Cadastro em preenchimento” / “Registro en curso”
-  - `cadastro_concluido` — “Cadastro concluído” / “Registro concluido”
-  - `aguardando_aprovacao` — “Aguardando aprovação” / “Esperando aprobación”
-  - `aprovado` — “Aprovado” / “Aprobado”
-  - `bloqueado` — “Bloqueado” / “Bloqueado”
-- Fallback: `defaultValue: status` para status não mapeados.
+### `general_checkins`
+- `source text default 'staff_manual'` — origem operacional (`entrance | staff_manual | qr | self`).
+- `note text null` — observação curta (≤ 140 char), sob demanda.
+- `available_for_fillin boolean default true` — toggle rápido no card.
 
-## Fora de escopo
+### `meeting_checkins`
+- `note text null`.
+- `late_minutes` já existe → auto-cálculo `now() - slot.start_at` quando staff marca `status='present'` após o início; editável.
 
-`generalCheckIn`, `meetingCheckIn`, RLS, migrations, pipeline comercial, aprovações, mesas/slots.
+Sem novos campos em `meetings` / `event_tables`. Toda a leitura operacional é derivada.
+
+## 6. Server functions (admin/staff)
+
+Em `src/lib/checkin.functions.ts`:
+
+- `getLiveOperations({ eventId })` → `{ slotCurrent, slotNext, presentProfiles, inMeetingProfiles, idleProfiles, atRiskMeetings, freeTables, kpis }`.
+- `suggestFillins({ eventId, slotId })` → pares ordenados `{ visitor, table, exhibitor, score }`.
+- `setAvailableForFillin({ checkinId, value })`.
+- `setCheckinNote({ checkinId, note })`.
+- `undoGeneralCheckIn({ checkinId })` — admin apenas.
+
+`generalCheckIn` e `meetingCheckIn` mantêm contrato. `meetingCheckIn` ganha só o auto-cálculo de `late_minutes` quando `status='present'`.
+
+Toda mutação (check-in, no-show, encaixe, undo, notas, toggle) grava em `audit_logs` com `actor_profile_id` e `context={ eventId, slotId, kind }`.
+
+## 7. UI
+
+- `src/routes/_authenticated/admin.tsx` — `CheckinTab` vira wrapper de sub-abas (default `Chegadas`); corpo atual extraído para `<ArrivalsPanel />`.
+- Novos componentes em `src/components/admin/checkin/`:
+  - `kpi-strip.tsx` — 5 KPIs clicáveis.
+  - `live-ops-panel.tsx` — KPIs + lista filtrada.
+  - `fillin-queue.tsx` — sugestões e confirmação.
+  - `postevent-summary.tsx` — read-only + botão CSV.
+- i18n: novas chaves `admin.checkin.live.*`, `admin.checkin.fillin.*`, `admin.checkin.post.*`, `admin.checkin.kpi.*` (pt-BR + es).
+
+## 8. Fora de escopo
+
+Websocket/realtime, QR nativo, reagendamento automático, mudanças em pipeline/aprovação/slots além do necessário.
 
 ## Critérios de aceite
 
-- Shape de retorno preservado; apenas `pipeline_status` foi adicionado.
-- Buscar por parte do nome, do e-mail ou do nome da empresa retorna elegíveis.
-- Expositor titular de mesa sem reunião marcada aparece.
-- Empresa em `em_preenchimento` não é excluída (aparece com badge informativo).
-- Sem duplicados por `profiles.id`.
-- Estados vazios distintos entre sem evento, evento sem elegíveis e busca sem match.
-- Marcar chegada continua funcionando (sem alteração em `generalCheckIn`).
+- "Chegadas" idêntica ao comportamento atual e abre como sub-aba padrão.
+- "Ao vivo" mostra 5 KPIs corretos com polling 30 s; cada KPI filtra a lista.
+- "Encaixe" cria a reunião em 1 clique reaproveitando as travas de conflito existentes (sem bypass).
+- "Pós-evento" é read-only e exporta CSV com as colunas mínimas listadas.
+- Undo de chegada só admin; tudo em `audit_logs`.
+- Sem campos novos preenchidos, o sistema continua funcionando (defaults cobrem).

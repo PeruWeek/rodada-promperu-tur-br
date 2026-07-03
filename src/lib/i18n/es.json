@@ -507,6 +507,74 @@
         "aguardando_aprovacao": "Esperando aprobación",
         "aprovado": "Aprobado",
         "bloqueado": "Bloqueado"
+      },
+      "tabs": {
+        "arrivals": "Llegadas",
+        "live": "En vivo",
+        "fillin": "Encaje",
+        "post": "Post-evento"
+      },
+      "kpi": {
+        "present": "Presentes ahora",
+        "inMeeting": "En reunión ahora",
+        "idle": "Ociosos ahora",
+        "atRisk": "Reuniones en riesgo",
+        "freeTables": "Mesas libres en el bloque",
+        "slotCurrent": "Bloque actual",
+        "slotNext": "Próximo bloque",
+        "noSlot": "Sin bloque en curso"
+      },
+      "live": {
+        "title": "Operación en vivo",
+        "subtitle": "Se actualiza cada 30 s. Toca un KPI para filtrar la lista.",
+        "filterAll": "Todos los presentes",
+        "empty": "Ningún item para este filtro.",
+        "noteAdd": "Añadir nota",
+        "noteEdit": "Editar nota",
+        "notePlaceholder": "Observación corta (hasta 140)",
+        "noteSaved": "Nota guardada.",
+        "availableOn": "Disponible para encaje",
+        "availableOff": "Fuera del encaje",
+        "undo": "Deshacer llegada",
+        "undoConfirm": "¿Deshacer la llegada de este participante?",
+        "undoDone": "Llegada deshecha.",
+        "atRiskLabel": "retrasada {{minutes}} min",
+        "role": {
+          "visitor": "Visitante",
+          "exhibitor": "Expositor",
+          "staff": "Staff",
+          "admin": "Admin",
+          "cliente": "Cliente"
+        }
+      },
+      "fillin": {
+        "title": "Encaje",
+        "subtitle": "Emparejamientos posibles para el bloque actual.",
+        "noSlot": "Sin bloque en curso — no hay encaje posible ahora.",
+        "empty": "No hay pares disponibles por ahora.",
+        "book": "Encajar",
+        "booked": "Reunión de encaje creada.",
+        "visitor": "Visitante",
+        "table": "Mesa {{n}}",
+        "exhibitor": "Expositor"
+      },
+      "post": {
+        "title": "Post-evento",
+        "subtitle": "Lectura consolidada de la edición. Solo lectura.",
+        "exportCsv": "Exportar CSV",
+        "empty": "Aún no hay datos consolidados.",
+        "columns": {
+          "company": "empresa",
+          "participant": "participante",
+          "profile": "perfil",
+          "presence": "presencia",
+          "scheduled": "reuniones agendadas",
+          "done": "reuniones realizadas",
+          "noShow": "no-show",
+          "avgLate": "retraso medio",
+          "table": "mesa",
+          "block": "bloque"
+        }
       }
     },
     "users": {
