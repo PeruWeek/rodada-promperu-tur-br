@@ -20,6 +20,30 @@ async function isAdminOrStaff(userId: string) {
   return (data ?? []).some((r) => r.role === "admin" || r.role === "staff");
 }
 
+async function actorProfileId(userId: string): Promise<string | null> {
+  const { data } = await supabaseAdmin
+    .from("profiles")
+    .select("id")
+    .eq("auth_user_id", userId)
+    .maybeSingle();
+  return data?.id ?? null;
+}
+
+async function audit(
+  userId: string,
+  eventId: string,
+  action: string,
+  payload: Record<string, unknown>,
+) {
+  const actor = await actorProfileId(userId);
+  await supabaseAdmin.from("audit_logs").insert({
+    event_id: eventId,
+    actor_profile_id: actor,
+    action,
+    payload,
+  });
+}
+
 // List of profiles eligible for general check-in at an event.
 // Eligibility = operational presence in the event (union of three sources):
 //  1) visitor_profile_id of meetings with status scheduled|done|no_show
