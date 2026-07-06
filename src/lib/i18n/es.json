@@ -199,6 +199,8 @@
     "results": "{{count}} expositor(es)",
     "viewDetails": "Ver detalles",
     "viewProfileAndSchedule": "Ver perfil y agendar",
+    "viewProfileOnly": "Ver perfil",
+    "fullyBooked": "Agenda completa",
     "table": "Mesa",
     "pitch": "Sobre la empresa",
     "portfolio": "Portafolio",
