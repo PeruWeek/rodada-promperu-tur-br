@@ -2088,6 +2088,7 @@ export type Database = {
       public_exhibitor_catalog: {
         Args: { _event_id?: string }
         Returns: {
+          available_slots_count: number
           city: string
           country_code: string
           destinations: string[]
@@ -2100,8 +2101,9 @@ export type Database = {
         }[]
       }
       public_exhibitor_detail: {
-        Args: { _profile_id: string }
+        Args: { _event_id?: string; _profile_id: string }
         Returns: {
+          available_slots_count: number
           city: string
           company_id: string
           country_code: string
