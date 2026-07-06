@@ -5,6 +5,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { filterAndRankParticipants } from "@/lib/company-search";
 import { getPrimaryRoleServer } from "@/lib/role-server";
+import { buildParticipantAgendaData } from "@/lib/participant-agenda.server";
 
 async function assertAdminOrStaff(userId: string) {
   const { data } = await supabaseAdmin
