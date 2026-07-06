@@ -49,6 +49,7 @@ import { QaSimulationTab } from "@/components/admin/qa-simulation-tab";
 import { ReviewQueueTab } from "@/components/admin/review-queue-tab";
 import { DedupeRecoveryTab } from "@/components/admin/dedupe-recovery-tab";
 import { LostBookingsTab } from "@/components/admin/lost-bookings-tab";
+import { AgendaCampaignsTab } from "@/components/admin/agenda-campaigns-tab";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -164,6 +165,7 @@ function AdminPage() {
             <TabsTrigger value="emails">{t("admin.tabs.emails")}</TabsTrigger>
             <TabsTrigger value="emailTemplates">{t("admin.tabs.emailTemplates")}</TabsTrigger>
             <TabsTrigger value="bookingReminders">Lembretes</TabsTrigger>
+            <TabsTrigger value="agendaCampaigns">Disparo de agendas</TabsTrigger>
             <TabsTrigger value="audit">Auditoria</TabsTrigger>
             <TabsTrigger value="qaSim">QA Sim</TabsTrigger>
             <TabsTrigger value="dedupeRecovery">Reacomodação</TabsTrigger>
@@ -184,6 +186,7 @@ function AdminPage() {
           <TabsContent value="emails" className="mt-4"><EmailsTab /></TabsContent>
           <TabsContent value="emailTemplates" className="mt-4"><EmailTemplatesTab /></TabsContent>
           <TabsContent value="bookingReminders" className="mt-4"><BookingRemindersTab /></TabsContent>
+          <TabsContent value="agendaCampaigns" className="mt-4"><AgendaCampaignsTab /></TabsContent>
           <TabsContent value="audit" className="mt-4"><AuditTab /></TabsContent>
           <TabsContent value="qaSim" className="mt-4"><QaSimulationTab /></TabsContent>
           <TabsContent value="dedupeRecovery" className="mt-4"><DedupeRecoveryTab /></TabsContent>
