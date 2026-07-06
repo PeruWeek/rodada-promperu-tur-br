@@ -249,7 +249,7 @@ export function AgendaCampaignsTab() {
       </Card>
 
       <CampaignsHistory
-        campaigns={historyQuery.data?.rows ?? []}
+        campaigns={(historyQuery.data?.rows ?? []) as unknown as CampaignRow[]}
         liveTotals={historyQuery.data?.liveTotals ?? {}}
         loading={historyQuery.isLoading}
       />
