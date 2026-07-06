@@ -1,130 +1,91 @@
+# Ocultar CTA de agendamento para expositores lotados
 
-# Disparo administrativo de agendas por categoria (visitor / exhibitor)
+## Objetivo
+Impedir que o visitante veja o botão de agendamento quando o expositor não tem mais nenhum slot livre, mantendo o acesso ao perfil. A decisão vem de dado real (mesa do evento ativo + `time_slots.is_active` − `meetings.status='scheduled'`), calculado já na listagem/detalhe — sem esperar o clique no `BookingDialog`.
 
-Fluxo novo no Admin para enviar, por lote e por categoria (`visitor` **ou** `exhibitor`, nunca misto), um e-mail com botão que abre uma rota pública rastreável, entrega o PDF individual da agenda do destinatário e registra `sent`, `clicked` e `downloaded` como eventos distintos.
+## Regra canônica de disponibilidade
+Um slot está ocupado quando existe qualquer `meetings` com `status='scheduled'` em `(table_id, slot_id)` (consistente com `listVisitorBookingSlots` e com a regra "1 slot = 1 empresa"). O expositor está "lotado" quando:
 
-## 1. Fonte canônica de elegibilidade
+- existe `event_tables` do expositor **no evento ativo**, e
+- `count(time_slots.is_active=true) − count(distinct slot_id em meetings scheduled da mesma mesa) = 0`.
 
-- Origem única: `listEventRegistrants` em `src/lib/staff-exports.functions.ts`.
-- Filtro obrigatório escolhido pelo admin: `role='visitor'` **ou** `role='exhibitor'` (sem opção `ambos`).
-- Critério de agenda individual: **`profile_meetings_count > 0`** (não `scheduled_meetings_count`, que é agregado por empresa).
-- `getCompanyAgenda` não entra no fluxo.
+Sem mesa no evento ativo ou sem slots ativos → `available_slots_count = 0`.
 
-Novo helper `src/lib/agenda-campaigns.server.ts`:
-- `listEligibleRecipients({ eventId, category })` — chama a impl interna já existente `_listEventRegistrantsImpl`, aplica `role === category` + `profile_meetings_count > 0`, normaliza para `{ profileId, email, fullName, companyId, companyName, role, profileMeetingsCount }`.
-- `renderAgendaPdfFor({ eventId, profileId })` — retorna `Uint8Array`.
+## Backend (1 migração — ajusta 2 RPCs)
 
-Sobre a agenda individual: hoje `getParticipantAgenda` é apenas um `createServerFn` — não existe helper puro reutilizável. **Refatorar**: extrair o corpo do handler para uma função pura `buildParticipantAgendaData({ supabase, eventId, profileId })` em `src/lib/agenda-campaigns.server.ts` (ou em novo `src/lib/participant-agenda.server.ts`), e reescrever `getParticipantAgenda` para apenas chamar esse helper. Assim `renderAgendaPdfFor` reusa a mesma lógica canônica, sem duplicação, e monta o PDF via `buildAgendaPdf` de `src/lib/pdf.ts`.
+### `public.public_exhibitor_catalog(_event_id uuid default null)`
+Adicionar coluna `available_slots_count int` ao RETURNS TABLE. `et` já está escopado por `v_event`; subquery:
 
-## 2. Schema (migration única)
-
-### `agenda_email_campaigns`
-`id uuid pk`, `event_id uuid fk events`, `category text CHECK ('visitor','exhibitor')`, `subject text`, `body_md text`, `button_label text`, `created_by uuid fk profiles(id)` (perfil, não `auth.users`), `test_recipient text`, `status text CHECK ('draft','sending','sent','failed')`, `totals jsonb default '{}'`, `created_at`, `updated_at` + trigger `update_updated_at_column`.
-
-### `agenda_email_campaign_recipients`
-`id`, `campaign_id fk cascade`, `event_id`, `profile_id`, `role_category`, `recipient_email`, `subject_snapshot`, `body_snapshot`, `button_label_snapshot`, `token_hash bytea unique`, `sent_at`, `send_status text CHECK ('pending','sent','suppressed','failed')`, `error_message`, `clicked_at`, `click_count int default 0`, `downloaded_at`, `download_count int default 0`, `first_click_ip inet`, `metadata jsonb default '{}'`, `created_at`.
-
-Índices: `(campaign_id)`, `(profile_id, event_id)`, `unique(token_hash)`, `(role_category, send_status)`, `(campaign_id, clicked_at)`, `(campaign_id, downloaded_at)`.
-
-RLS / GRANT (ambas tabelas):
-- `GRANT SELECT, INSERT, UPDATE ON ... TO authenticated;`
-- `GRANT ALL ON ... TO service_role;`
-- sem grants para `anon`.
-- Policy única por operação com `USING (public.has_role(auth.uid(),'admin'))` + `WITH CHECK` idem.
-
-## 3. Template
-
-`src/lib/email-templates/agenda-delivery.tsx` (React Email), registrado em `registry.ts` e com defaults em `copy-defaults.ts`.
-
-Props: `visitorName`, `eventName`, `bodyHtml`, `buttonLabel`, `buttonUrl`.
-
-Escopo de conteúdo: `body_md` é tratado como **texto/parágrafos simples**. No envio, o servidor faz split por `\n\n`, escapa o texto e emite `<Text>` por parágrafo (sem HTML arbitrário, sem `dangerouslySetInnerHTML`, sem novas deps de markdown/sanitização). Snapshot por destinatário guarda o texto original em `body_snapshot`. Overrides globais existentes de remetente/estrutura continuam válidos.
-
-## 4. Server functions — `src/lib/agenda-campaigns.functions.ts`
-
-Todas com `.middleware([requireSupabaseAuth])`. No início de cada handler:
-```ts
-const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-await assertAdminRole(supabaseAdmin, context.userId);
+```sql
+(SELECT COUNT(*)::int
+   FROM public.time_slots ts
+  WHERE ts.table_id = et.id
+    AND ts.is_active = true
+    AND NOT EXISTS (
+      SELECT 1 FROM public.meetings m
+       WHERE m.table_id = et.id
+         AND m.slot_id  = ts.id
+         AND m.status   = 'scheduled'
+    )) AS available_slots_count
 ```
 
-- `previewEligibleRecipients({ eventId, category })` → `{ total, sample: [primeiros 20] }`.
-- `sendTestAgendaCampaign({ eventId, category, subject, body_md, buttonLabel, testEmail })` → toma o primeiro elegível da categoria como amostra da agenda (o token e o link não são persistidos como campanha; envio one-shot para `testEmail`), `idempotencyKey = agenda-test-{admin}-{Date.now()}`.
-- `createAndSendAgendaCampaign({ eventId, category, subject, body_md, buttonLabel })`:
-  1. Resolve `profileId` do admin via `profiles.auth_user_id = context.userId`.
-  2. INSERT `agenda_email_campaigns` (`status='sending'`, `created_by = profileId`).
-  3. Resolve elegíveis via helper.
-  4. Consulta `suppressed_emails` (por `email`); esses viram row com `send_status='suppressed'` e não são enviados.
-  5. Para cada restante: `token = crypto.randomBytes(32)`, `token_hash = sha256(token)`, INSERT recipient com snapshots.
-  6. `buttonUrl = ${origin}/api/public/agenda-download/${campaignId}/${token.toString('hex')}` (`origin` vem de `getRequest().url`).
-  7. `processTransactionalSend(supabaseAdmin, { templateName:'agenda-delivery', recipientEmail, idempotencyKey:'campaign-{campaignId}-{profileId}', templateData: {...} })`. Comportamento real: SendGrid direto + `email_send_log` (sem fila `transactional_emails`).
-  8. UPDATE `send_status`/`sent_at`/`error_message`, com `metadata.idempotency_key`.
-  9. Consolida `totals` no lote (`eligible`, `sent`, `failed`, `suppressed`) e move `status` para `sent` (ou `failed` se 100% falhou).
-- `listAgendaCampaigns({ filters })` — paginado.
-- `getCampaignRecipients({ campaignId, filters: { send_status?, clicked?, downloaded?, email? } })`.
+### `public.public_exhibitor_detail(_profile_id uuid, _event_id uuid default null)`
+**Ajuste obrigatório**: `available_slots_count` precisa ser calculado **no escopo do evento ativo**, não em qualquer mesa do expositor. Mudanças:
 
-## 5. Rota pública rastreável
+1. Assinatura: adicionar `_event_id uuid default null`.
+2. Corpo: `v_event := COALESCE(_event_id, public.pipeline_active_event_id())`.
+3. Trocar a linguagem para `plpgsql` (para usar a variável) e manter `STABLE SECURITY DEFINER SET search_path=public`.
+4. Restringir o `LEFT JOIN public.event_tables et`: `ON et.exhibitor_profile_id = p.id AND et.event_id = v_event`.
+5. Adicionar `available_slots_count int` no RETURNS TABLE, com a mesma subquery acima (retorna 0 quando `et.id IS NULL`, via `COALESCE`).
+6. Manter GRANTs atuais (`REVOKE ... FROM PUBLIC, anon; GRANT EXECUTE TO authenticated, service_role`) — recriar após `DROP FUNCTION` porque a assinatura muda.
 
-Arquivo: `src/routes/api/public/agenda-download.$campaignId.$token.ts` → `createFileRoute("/api/public/agenda-download/$campaignId/$token")`. Path: `/api/public/agenda-download/:campaignId/:token`.
+Nenhuma tabela nova. Nenhuma alteração em RLS ou GRANTs de tabela.
 
-Handler `GET`:
-1. Import dinâmico de `supabaseAdmin`.
-2. `tokenHash = sha256(hexToBytes(params.token))`.
-3. SELECT recipient por `campaign_id = params.campaignId` + `token_hash = tokenHash`. Se ausente → `new Response('Not found', { status: 404 })` genérico.
-4. **UPDATE clique isolado (antes do PDF)**:
-   ```sql
-   UPDATE agenda_email_campaign_recipients
-   SET clicked_at = COALESCE(clicked_at, now()),
-       click_count = click_count + 1,
-       first_click_ip = COALESCE(first_click_ip, :ip),
-       metadata = metadata || jsonb_build_object('last_ua', :ua)
-   WHERE id = :id
-   ```
-5. `pdfBytes = await renderAgendaPdfFor({ eventId, profileId })`.
-6. **UPDATE download isolado (só após PDF)**:
-   ```sql
-   UPDATE agenda_email_campaign_recipients
-   SET downloaded_at = COALESCE(downloaded_at, now()),
-       download_count = download_count + 1
-   WHERE id = :id
-   ```
-7. Response `application/pdf`, `Content-Disposition: attachment; filename="agenda.pdf"`.
+## Types
 
-Semântica: `clicked` = link válido acessado; `downloaded` = PDF gerado e devolvido pelo servidor.
+`src/integrations/supabase/types.ts` (arquivo auto-gerado — será regenerado após a migração) precisa refletir a nova coluna nos `Returns` de:
 
-Segurança: token 256 bits, só hash persistido, 404 genérico em qualquer falha (token inexistente, campanha errada, PDF sem dados), zero eco de dados.
+- `public_exhibitor_catalog`: acrescentar `available_slots_count: number` no objeto Returns.
+- `public_exhibitor_detail`: acrescentar `available_slots_count: number` no objeto Returns e `_event_id?: string` nos `Args`.
 
-## 6. UI Admin
+Como o arquivo é regenerado automaticamente pela integração Supabase após a migração ser aprovada, o passo é: aplicar a migração → confirmar que `types.ts` foi regenerado com as colunas → seguir para o frontend. Se a regeneração automática não incluir, aplicar manualmente o patch mínimo nos dois blocos `Returns`/`Args` acima.
 
-Novo `src/components/admin/agenda-campaigns-tab.tsx`, nova aba "Disparo de agendas" em `src/routes/_authenticated/admin.tsx`.
+## Frontend
 
-- Radio obrigatório `Visitantes` | `Expositores`.
-- Select de evento (default: evento ativo).
-- Botão "Contar elegíveis" → mostra total + tabela dos primeiros 20 (nome, empresa, e-mail, nº reuniões).
-- Inputs `Assunto`, `Texto` (textarea), `Label do botão`, `E-mail de teste`.
-- Botões "Enviar teste" e "Disparar lote" (Dialog de confirmação com total + categoria).
-- Painel "Histórico" — lista de campanhas com KPIs `elegíveis / enviados / falhas / cliques / downloads`; expandir mostra destinatários com filtros (status, clicou, baixou, e-mail).
+### `src/components/exhibitor-card.tsx`
+- Adicionar `available_slots_count: number` em `ExhibitorListItem`.
+- Se `> 0`: CTA atual `explore.viewProfileAndSchedule`.
+- Se `= 0`: CTA neutro `Ver perfil` (`explore.viewProfileOnly`) apontando para `/exhibitor/$id`, e `Badge` `Agenda lotada` (`explore.fullyBooked`).
 
-## 7. Integração com infraestrutura existente
+### `src/routes/_authenticated/explore.tsx`
+Mapear na `queryFn`:
+```ts
+available_slots_count: r.available_slots_count ?? 0,
+```
+Nada mais muda (sem novo filtro/ordem).
 
-- `processTransactionalSend` (SendGrid direto + `email_send_log`).
-- `suppressed_emails` respeitado antes do envio.
-- Unsubscribe segue o padrão atual do sistema.
-- SendGrid click tracking não é fonte de verdade — verdade vive nas tabelas novas.
-- Nenhuma alteração na agenda funcional além da refatoração de `getParticipantAgenda` para extrair o helper puro.
+### `src/routes/_authenticated/exhibitor.$id.tsx`
+- Ler `available_slots_count` do RPC.
+- Renderizar `<BookingDialog>` só quando `canBook && available_slots_count > 0`.
+- Caso contrário, exibir badge `Agenda lotada` no lugar.
 
-## 8. Evidências entregues ao final
+### i18n
+`src/lib/i18n/pt-BR.json` e `es.json`:
+- `explore.viewProfileOnly` → "Ver perfil" / "Ver perfil"
+- `explore.fullyBooked` → "Agenda lotada" / "Agenda completa"
 
-- Lista de arquivos criados/alterados.
-- Migration SQL, com nomes de tabelas e índices.
-- Nomes das server functions.
-- Path exato: `/api/public/agenda-download/:campaignId/:token`.
-- Trecho do helper mostrando reuso de `_listEventRegistrantsImpl` + filtro `profile_meetings_count > 0`.
-- Trecho mostrando `getParticipantAgenda` refatorado para chamar `buildParticipantAgendaData`, e `renderAgendaPdfFor` reusando o mesmo helper + `buildAgendaPdf`.
-- Trecho da rota com UPDATE isolado de `clicked_at` (passo 4) e UPDATE isolado de `downloaded_at` (passo 6).
-- Screenshots (Playwright headless) do Admin: fluxo `visitor` isolado, fluxo `exhibitor` isolado, histórico com colunas de clique e download separadas.
-- Confirmação de que perfil com `profile_meetings_count = 0` não aparece em `previewEligibleRecipients` nem no lote.
+## `BookingDialog`
+Sem alterações — segue como proteção secundária contra corrida.
 
 ## Fora do escopo
+Regras de booking, triggers, constraints, esconder perfil, admin, exportações.
 
-Automação recorrente; lote misto; envio para perfis sem agenda individual; uso de `getCompanyAgenda`; SendGrid tracking como verdade; mudanças na agenda funcional além da refatoração necessária para reusar o helper puro.
+## Evidências finais
+- Diff das duas RPCs (assinatura + subquery `available_slots_count` + escopo por `v_event`).
+- Diff de `types.ts` (novas propriedades em `Returns`/`Args`).
+- Arquivos alterados: migração, `types.ts`, `explore.tsx`, `exhibitor-card.tsx`, `exhibitor.$id.tsx`, `i18n/pt-BR.json`, `i18n/es.json`.
+- Validação SQL:
+  - `SELECT profile_id, available_slots_count FROM public.public_exhibitor_catalog();`
+  - `SELECT profile_id, available_slots_count FROM public.public_exhibitor_detail('<id lotado>');` → 0
+  - `SELECT profile_id, available_slots_count FROM public.public_exhibitor_detail('<id com vaga>');` → > 0
+- Screenshots/descrição: card lotado (CTA "Ver perfil" + badge) vs disponível (CTA agendamento); detalhe lotado sem `BookingDialog` vs detalhe com vaga com `BookingDialog`.
