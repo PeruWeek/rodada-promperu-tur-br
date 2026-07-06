@@ -73,6 +73,7 @@ export type RegistrantRow = {
   company_trade_name: string;
   company_legal_name: string | null;
   company_tax_id: string | null;
+  company_website: string | null;
   country_code: string | null;
   state_code: string | null;
   city: string | null;
@@ -215,11 +216,14 @@ export async function _listEventRegistrantsImpl(
     const { data: companies } = companyIds.length
       ? await ctx.supabase
           .from("companies")
-          .select("id, tax_id")
+          .select("id, tax_id, website")
           .in("id", companyIds)
       : { data: [] as CompanyTaxRow[] };
     const taxById = new Map(
       ((companies ?? []) as CompanyTaxRow[]).map((c) => [c.id, c.tax_id]),
+    );
+    const websiteById = new Map(
+      ((companies ?? []) as CompanyTaxRow[]).map((c) => [c.id, c.website ?? null]),
     );
     // Textual search runs AFTER per-profile expansion below so the needle
     // can match the inscribed person's full_name / email in addition to the
