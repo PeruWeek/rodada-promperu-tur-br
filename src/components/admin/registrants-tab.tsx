@@ -116,6 +116,7 @@ function buildExportArrays(rows: RegistrantRow[], t: (k: string) => string) {
     t("admin.registrants.cols.company"),
     t("admin.registrants.cols.legalName"),
     t("admin.registrants.cols.taxId"),
+    t("admin.registrants.cols.website"),
     t("admin.registrants.cols.role"),
     t("admin.registrants.cols.contact"),
     t("admin.registrants.cols.jobTitle"),
@@ -134,6 +135,7 @@ function buildExportArrays(rows: RegistrantRow[], t: (k: string) => string) {
     r.company_trade_name,
     r.company_legal_name ?? "",
     r.company_tax_id ?? "",
+    r.company_website ?? "",
     r.role === "exhibitor"
       ? t("admin.companies.roleExhibitor")
       : t("admin.companies.roleVisitor"),
