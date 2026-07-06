@@ -489,6 +489,7 @@
         "company": "Nombre de fantasía",
         "legalName": "Razón social",
         "taxId": "RUC/CNPJ",
+        "website": "Sitio web",
         "role": "Tipo",
         "contact": "Contacto",
         "jobTitle": "Cargo",
