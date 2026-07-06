@@ -508,6 +508,7 @@
         "company": "Nome Fantasia",
         "legalName": "Razão social",
         "taxId": "CNPJ/RUC",
+        "website": "Site",
         "role": "Tipo",
         "contact": "Contato",
         "jobTitle": "Cargo",

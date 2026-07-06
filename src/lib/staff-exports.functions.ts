@@ -73,6 +73,7 @@ export type RegistrantRow = {
   company_trade_name: string;
   company_legal_name: string | null;
   company_tax_id: string | null;
+  company_website: string | null;
   country_code: string | null;
   state_code: string | null;
   city: string | null;
@@ -198,7 +199,7 @@ export async function _listEventRegistrantsImpl(
       primary_contact_whatsapp: string | null;
       created_at: string | null;
     };
-    type CompanyTaxRow = { id: string; tax_id: string | null };
+    type CompanyTaxRow = { id: string; tax_id: string | null; website: string | null };
     type ProfileRow = {
       id: string;
       job_title: string | null;
@@ -215,11 +216,14 @@ export async function _listEventRegistrantsImpl(
     const { data: companies } = companyIds.length
       ? await ctx.supabase
           .from("companies")
-          .select("id, tax_id")
+          .select("id, tax_id, website")
           .in("id", companyIds)
       : { data: [] as CompanyTaxRow[] };
     const taxById = new Map(
       ((companies ?? []) as CompanyTaxRow[]).map((c) => [c.id, c.tax_id]),
+    );
+    const websiteById = new Map(
+      ((companies ?? []) as CompanyTaxRow[]).map((c) => [c.id, c.website ?? null]),
     );
     // Textual search runs AFTER per-profile expansion below so the needle
     // can match the inscribed person's full_name / email in addition to the
@@ -360,6 +364,7 @@ export async function _listEventRegistrantsImpl(
           company_trade_name: r.company_trade_name ?? "—",
           company_legal_name: r.company_legal_name ?? null,
           company_tax_id: (taxById.get(r.company_id as string) as string | null | undefined) ?? null,
+          company_website: (websiteById.get(r.company_id as string) as string | null | undefined) ?? null,
           country_code: r.country_code ?? null,
           state_code: r.state_code ?? null,
           city: r.city ?? null,
@@ -637,6 +642,14 @@ export const listClienteOverviewBase = createServerFn({ method: "POST" })
     const companyIds = Array.from(
       new Set(rowsTyped.map((r) => r.company_id).filter(Boolean) as string[]),
     );
+    const { data: companyWebsiteRows } = companyIds.length
+      ? await supabaseAdmin.from("companies").select("id, website").in("id", companyIds)
+      : { data: [] as Array<{ id: string; website: string | null }> };
+    const websiteByCompany = new Map(
+      ((companyWebsiteRows ?? []) as Array<{ id: string; website: string | null }>).map(
+        (c) => [c.id, c.website ?? null],
+      ),
+    );
     const { data: allProfs } = companyIds.length
       ? await supabaseAdmin
           .from("profiles")
@@ -736,6 +749,8 @@ export const listClienteOverviewBase = createServerFn({ method: "POST" })
           company_trade_name: r.company_trade_name ?? "—",
           company_legal_name: r.company_legal_name ?? null,
           company_tax_id: null,
+          company_website:
+            (websiteByCompany.get(r.company_id as string) as string | null | undefined) ?? null,
           country_code: r.country_code ?? null,
           state_code: r.state_code ?? null,
           city: r.city ?? null,
