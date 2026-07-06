@@ -56,6 +56,7 @@ function ExhibitorDetailPage() {
             }
           : null,
         table: row.table_number != null ? { table_number: row.table_number } : null,
+        available_slots_count: row.available_slots_count ?? 0,
       };
     },
   });
@@ -82,6 +83,8 @@ function ExhibitorDetailPage() {
   }
 
   const { exh, prof, comp, table } = data;
+  const availableSlots = data.available_slots_count ?? 0;
+  const isFull = availableSlots <= 0;
   // Fallback to the other language so a description filled only in PT (or only in ES)
   // still appears for visitors browsing in the other locale.
   const pitch = lang === "es"
@@ -109,8 +112,13 @@ function ExhibitorDetailPage() {
             </div>
           )}
         </div>
-        {canBook && (
+        {canBook && !isFull && (
           <BookingDialog exhibitorProfileId={id} exhibitorName={comp?.trade_name ?? prof?.full_name ?? undefined} />
+        )}
+        {canBook && isFull && (
+          <Badge variant="outline" className="self-start text-muted-foreground">
+            {t("explore.fullyBooked")}
+          </Badge>
         )}
       </div>
 
