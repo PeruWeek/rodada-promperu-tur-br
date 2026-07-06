@@ -642,6 +642,14 @@ export const listClienteOverviewBase = createServerFn({ method: "POST" })
     const companyIds = Array.from(
       new Set(rowsTyped.map((r) => r.company_id).filter(Boolean) as string[]),
     );
+    const { data: companyWebsiteRows } = companyIds.length
+      ? await supabaseAdmin.from("companies").select("id, website").in("id", companyIds)
+      : { data: [] as Array<{ id: string; website: string | null }> };
+    const websiteByCompany = new Map(
+      ((companyWebsiteRows ?? []) as Array<{ id: string; website: string | null }>).map(
+        (c) => [c.id, c.website ?? null],
+      ),
+    );
     const { data: allProfs } = companyIds.length
       ? await supabaseAdmin
           .from("profiles")
@@ -741,7 +749,8 @@ export const listClienteOverviewBase = createServerFn({ method: "POST" })
           company_trade_name: r.company_trade_name ?? "—",
           company_legal_name: r.company_legal_name ?? null,
           company_tax_id: null,
-          company_website: null,
+          company_website:
+            (websiteByCompany.get(r.company_id as string) as string | null | undefined) ?? null,
           country_code: r.country_code ?? null,
           state_code: r.state_code ?? null,
           city: r.city ?? null,
