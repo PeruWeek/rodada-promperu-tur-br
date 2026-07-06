@@ -40,6 +40,7 @@ function ExplorePage() {
         segments: r.segments ?? [],
         services: r.services ?? [],
         destinations: r.destinations ?? [],
+        available_slots_count: r.available_slots_count ?? 0,
       }));
     },
     retry: false,
