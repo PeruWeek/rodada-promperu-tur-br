@@ -741,6 +741,7 @@ export const listClienteOverviewBase = createServerFn({ method: "POST" })
           company_trade_name: r.company_trade_name ?? "—",
           company_legal_name: r.company_legal_name ?? null,
           company_tax_id: null,
+          company_website: null,
           country_code: r.country_code ?? null,
           state_code: r.state_code ?? null,
           city: r.city ?? null,
