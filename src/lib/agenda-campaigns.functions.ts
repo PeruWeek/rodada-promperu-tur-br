@@ -30,7 +30,11 @@ function toHex(bytes: Uint8Array): string {
 }
 
 async function sha256Bytes(input: Uint8Array): Promise<Uint8Array> {
-  const buf = await crypto.subtle.digest("SHA-256", input);
+  // Copy into a fresh ArrayBuffer to satisfy the DOM `BufferSource` type
+  // (Uint8Array<ArrayBufferLike> is too broad for `crypto.subtle.digest`).
+  const view = new Uint8Array(input.byteLength);
+  view.set(input);
+  const buf = await crypto.subtle.digest("SHA-256", view.buffer as ArrayBuffer);
   return new Uint8Array(buf);
 }
 
