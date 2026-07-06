@@ -97,6 +97,35 @@ export const TEMPLATE_COPY_DEFAULTS: Record<string, TemplateCopyDefaults> = {
   },
 };
 
+// Agenda delivery (admin campaign) — content per campaign is snapshotted;
+// only greeting/subject/signature use these defaults when the admin does
+// not override them.
+TEMPLATE_COPY_DEFAULTS["agenda-delivery"] = {
+  fromName: DEFAULT_FROM_NAME,
+  subject: {
+    "pt-BR": "Sua agenda — {{eventName}}",
+    es: "Tu agenda — {{eventName}}",
+  },
+  copy: {
+    "pt-BR": {
+      greeting: "Olá, {{visitorName}}!",
+      intro:
+        "Sua agenda pessoal está pronta. Clique no botão abaixo para baixar o PDF com todos os seus horários confirmados.",
+      outro: "",
+      ctaLabel: "Baixar minha agenda",
+      signature: `Você está recebendo este e-mail porque participa da ${SITE_NAME}.`,
+    },
+    es: {
+      greeting: "¡Hola, {{visitorName}}!",
+      intro:
+        "Tu agenda personal está lista. Haz clic en el botón para descargar el PDF con todos tus horarios confirmados.",
+      outro: "",
+      ctaLabel: "Descargar mi agenda",
+      signature: `Recibes este correo porque participas de la ${SITE_NAME}.`,
+    },
+  },
+};
+
 export const TEMPLATE_DISPLAY_NAMES: Record<string, string> = {
   "meeting-confirmation": "Confirmação de reunião",
   "meeting-cancelled": "Cancelamento de reunião",

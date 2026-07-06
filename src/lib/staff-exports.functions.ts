@@ -5,6 +5,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { filterAndRankParticipants } from "@/lib/company-search";
 import { getPrimaryRoleServer } from "@/lib/role-server";
+import { buildParticipantAgendaData } from "@/lib/participant-agenda.server";
 
 async function assertAdminOrStaff(userId: string) {
   const { data } = await supabaseAdmin
@@ -803,119 +804,15 @@ export const getParticipantAgenda = createServerFn({ method: "POST" })
     await assertAdminOrStaff(context.userId);
     const eventId = await getCurrentEventId(data.eventId);
     if (!eventId) return { eventId: null, profileName: null, role: null, rows: [] as ParticipantAgendaRow[] };
-
-    const { data: profile } = await supabaseAdmin
-      .from("profiles")
-      .select("id, full_name")
-      .eq("id", data.profileId)
-      .maybeSingle();
-    const profileName = profile?.full_name ?? "—";
-
-    // Determine role: exhibitor (their profile owns a table) or visitor.
-    const { data: ownedTables } = await supabaseAdmin
-      .from("event_tables")
-      .select("id, table_number")
-      .eq("event_id", eventId)
-      .eq("exhibitor_profile_id", data.profileId);
-    const isExhibitor = (ownedTables ?? []).length > 0;
-
-    let meetingsQ = supabaseAdmin
-      .from("meetings")
-      .select("id, table_id, slot_id, visitor_profile_id, status")
-      .eq("event_id", eventId)
-      .eq("status", "scheduled");
-    if (isExhibitor) {
-      const tableIds = (ownedTables ?? []).map((t) => t.id);
-      meetingsQ = meetingsQ.in("table_id", tableIds);
-    } else {
-      meetingsQ = meetingsQ.eq("visitor_profile_id", data.profileId);
-    }
-    const { data: meetings, error: mErr } = await meetingsQ;
-    if (mErr) throw new Error(mErr.message);
-    const rows = meetings ?? [];
-    if (rows.length === 0) {
-      return { eventId, profileName, role: isExhibitor ? "exhibitor" : "visitor", rows: [] };
-    }
-
-    const slotIds = Array.from(new Set(rows.map((m) => m.slot_id)));
-    const tableIds = Array.from(new Set(rows.map((m) => m.table_id)));
-    const visitorIds = Array.from(new Set(rows.map((m) => m.visitor_profile_id)));
-
-    const [{ data: slots }, { data: tables }, { data: visitors }] = await Promise.all([
-      supabaseAdmin.from("time_slots").select("id, start_at, end_at").in("id", slotIds),
-      supabaseAdmin
-        .from("event_tables")
-        .select("id, table_number, exhibitor_profile_id")
-        .in("id", tableIds),
-      supabaseAdmin.from("profiles").select("id, full_name, company_id").in("id", visitorIds),
-    ]);
-
-    const exhProfileIds = Array.from(
-      new Set((tables ?? []).map((t) => t.exhibitor_profile_id).filter(Boolean) as string[]),
-    );
-    const { data: exhProfiles } = exhProfileIds.length
-      ? await supabaseAdmin.from("profiles").select("id, full_name, company_id").in("id", exhProfileIds)
-      : { data: [] as Array<{ id: string; full_name: string; company_id: string | null }> };
-    const allCompanyIds = Array.from(
-      new Set(
-        [
-          ...(visitors ?? []).map((v) => v.company_id),
-          ...(exhProfiles ?? []).map((p) => p.company_id),
-        ].filter(Boolean) as string[],
-      ),
-    );
-    const { data: companies } = allCompanyIds.length
-      ? await supabaseAdmin.from("companies").select("id, trade_name, website").in("id", allCompanyIds)
-      : { data: [] as Array<{ id: string; trade_name: string; website: string | null }> };
-    const companyName = (id: string | null | undefined) =>
-      id ? (companies ?? []).find((c) => c.id === id)?.trade_name ?? "—" : "—";
-    const companyWebsite = (id: string | null | undefined) =>
-      id ? (companies ?? []).find((c) => c.id === id)?.website ?? null : null;
-
-    const enriched: ParticipantAgendaRow[] = rows
-      .map((m) => {
-        const slot = (slots ?? []).find((s) => s.id === m.slot_id);
-        const tbl = (tables ?? []).find((t) => t.id === m.table_id);
-        const counterpartCompanyId: string | null | undefined = isExhibitor
-          ? (visitors ?? []).find((x) => x.id === m.visitor_profile_id)?.company_id
-          : (exhProfiles ?? []).find((p) => p.id === tbl?.exhibitor_profile_id)?.company_id;
-        const withName = isExhibitor
-          ? (() => {
-              const v = (visitors ?? []).find((x) => x.id === m.visitor_profile_id);
-              return v ? `${v.full_name} · ${companyName(v.company_id)}` : "—";
-            })()
-          : (() => {
-              const exh = (exhProfiles ?? []).find((p) => p.id === tbl?.exhibitor_profile_id);
-              return exh ? `${companyName(exh.company_id)} (${exh.full_name})` : "—";
-            })();
-        const startStr = slot?.start_at ?? "";
-        const endStr = slot?.end_at ?? "";
-        const fmt = (iso: string) =>
-          iso
-            ? new Date(iso).toLocaleTimeString("pt-BR", {
-                hour: "2-digit",
-                minute: "2-digit",
-                timeZone: "America/Sao_Paulo",
-              })
-            : "";
-        return {
-          _start: startStr,
-          time: `${fmt(startStr)} - ${fmt(endStr)}`,
-          withName,
-          table: tbl?.table_number ? String(tbl.table_number) : "—",
-          location: "",
-          website: companyWebsite(counterpartCompanyId),
-        };
-      })
-      .sort((a, b) => a._start.localeCompare(b._start))
-      .map(({ time, withName, table, location, website }) => ({ time, withName, table, location, website }));
-
-    return {
+    // Canonical single-profile agenda logic lives in
+    // `src/lib/participant-agenda.server.ts` so the agenda-delivery email
+    // campaign flow (`renderAgendaPdfFor`) can reuse the same code path
+    // without duplication.
+    return buildParticipantAgendaData({
+      supabase: supabaseAdmin,
       eventId,
-      profileName,
-      role: isExhibitor ? "exhibitor" : "visitor",
-      rows: enriched,
-    };
+      profileId: data.profileId,
+    });
   });
 
 export const listBulkAgendas = createServerFn({ method: "POST" })

@@ -14,6 +14,143 @@ export type Database = {
   }
   public: {
     Tables: {
+      agenda_email_campaign_recipients: {
+        Row: {
+          body_snapshot: string
+          button_label_snapshot: string
+          campaign_id: string
+          click_count: number
+          clicked_at: string | null
+          created_at: string
+          download_count: number
+          downloaded_at: string | null
+          error_message: string | null
+          event_id: string
+          first_click_ip: unknown
+          id: string
+          metadata: Json
+          profile_id: string
+          recipient_email: string
+          role_category: string
+          send_status: string
+          sent_at: string | null
+          subject_snapshot: string
+          token_hash: string
+        }
+        Insert: {
+          body_snapshot: string
+          button_label_snapshot: string
+          campaign_id: string
+          click_count?: number
+          clicked_at?: string | null
+          created_at?: string
+          download_count?: number
+          downloaded_at?: string | null
+          error_message?: string | null
+          event_id: string
+          first_click_ip?: unknown
+          id?: string
+          metadata?: Json
+          profile_id: string
+          recipient_email: string
+          role_category: string
+          send_status?: string
+          sent_at?: string | null
+          subject_snapshot: string
+          token_hash: string
+        }
+        Update: {
+          body_snapshot?: string
+          button_label_snapshot?: string
+          campaign_id?: string
+          click_count?: number
+          clicked_at?: string | null
+          created_at?: string
+          download_count?: number
+          downloaded_at?: string | null
+          error_message?: string | null
+          event_id?: string
+          first_click_ip?: unknown
+          id?: string
+          metadata?: Json
+          profile_id?: string
+          recipient_email?: string
+          role_category?: string
+          send_status?: string
+          sent_at?: string | null
+          subject_snapshot?: string
+          token_hash?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agenda_email_campaign_recipients_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "agenda_email_campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agenda_email_campaigns: {
+        Row: {
+          body_md: string
+          button_label: string
+          category: string
+          created_at: string
+          created_by: string | null
+          event_id: string
+          id: string
+          status: string
+          subject: string
+          test_recipient: string | null
+          totals: Json
+          updated_at: string
+        }
+        Insert: {
+          body_md?: string
+          button_label?: string
+          category: string
+          created_at?: string
+          created_by?: string | null
+          event_id: string
+          id?: string
+          status?: string
+          subject: string
+          test_recipient?: string | null
+          totals?: Json
+          updated_at?: string
+        }
+        Update: {
+          body_md?: string
+          button_label?: string
+          category?: string
+          created_at?: string
+          created_by?: string | null
+          event_id?: string
+          id?: string
+          status?: string
+          subject?: string
+          test_recipient?: string | null
+          totals?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agenda_email_campaigns_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agenda_email_campaigns_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       agent_skills: {
         Row: {
           agent_id: string
