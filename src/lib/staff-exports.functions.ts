@@ -199,7 +199,7 @@ export async function _listEventRegistrantsImpl(
       primary_contact_whatsapp: string | null;
       created_at: string | null;
     };
-    type CompanyTaxRow = { id: string; tax_id: string | null };
+    type CompanyTaxRow = { id: string; tax_id: string | null; website: string | null };
     type ProfileRow = {
       id: string;
       job_title: string | null;
@@ -364,6 +364,7 @@ export async function _listEventRegistrantsImpl(
           company_trade_name: r.company_trade_name ?? "—",
           company_legal_name: r.company_legal_name ?? null,
           company_tax_id: (taxById.get(r.company_id as string) as string | null | undefined) ?? null,
+          company_website: (websiteById.get(r.company_id as string) as string | null | undefined) ?? null,
           country_code: r.country_code ?? null,
           state_code: r.state_code ?? null,
           city: r.city ?? null,
