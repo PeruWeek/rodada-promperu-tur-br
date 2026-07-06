@@ -1,191 +1,130 @@
-## Objetivo (ajustado ao comportamento real)
 
-Admin (somente `admin`, não `staff`) cancela reunião de visitante:
-- muda `meetings.status` de `scheduled` para `cancelled`
-- opcionalmente registra `meetings.cancel_reason`
-- **não** grava outros campos temporais (o schema real de `meetings` não tem `cancelled_at`; ver §Confirmação de schema)
-- **não** toca em `profiles.is_active`, `user_roles`, `visitor_profiles`, `exhibitor_profiles`, cadastro ou inscrição
+# Disparo administrativo de agendas por categoria (visitor / exhibitor)
 
-Fluxo `cancelMeeting` do visitante mantém contrato e comportamento.
+Fluxo novo no Admin para enviar, por lote e por categoria (`visitor` **ou** `exhibitor`, nunca misto), um e-mail com botão que abre uma rota pública rastreável, entrega o PDF individual da agenda do destinatário e registra `sent`, `clicked` e `downloaded` como eventos distintos.
 
-## Confirmação de schema (consultado no banco real)
+## 1. Fonte canônica de elegibilidade
 
-`public.meetings`: `id, event_id, table_id, slot_id, visitor_profile_id, status, cancel_reason, requested_start_at, original_slot_id, original_start_at, created_at`.
+- Origem única: `listEventRegistrants` em `src/lib/staff-exports.functions.ts`.
+- Filtro obrigatório escolhido pelo admin: `role='visitor'` **ou** `role='exhibitor'` (sem opção `ambos`).
+- Critério de agenda individual: **`profile_meetings_count > 0`** (não `scheduled_meetings_count`, que é agregado por empresa).
+- `getCompanyAgenda` não entra no fluxo.
 
-- ✅ `cancel_reason` existe
-- ❌ **`cancelled_at` NÃO existe** — o `UPDATE` grava apenas `status` e (opcional) `cancel_reason`. Nenhum `cancelled_at` na proposta.
-- ❌ **`exhibitor_profile_id` NÃO existe em `meetings`** — vem de `public.event_tables.exhibitor_profile_id` (join por `meetings.table_id = event_tables.id`). O helper resolve o expositor por esse join, como já faz o `cancelMeeting` atual.
+Novo helper `src/lib/agenda-campaigns.server.ts`:
+- `listEligibleRecipients({ eventId, category })` — chama a impl interna já existente `_listEventRegistrantsImpl`, aplica `role === category` + `profile_meetings_count > 0`, normaliza para `{ profileId, email, fullName, companyId, companyName, role, profileMeetingsCount }`.
+- `renderAgendaPdfFor({ eventId, profileId })` — retorna `Uint8Array`.
 
-Consequência prática: mesmo `(table_id, slot_id)` pode ter **N reuniões `scheduled` de visitantes da mesma empresa**; a ocupação física é do par, não do visitante — ver §Validação #2.
+Sobre a agenda individual: hoje `getParticipantAgenda` é apenas um `createServerFn` — não existe helper puro reutilizável. **Refatorar**: extrair o corpo do handler para uma função pura `buildParticipantAgendaData({ supabase, eventId, profileId })` em `src/lib/agenda-campaigns.server.ts` (ou em novo `src/lib/participant-agenda.server.ts`), e reescrever `getParticipantAgenda` para apenas chamar esse helper. Assim `renderAgendaPdfFor` reusa a mesma lógica canônica, sem duplicação, e monta o PDF via `buildAgendaPdf` de `src/lib/pdf.ts`.
 
-## Arquivos alterados
+## 2. Schema (migration única)
 
-- **NOVO** `src/lib/booking.server.ts` — `performMeetingCancellation` + `sendMeetingEmail` (movido)
-- `src/lib/booking.functions.ts` — `cancelMeeting` delega ao helper; adiciona `adminCancelMeeting`, `adminCancelVisitorFutureMeetings`, `listVisitorMeetings`
-- `src/components/admin/registrants-tab.tsx` — 2 botões + dialog + invalidação
-- `src/lib/i18n/pt-BR.json`, `src/lib/i18n/es.json`
+### `agenda_email_campaigns`
+`id uuid pk`, `event_id uuid fk events`, `category text CHECK ('visitor','exhibitor')`, `subject text`, `body_md text`, `button_label text`, `created_by uuid fk profiles(id)` (perfil, não `auth.users`), `test_recipient text`, `status text CHECK ('draft','sending','sent','failed')`, `totals jsonb default '{}'`, `created_at`, `updated_at` + trigger `update_updated_at_column`.
 
-Reuso: `assertAdminRole`, `supabaseAdmin`, `requireSupabaseAuth`, `BOOKING_INVALIDATE_KEYS`, `listAuditLogs`.
+### `agenda_email_campaign_recipients`
+`id`, `campaign_id fk cascade`, `event_id`, `profile_id`, `role_category`, `recipient_email`, `subject_snapshot`, `body_snapshot`, `button_label_snapshot`, `token_hash bytea unique`, `sent_at`, `send_status text CHECK ('pending','sent','suppressed','failed')`, `error_message`, `clicked_at`, `click_count int default 0`, `downloaded_at`, `download_count int default 0`, `first_click_ip inet`, `metadata jsonb default '{}'`, `created_at`.
 
-## 1. Helper `performMeetingCancellation`
+Índices: `(campaign_id)`, `(profile_id, event_id)`, `unique(token_hash)`, `(role_category, send_status)`, `(campaign_id, clicked_at)`, `(campaign_id, downloaded_at)`.
 
+RLS / GRANT (ambas tabelas):
+- `GRANT SELECT, INSERT, UPDATE ON ... TO authenticated;`
+- `GRANT ALL ON ... TO service_role;`
+- sem grants para `anon`.
+- Policy única por operação com `USING (public.has_role(auth.uid(),'admin'))` + `WITH CHECK` idem.
+
+## 3. Template
+
+`src/lib/email-templates/agenda-delivery.tsx` (React Email), registrado em `registry.ts` e com defaults em `copy-defaults.ts`.
+
+Props: `visitorName`, `eventName`, `bodyHtml`, `buttonLabel`, `buttonUrl`.
+
+Escopo de conteúdo: `body_md` é tratado como **texto/parágrafos simples**. No envio, o servidor faz split por `\n\n`, escapa o texto e emite `<Text>` por parágrafo (sem HTML arbitrário, sem `dangerouslySetInnerHTML`, sem novas deps de markdown/sanitização). Snapshot por destinatário guarda o texto original em `body_snapshot`. Overrides globais existentes de remetente/estrutura continuam válidos.
+
+## 4. Server functions — `src/lib/agenda-campaigns.functions.ts`
+
+Todas com `.middleware([requireSupabaseAuth])`. No início de cada handler:
 ```ts
-performMeetingCancellation({ meetingId, reason?, cancellingProfile, visitorScope? })
-  : Promise<
-      | { ok:true; meetingId; tableId; slotId; eventId; visitorProfileId; exhibitorProfileId; emailFailed:boolean }
-      | { ok:false; reason:'not_scheduled'|'db_error'; detail?:string }
-    >
+const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+await assertAdminRole(supabaseAdmin, context.userId);
 ```
 
-Ordem sequencial, cada etapa independente:
+- `previewEligibleRecipients({ eventId, category })` → `{ total, sample: [primeiros 20] }`.
+- `sendTestAgendaCampaign({ eventId, category, subject, body_md, buttonLabel, testEmail })` → toma o primeiro elegível da categoria como amostra da agenda (o token e o link não são persistidos como campanha; envio one-shot para `testEmail`), `idempotencyKey = agenda-test-{admin}-{Date.now()}`.
+- `createAndSendAgendaCampaign({ eventId, category, subject, body_md, buttonLabel })`:
+  1. Resolve `profileId` do admin via `profiles.auth_user_id = context.userId`.
+  2. INSERT `agenda_email_campaigns` (`status='sending'`, `created_by = profileId`).
+  3. Resolve elegíveis via helper.
+  4. Consulta `suppressed_emails` (por `email`); esses viram row com `send_status='suppressed'` e não são enviados.
+  5. Para cada restante: `token = crypto.randomBytes(32)`, `token_hash = sha256(token)`, INSERT recipient com snapshots.
+  6. `buttonUrl = ${origin}/api/public/agenda-download/${campaignId}/${token.toString('hex')}` (`origin` vem de `getRequest().url`).
+  7. `processTransactionalSend(supabaseAdmin, { templateName:'agenda-delivery', recipientEmail, idempotencyKey:'campaign-{campaignId}-{profileId}', templateData: {...} })`. Comportamento real: SendGrid direto + `email_send_log` (sem fila `transactional_emails`).
+  8. UPDATE `send_status`/`sent_at`/`error_message`, com `metadata.idempotency_key`.
+  9. Consolida `totals` no lote (`eligible`, `sent`, `failed`, `suppressed`) e move `status` para `sent` (ou `failed` se 100% falhou).
+- `listAgendaCampaigns({ filters })` — paginado.
+- `getCampaignRecipients({ campaignId, filters: { send_status?, clicked?, downloaded?, email? } })`.
 
-1. **UPDATE blindado** — única operação que decide sucesso:
-   ```ts
-   supabaseAdmin.from('meetings')
-     .update({ status: 'cancelled', cancel_reason: reason ?? null })   // sem cancelled_at
-     .eq('id', meetingId)
-     .eq('status', 'scheduled')                                        // blindagem idempotência
-     [visitorScope ? .eq('visitor_profile_id', visitorScope) : identity]
-     .select('id, table_id, slot_id, event_id, visitor_profile_id')
-     .maybeSingle();
+## 5. Rota pública rastreável
+
+Arquivo: `src/routes/api/public/agenda-download.$campaignId.$token.ts` → `createFileRoute("/api/public/agenda-download/$campaignId/$token")`. Path: `/api/public/agenda-download/:campaignId/:token`.
+
+Handler `GET`:
+1. Import dinâmico de `supabaseAdmin`.
+2. `tokenHash = sha256(hexToBytes(params.token))`.
+3. SELECT recipient por `campaign_id = params.campaignId` + `token_hash = tokenHash`. Se ausente → `new Response('Not found', { status: 404 })` genérico.
+4. **UPDATE clique isolado (antes do PDF)**:
+   ```sql
+   UPDATE agenda_email_campaign_recipients
+   SET clicked_at = COALESCE(clicked_at, now()),
+       click_count = click_count + 1,
+       first_click_ip = COALESCE(first_click_ip, :ip),
+       metadata = metadata || jsonb_build_object('last_ua', :ua)
+   WHERE id = :id
    ```
-   - `data === null` ⇒ `{ ok:false, reason:'not_scheduled' }` (aborta).
-   - erro ⇒ `{ ok:false, reason:'db_error', detail }`.
-2. **Resolve `event_tables` (table_number, table_label, exhibitor_profile_id)** e **`time_slots` (start_at/end_at)** — `try/catch`, log em falha, prossegue com `null`.
-3. **Resolve `exhibitorCompany`** via `profiles → companies.trade_name` a partir de `exhibitor_profile_id` do passo 2 — `try/catch`.
-4. **Notificação in-app** ao expositor — `try/catch`.
-5. **`sendMeetingEmail` — side effect não bloqueante**:
-   ```ts
-   let emailFailed = false;
-   try { await sendMeetingEmail(...); } catch(e){ emailFailed=true; console.error(...) }
+5. `pdfBytes = await renderAgendaPdfFor({ eventId, profileId })`.
+6. **UPDATE download isolado (só após PDF)**:
+   ```sql
+   UPDATE agenda_email_campaign_recipients
+   SET downloaded_at = COALESCE(downloaded_at, now()),
+       download_count = download_count + 1
+   WHERE id = :id
    ```
-6. Retorna `{ ok:true, ..., emailFailed }`.
+7. Response `application/pdf`, `Content-Disposition: attachment; filename="agenda.pdf"`.
 
-**Invariante:** após o UPDATE afetar linha, o retorno é sempre `ok:true`. Sem escritas em `profiles.is_active`, `user_roles`, `visitor_profiles`, `exhibitor_profiles`.
+Semântica: `clicked` = link válido acessado; `downloaded` = PDF gerado e devolvido pelo servidor.
 
-## 2. `cancelMeeting` (visitante) refatorado
+Segurança: token 256 bits, só hash persistido, 404 genérico em qualquer falha (token inexistente, campanha errada, PDF sem dados), zero eco de dados.
 
-Resolve `profile` por `auth_user_id`, `assertNotCliente`, delega a `performMeetingCancellation({ ..., visitorScope: profile.id })`. Se `ok:false` com `not_scheduled` ⇒ lança o mesmo erro que a implementação atual lança nesse caso. Se `ok:true` ⇒ retorna `{ ok: true }` (não vaza `emailFailed`).
+## 6. UI Admin
 
-## 3. Server functions admin-only
+Novo `src/components/admin/agenda-campaigns-tab.tsx`, nova aba "Disparo de agendas" em `src/routes/_authenticated/admin.tsx`.
 
-`requireSupabaseAuth` + `assertAdminRole`. `staff` **não** cancela via admin.
+- Radio obrigatório `Visitantes` | `Expositores`.
+- Select de evento (default: evento ativo).
+- Botão "Contar elegíveis" → mostra total + tabela dos primeiros 20 (nome, empresa, e-mail, nº reuniões).
+- Inputs `Assunto`, `Texto` (textarea), `Label do botão`, `E-mail de teste`.
+- Botões "Enviar teste" e "Disparar lote" (Dialog de confirmação com total + categoria).
+- Painel "Histórico" — lista de campanhas com KPIs `elegíveis / enviados / falhas / cliques / downloads`; expandir mostra destinatários com filtros (status, clicou, baixou, e-mail).
 
-### `adminCancelMeeting({ meetingId, reason? })`
-1. Resolve `adminProfile`.
-2. `res = performMeetingCancellation({ ..., cancellingProfile: adminProfile })` (sem `visitorScope`).
-3. `res.ok===false` ⇒ throw `Error(res.reason)`; sem audit.
-4. `res.ok===true` ⇒ **grava `audit_logs` independentemente do e-mail** (`try/catch` no insert; falha só loga):
-   ```
-   action: 'meeting.admin_cancelled'
-   actor_profile_id: adminProfile.id
-   event_id: res.eventId
-   payload: { meeting_id, visitor_profile_id, table_id, slot_id, reason, email_failed: res.emailFailed }
-   ```
-5. Retorna `{ ok:true, meetingId, tableId, slotId, visitorProfileId, emailFailed }`.
+## 7. Integração com infraestrutura existente
 
-### `adminCancelVisitorFutureMeetings({ visitorProfileId, reason? })`
+- `processTransactionalSend` (SendGrid direto + `email_send_log`).
+- `suppressed_emails` respeitado antes do envio.
+- Unsubscribe segue o padrão atual do sistema.
+- SendGrid click tracking não é fonte de verdade — verdade vive nas tabelas novas.
+- Nenhuma alteração na agenda funcional além da refatoração de `getParticipantAgenda` para extrair o helper puro.
 
-SELECT ids futuras (`visitor_profile_id`, `status='scheduled'`, `time_slots.start_at >= now()` via join). Itera:
-- `res.ok:true` ⇒ `cancelled.push({ meetingId, tableId, slotId, eventId, emailFailed })` + audit por reunião.
-- `res.ok:false` ⇒ `failed.push({ meetingId, reason, detail? })`.
+## 8. Evidências entregues ao final
 
-`failed[]` = realmente não cancelou no banco. Falha só de e-mail ⇒ sempre em `cancelled[]` com `emailFailed:true`.
+- Lista de arquivos criados/alterados.
+- Migration SQL, com nomes de tabelas e índices.
+- Nomes das server functions.
+- Path exato: `/api/public/agenda-download/:campaignId/:token`.
+- Trecho do helper mostrando reuso de `_listEventRegistrantsImpl` + filtro `profile_meetings_count > 0`.
+- Trecho mostrando `getParticipantAgenda` refatorado para chamar `buildParticipantAgendaData`, e `renderAgendaPdfFor` reusando o mesmo helper + `buildAgendaPdf`.
+- Trecho da rota com UPDATE isolado de `clicked_at` (passo 4) e UPDATE isolado de `downloaded_at` (passo 6).
+- Screenshots (Playwright headless) do Admin: fluxo `visitor` isolado, fluxo `exhibitor` isolado, histórico com colunas de clique e download separadas.
+- Confirmação de que perfil com `profile_meetings_count = 0` não aparece em `previewEligibleRecipients` nem no lote.
 
-Retorno:
-```ts
-{ attempted, cancelled: Array<{...; emailFailed}>, failed: Array<{ meetingId; reason; detail? }> }
-```
+## Fora do escopo
 
-### `listVisitorMeetings({ visitorProfileId })`
-SELECT `meetings` + join `time_slots` + `event_tables` + expositor via `profiles→companies`. Filtro: `visitor_profile_id`, `status='scheduled'`, `time_slots.start_at >= now()`. Ordenado por `start_at`.
-
-## 4. UI `registrants-tab.tsx`
-
-Gate: `isAdmin && r.role === 'visitor' && (r.profile_meetings_count ?? 0) > 0`.
-
-- **Ver reuniões** (`CalendarClock`) → `VisitorMeetingsDialog` com `useQuery(['visitor-meetings', profile_id], listVisitorMeetings)`. Cada linha `Cancelar` → `AlertDialog` + `Textarea` motivo opcional → `adminCancelMeeting`. Toast diferenciado quando `emailFailed`.
-- **Cancelar reuniões futuras** (`CalendarX`, `text-destructive`) → `AlertDialog` separado; texto: *"Isso não desativa o inscrito. Cadastro, acesso e inscrição continuam preservados. Apenas as reuniões futuras serão canceladas e os slots liberados quando não houver outra reunião da mesma empresa no mesmo horário."* Textarea motivo. Toast reflete `cancelled.length`/`failed.length`/soma `emailFailed`.
-- **Desativar inscrito** (`cancelTarget` + `activeMut`) intacto e separado.
-
-## 5. Invalidação (mesma para sucesso com ou sem `emailFailed`)
-```ts
-qc.invalidateQueries({ queryKey: ['visitor-meetings', r.profile_id] });
-qc.invalidateQueries({ queryKey: ['registrants'] });
-qc.invalidateQueries({ queryKey: ['admin-users'] });
-for (const k of BOOKING_INVALIDATE_KEYS) qc.invalidateQueries({ queryKey: k });
-```
-
-## 6. Traduções pt-BR / es
-
-`admin.registrants.actions.viewMeetings`, `.cancelFutureMeetings`, `admin.registrants.meetings.dialogTitle` / `empty` / `reasonPlaceholder` / `cancelOneTitle` / `cancelOneBody` / `cancelAllTitle` / `cancelAllBody`, `admin.registrants.toasts.meetingCancelled` / `meetingCancelledEmailFailed` / `meetingsCancelled` / `meetingsCancelledEmailPartial` / `meetingsCancelledPartial`.
-
-## 7. Evidências pós-implementação
-
-### Cancelamento efetivo e blindagem
-```sql
-SELECT status, cancel_reason FROM public.meetings WHERE id = :meeting_id;
--- esperado: 'cancelled', <reason ou NULL>
-```
-Segundo `adminCancelMeeting` para o mesmo id ⇒ lança `not_scheduled`, **sem** nova linha em `audit_logs`.
-
-### Resiliência de e-mail
-Forçar `sendMeetingEmail` a falhar 1× ⇒ `meetings.status='cancelled'` persiste, resposta `ok:true, emailFailed:true`, `audit_logs.payload->>'email_failed' = 'true'`.
-
-### Bulk fiel
-Em `adminCancelVisitorFutureMeetings`, reunião cujo e-mail falhou ⇒ aparece em `cancelled[]` com `emailFailed:true`, **nunca** em `failed[]`. `failed[]` só recebe casos em que o UPDATE não afetou linha (`not_scheduled`) ou erro de banco (`db_error`).
-
-### Validação #1 — par `(table_id, slot_id)` LIBERADO
-Aplicável quando a reunião cancelada era a **única** `scheduled` naquele par:
-```sql
-SELECT
-  (SELECT COUNT(*) FROM public.meetings m
-    WHERE m.table_id = :table_id AND m.slot_id = :slot_id AND m.status = 'scheduled') AS still_scheduled;
--- esperado: 0  ⇒ par liberado, aparece livre na agenda da mesa e na disponibilidade
-```
-
-### Validação #2 — mesma empresa no mesmo slot, par CONTINUA OCUPADO
-Aplicável quando dois (ou mais) visitantes da mesma empresa têm reuniões no mesmo `(table_id, slot_id)` e apenas um foi cancelado:
-```sql
--- antes: 2 reuniões scheduled no par
--- cancela apenas 1
-SELECT
-  (SELECT COUNT(*) FROM public.meetings m
-    WHERE m.table_id = :table_id AND m.slot_id = :slot_id AND m.status = 'scheduled') AS still_scheduled;
--- esperado: >= 1  ⇒ par permanece ocupado; agenda da mesa/disponibilidade NÃO liberam o slot
--- reunião cancelada: status='cancelled'; reuniões da mesma empresa no mesmo par: status='scheduled' inalterado
-```
-Confirma que ocupação física é por `(table_id, slot_id)` no conjunto `status='scheduled'`, não por visitante.
-
-### Preservação (regra do objetivo)
-```sql
-SELECT is_active FROM public.profiles WHERE id = :visitor_profile_id;             -- inalterado
-SELECT count(*) FROM public.user_roles WHERE user_id = (SELECT auth_user_id FROM public.profiles WHERE id = :visitor_profile_id);  -- inalterado
--- visitor_profiles / exhibitor_profiles do inscrito: nenhuma escrita no diff
-```
-`git diff` em `booking.server.ts` e `booking.functions.ts` sem novas referências a `is_active`, `user_roles`, `visitor_profiles`, `exhibitor_profiles`.
-
-### Auditoria
-```sql
-SELECT action, actor_profile_id, event_id, payload
-  FROM public.audit_logs
- WHERE action = 'meeting.admin_cancelled'
- ORDER BY created_at DESC LIMIT 10;
-```
-
-### Contador
-`listEventRegistrants` reduz `profile_meetings_count` do visitante em N (número de cancelamentos efetivos).
-
-### Fluxo visitante
-`useServerFn(cancelMeeting)` em `src/routes/_authenticated/agenda.tsx` — mesmo input `{ meetingId }`, mesmo retorno `{ ok:true }`, mesmos efeitos observáveis (update + notificação + email).
-
-## 8. Confirmações explícitas
-
-- Schema real de `meetings` confirmado: sem `cancelled_at`, sem `exhibitor_profile_id`; UPDATE escreve apenas `status` (+ `cancel_reason` opcional).
-- Expositor resolvido via `event_tables.exhibitor_profile_id`.
-- `profiles.is_active` não é lido nem escrito.
-- `user_roles`, `visitor_profiles`, `exhibitor_profiles` não são tocados.
-- Endpoints novos são admin-only (`assertAdminRole`), não `assertAdminOrStaffRole`.
-- `Desativar inscrito` continua fluxo separado.
-- Cancelamento é sucesso a partir do UPDATE afetar linha; e-mail é side effect não bloqueante; auditoria é gravada independentemente do e-mail.
-- Ocupação física do par `(table_id, slot_id)` é medida pelo conjunto `status='scheduled'`; mesma empresa no mesmo slot mantém o par ocupado enquanto restar ao menos uma reunião agendada nele.
+Automação recorrente; lote misto; envio para perfis sem agenda individual; uso de `getCompanyAgenda`; SendGrid tracking como verdade; mudanças na agenda funcional além da refatoração necessária para reusar o helper puro.
