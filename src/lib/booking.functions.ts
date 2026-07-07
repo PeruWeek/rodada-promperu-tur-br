@@ -222,27 +222,57 @@ export const bookMeeting = createServerFn({ method: "POST" })
     // (a tabela tem 2 FKs: slot_id e original_slot_id, e PostgREST não aceita
     // path `time_slots!fk.coluna` em .eq/.gte/.order → erro
     // "column meetings.time_slots does not exist").
-    const [{ data: myMtgsRaw }, { data: pairMtgsRaw }, { data: sameEventMtgsRaw }] =
-      await Promise.all([
-        supabaseAdmin
-          .from("meetings")
-          .select("id, table_id, slot_id, visitor_profile_id")
-          .eq("visitor_profile_id", profile.id)
-          .eq("status", "scheduled"),
-        supabaseAdmin
-          .from("meetings")
-          .select("id, table_id, slot_id, visitor_profile_id, visitor:profiles!visitor_profile_id(company_id)")
-          .eq("table_id", data.tableId)
-          .eq("slot_id", data.slotId)
-          .eq("status", "scheduled"),
-        profile.company_id
-          ? supabaseAdmin
-              .from("meetings")
-              .select("id, table_id, slot_id, visitor_profile_id, visitor:profiles!visitor_profile_id(company_id)")
-              .eq("event_id", data.eventId)
-              .eq("status", "scheduled")
-          : Promise.resolve({ data: [] as any[] }),
-      ]);
+    // Same FK caveat as listVisitorBookingSlots: no `profiles` embed possible
+    // on meetings.visitor_profile_id — hydrate company_id via a second query.
+    const [myMtgsRes, pairMtgsRes, sameEventMtgsRes] = await Promise.all([
+      supabaseAdmin
+        .from("meetings")
+        .select("id, table_id, slot_id, visitor_profile_id")
+        .eq("visitor_profile_id", profile.id)
+        .eq("status", "scheduled"),
+      supabaseAdmin
+        .from("meetings")
+        .select("id, table_id, slot_id, visitor_profile_id")
+        .eq("table_id", data.tableId)
+        .eq("slot_id", data.slotId)
+        .eq("status", "scheduled"),
+      profile.company_id
+        ? supabaseAdmin
+            .from("meetings")
+            .select("id, table_id, slot_id, visitor_profile_id")
+            .eq("event_id", data.eventId)
+            .eq("status", "scheduled")
+        : Promise.resolve({ data: [] as any[], error: null as any }),
+    ]);
+    if ((myMtgsRes as any).error) throw (myMtgsRes as any).error;
+    if ((pairMtgsRes as any).error) throw (pairMtgsRes as any).error;
+    if ((sameEventMtgsRes as any).error) throw (sameEventMtgsRes as any).error;
+    const myMtgsRaw = (myMtgsRes as any).data ?? [];
+    const pairMtgsRaw = (pairMtgsRes as any).data ?? [];
+    const sameEventMtgsRaw = (sameEventMtgsRes as any).data ?? [];
+
+    // Hydrate visitor_company_id for rule 1 / rule 5.
+    const visitorIdsForCompany = Array.from(
+      new Set(
+        [
+          ...((pairMtgsRaw ?? []) as any[]),
+          ...((sameEventMtgsRaw ?? []) as any[]),
+        ]
+          .map((m) => m.visitor_profile_id)
+          .filter((v): v is string => !!v),
+      ),
+    );
+    const companyByProfile = new Map<string, string | null>();
+    if (visitorIdsForCompany.length > 0) {
+      const { data: profRows, error: profRowsErr } = await supabaseAdmin
+        .from("profiles")
+        .select("id, company_id")
+        .in("id", visitorIdsForCompany);
+      if (profRowsErr) throw profRowsErr;
+      for (const p of (profRows ?? []) as any[]) {
+        companyByProfile.set(p.id, p.company_id ?? null);
+      }
+    }
 
     const allSlotIds = Array.from(
       new Set(
@@ -268,6 +298,7 @@ export const bookMeeting = createServerFn({ method: "POST" })
     const withSlot = (m: any) => ({
       ...m,
       time_slots: slotMap.get(m.slot_id) ?? { start_at: "", end_at: "" },
+      visitor: { company_id: companyByProfile.get(m.visitor_profile_id) ?? null },
     });
     const myMtgs = ((myMtgsRaw ?? []) as any[]).map(withSlot);
     const pairMtgs = ((pairMtgsRaw ?? []) as any[]).map(withSlot);
