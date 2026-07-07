@@ -539,17 +539,6 @@ export const adminCancelMeeting = createServerFn({ method: "POST" })
       throw new Error(res.reason);
     }
 
-    await writeAdminCancelAuditLog({
-      actorProfileId: adminProfile.id,
-      eventId: res.eventId,
-      meetingId: res.meetingId,
-      visitorProfileId: res.visitorProfileId,
-      tableId: res.tableId,
-      slotId: res.slotId,
-      reason: data.reason ?? null,
-      emailFailed: res.emailFailed,
-    });
-
     return {
       ok: true as const,
       meetingId: res.meetingId,
