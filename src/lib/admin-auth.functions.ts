@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { performMeetingCancellation } from "@/lib/booking.server";
 
 async function assertAdminStrict(userId: string) {
   const { data } = await supabaseAdmin
@@ -95,14 +96,18 @@ async function cancelFutureMeetingsForRegistrant(params: {
   const rows = Array.from(byId.values());
   if (rows.length === 0) return { cancelledCount: 0 };
 
-  const meetingIds = rows.map((m) => m.id);
-  const { error: updErr } = await supabaseAdmin
-    .from("meetings")
-    .update({ status: "cancelled", cancel_reason: params.reason })
-    .in("id", meetingIds);
-  if (updErr) throw new Error(updErr.message);
+  // Actor profile is required for canonical audit + admin fan-out.
+  const { data: actorProfile } = await supabaseAdmin
+    .from("profiles")
+    .select("id, full_name, email, preferred_language")
+    .eq("auth_user_id", params.actorUserId)
+    .maybeSingle();
+  const actorProfileId = actorProfile?.id ?? null;
 
-  // Notify exhibitors (in-app). Best-effort; never blocks the deactivation.
+  // Canonical cancellation per meeting — performMeetingCancellation writes the
+  // `meeting.cancelled` audit line, notifies the exhibitor, and fans out to
+  // admins. We keep the extra visitor-notification pass below (only when the
+  // inactivated user is the EXHIBITOR of the table) to preserve prior UX.
   const tableIds = Array.from(new Set(rows.map((m) => m.table_id)));
   const { data: tables } = await supabaseAdmin
     .from("event_tables")
@@ -112,35 +117,26 @@ async function cancelFutureMeetingsForRegistrant(params: {
     (tables ?? []).map((t) => [t.id, t] as const),
   );
 
-  // Notificar o expositor de cada mesa afetada, exceto quando o expositor
-  // é o próprio perfil inativado (nesse caso, notificar o visitante).
-  const notifications = rows
-    .map((m) => {
-      const t = tableById.get(m.table_id);
-      if (!t) return null;
-      const inactivatedIsExhibitor = t.exhibitor_profile_id === profile.id;
-      const recipient = inactivatedIsExhibitor ? null : t.exhibitor_profile_id;
-      if (!recipient) return null;
-      return {
-        event_id: m.event_id,
-        recipient_profile_id: recipient,
-        type: "meeting_cancelled" as const,
-        channel: "in_app" as const,
-        status: "sent" as const,
-        title: "Reunião cancelada",
-        body: `${profile.full_name} teve o acesso inativado; a reunião foi cancelada e o horário liberado.`,
-        data: {
-          meeting_id: m.id,
-          slot_start: m.time_slots?.start_at ?? null,
-          table_number: t.table_number,
-          reason: params.reason,
-          inactivated_role: inactivatedIsExhibitor ? "exhibitor" : "visitor",
-        },
-      };
-    })
-    .filter((n): n is NonNullable<typeof n> => n !== null);
+  let cancelledCount = 0;
+  for (const m of rows) {
+    const res = await performMeetingCancellation({
+      meetingId: m.id,
+      reason: params.reason,
+      cancellingProfile: {
+        id: actorProfileId ?? profile.id,
+        full_name: actorProfile?.full_name ?? "Administração",
+        email: actorProfile?.email ?? null,
+        preferred_language: actorProfile?.preferred_language ?? null,
+      },
+      origin: "admin_deactivation",
+      actorType: "admin",
+      actorProfileId,
+    });
+    if (res.ok) cancelledCount += 1;
+  }
 
-  // Quando o inativado é o expositor, notificar os visitantes das reuniões.
+  // Quando o inativado é o expositor, notificar os visitantes das reuniões —
+  // o helper canônico só notifica o expositor da mesa.
   const visitorNotifPromise = (async () => {
     const exhibitorMeetings = rows.filter((m) => {
       const t = tableById.get(m.table_id);
@@ -182,23 +178,15 @@ async function cancelFutureMeetingsForRegistrant(params: {
     }
   })();
   await visitorNotifPromise;
-  if (notifications.length) {
-    await supabaseAdmin.from("notifications").insert(notifications);
-  }
 
-  // audit_logs: uma linha por evento afetado (event_id é obrigatório).
+  // Sumário por evento — complementa (não substitui) as linhas
+  // `meeting.cancelled` gravadas por performMeetingCancellation.
   const byEvent = new Map<string, string[]>();
   for (const m of rows) {
     const arr = byEvent.get(m.event_id) ?? [];
     arr.push(m.id);
     byEvent.set(m.event_id, arr);
   }
-  const { data: actorProfile } = await supabaseAdmin
-    .from("profiles")
-    .select("id")
-    .eq("auth_user_id", params.actorUserId)
-    .maybeSingle();
-  const actorProfileId = actorProfile?.id ?? null;
   const auditRows = Array.from(byEvent.entries()).map(([event_id, ids]) => ({
     event_id,
     actor_profile_id: actorProfileId,
@@ -214,7 +202,7 @@ async function cancelFutureMeetingsForRegistrant(params: {
     await supabaseAdmin.from("audit_logs").insert(auditRows);
   }
 
-  return { cancelledCount: rows.length };
+  return { cancelledCount };
 }
 
 const emailSchema = z
