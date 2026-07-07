@@ -448,6 +448,8 @@ export const cancelMeeting = createServerFn({ method: "POST" })
         preferred_language: profile.preferred_language,
       },
       visitorScope: profile.id,
+      origin: "visitor_self",
+      actorType: "visitor",
     });
     if (!res.ok) {
       // Preserva o comportamento observável do endpoint antigo, que lançava
@@ -472,35 +474,6 @@ async function loadAdminProfileByAuthUserId(authUserId: string) {
     .maybeSingle();
   if (!profile) throw new Error("Admin profile not found");
   return profile;
-}
-
-async function writeAdminCancelAuditLog(params: {
-  actorProfileId: string;
-  eventId: string;
-  meetingId: string;
-  visitorProfileId: string;
-  tableId: string;
-  slotId: string;
-  reason: string | null | undefined;
-  emailFailed: boolean;
-}) {
-  try {
-    await supabaseAdmin.from("audit_logs").insert({
-      event_id: params.eventId,
-      actor_profile_id: params.actorProfileId,
-      action: "meeting.admin_cancelled",
-      payload: {
-        meeting_id: params.meetingId,
-        visitor_profile_id: params.visitorProfileId,
-        table_id: params.tableId,
-        slot_id: params.slotId,
-        reason: params.reason ?? null,
-        email_failed: params.emailFailed,
-      },
-    });
-  } catch (e) {
-    console.warn("[cancel] audit_logs insert failed", { meetingId: params.meetingId, e });
-  }
 }
 
 export const adminCancelMeeting = createServerFn({ method: "POST" })
@@ -529,22 +502,13 @@ export const adminCancelMeeting = createServerFn({ method: "POST" })
         preferred_language: adminProfile.preferred_language,
       },
       // no visitorScope: admin can cancel any meeting
+      origin: "admin_manual",
+      actorType: "admin",
     });
 
     if (!res.ok) {
       throw new Error(res.reason);
     }
-
-    await writeAdminCancelAuditLog({
-      actorProfileId: adminProfile.id,
-      eventId: res.eventId,
-      meetingId: res.meetingId,
-      visitorProfileId: res.visitorProfileId,
-      tableId: res.tableId,
-      slotId: res.slotId,
-      reason: data.reason ?? null,
-      emailFailed: res.emailFailed,
-    });
 
     return {
       ok: true as const,
@@ -621,18 +585,10 @@ export const adminCancelVisitorFutureMeetings = createServerFn({ method: "POST" 
             email: adminProfile.email,
             preferred_language: adminProfile.preferred_language,
           },
+          origin: "admin_cancel_all_future",
+          actorType: "admin",
         });
         if (res.ok) {
-          await writeAdminCancelAuditLog({
-            actorProfileId: adminProfile.id,
-            eventId: res.eventId,
-            meetingId: res.meetingId,
-            visitorProfileId: res.visitorProfileId,
-            tableId: res.tableId,
-            slotId: res.slotId,
-            reason: data.reason ?? null,
-            emailFailed: res.emailFailed,
-          });
           cancelled.push({
             meetingId: res.meetingId,
             tableId: res.tableId,

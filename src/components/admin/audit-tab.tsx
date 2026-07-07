@@ -33,6 +33,18 @@ const ACTION_LABELS: Record<string, string> = {
   "pipeline.owner_changed": "Responsável alterado",
   "exhibitor_request.created": "Solicitação de expositor",
   "exhibitor_request.reviewed": "Solicitação revisada",
+  "meeting.cancelled": "Reunião cancelada",
+  "registrant.deactivated.meetings_cancelled": "Inscrito inativado — reuniões canceladas",
+};
+
+const CANCEL_ORIGIN_LABELS: Record<string, string> = {
+  visitor_self: "Visitante",
+  admin_manual: "Admin — manual",
+  admin_cancel_all_future: "Admin — futuras",
+  admin_deactivation: "Admin — inativação",
+  system_dedupe: "Sistema — dedupe",
+  system_sanitize: "Sistema — sanitize",
+  system_other: "Sistema — outro",
 };
 
 const FILTER_OPTIONS = [
@@ -80,6 +92,17 @@ export function AuditTab() {
     },
     []
   );
+
+  const formatSlotStart = (iso: string | null | undefined) => {
+    if (!iso) return "—";
+    try {
+      return new Date(iso).toLocaleString("pt-BR", {
+        day: "2-digit", month: "2-digit", year: "numeric",
+        hour: "2-digit", minute: "2-digit",
+        timeZone: "America/Sao_Paulo",
+      });
+    } catch { return iso; }
+  };
 
   return (
     <Card className="p-4">
@@ -142,6 +165,42 @@ export function AuditTab() {
           rows.map((r) => {
             const actor = r.actor_profile_id ? actors[r.actor_profile_id] : null;
             const label = ACTION_LABELS[r.action] ?? r.action;
+            const payload = (r.payload ?? {}) as Record<string, unknown>;
+            if (r.action === "meeting.cancelled") {
+              const origin = String(payload.origin ?? "");
+              const originLabel = CANCEL_ORIGIN_LABELS[origin] ?? origin ?? "—";
+              const actorType = String(payload.actor_type ?? "—");
+              const actorName = String(payload.actor_name ?? actor?.full_name ?? "—");
+              const visitorName = String(payload.visitor_name ?? payload.visitor_profile_id ?? "—");
+              const visitorCompany = payload.visitor_company ? ` — ${String(payload.visitor_company)}` : "";
+              const tableNumber = payload.table_number != null ? `Mesa ${String(payload.table_number)}` : String(payload.table_id ?? "—");
+              const exhibitorCompany = payload.exhibitor_company ? ` — ${String(payload.exhibitor_company)}` : "";
+              const slotStart = formatSlotStart(payload.slot_start as string | null | undefined);
+              const cancelledAt = formatSlotStart((payload.cancelled_at as string | null | undefined) ?? r.created_at);
+              const cancelReason = payload.cancel_reason ? String(payload.cancel_reason) : "—";
+              return (
+                <div key={r.id} className="rounded-md border p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant="secondary">{label}</Badge>
+                      <Badge variant="outline">Origem: {originLabel}</Badge>
+                      <Badge variant="outline">Ator: {actorType}</Badge>
+                      <span className="text-xs text-muted-foreground">
+                        {new Date(r.created_at).toLocaleString("pt-BR")}
+                      </span>
+                    </div>
+                    <span className="text-xs text-muted-foreground">{actorName}</span>
+                  </div>
+                  <div className="mt-2 grid gap-1 text-sm">
+                    <div><span className="text-muted-foreground">Visitante:</span> {visitorName}{visitorCompany}</div>
+                    <div><span className="text-muted-foreground">Expositor:</span> {tableNumber}{exhibitorCompany}</div>
+                    <div><span className="text-muted-foreground">Horário do slot:</span> {slotStart}</div>
+                    <div><span className="text-muted-foreground">Cancelado em:</span> {cancelledAt}</div>
+                    <div><span className="text-muted-foreground">Motivo:</span> {cancelReason}</div>
+                  </div>
+                </div>
+              );
+            }
             return (
               <div key={r.id} className="rounded-md border p-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
