@@ -448,6 +448,8 @@ export const cancelMeeting = createServerFn({ method: "POST" })
         preferred_language: profile.preferred_language,
       },
       visitorScope: profile.id,
+      origin: "visitor_self",
+      actorType: "visitor",
     });
     if (!res.ok) {
       // Preserva o comportamento observável do endpoint antigo, que lançava
