@@ -476,35 +476,6 @@ async function loadAdminProfileByAuthUserId(authUserId: string) {
   return profile;
 }
 
-async function writeAdminCancelAuditLog(params: {
-  actorProfileId: string;
-  eventId: string;
-  meetingId: string;
-  visitorProfileId: string;
-  tableId: string;
-  slotId: string;
-  reason: string | null | undefined;
-  emailFailed: boolean;
-}) {
-  try {
-    await supabaseAdmin.from("audit_logs").insert({
-      event_id: params.eventId,
-      actor_profile_id: params.actorProfileId,
-      action: "meeting.admin_cancelled",
-      payload: {
-        meeting_id: params.meetingId,
-        visitor_profile_id: params.visitorProfileId,
-        table_id: params.tableId,
-        slot_id: params.slotId,
-        reason: params.reason ?? null,
-        email_failed: params.emailFailed,
-      },
-    });
-  } catch (e) {
-    console.warn("[cancel] audit_logs insert failed", { meetingId: params.meetingId, e });
-  }
-}
-
 export const adminCancelMeeting = createServerFn({ method: "POST" })
   .inputValidator((input) =>
     z
