@@ -8,6 +8,7 @@ import { LanguageSwitcher } from "./language-switcher";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
 import { useProfile, getPrimaryRole } from "@/hooks/use-profile";
+import { useSignupSettings } from "@/hooks/use-signup-settings";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import promperuLogo from "@/assets/promperu-logo.png";
@@ -20,6 +21,8 @@ export function SiteHeader() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
+  const { data: signupSettings } = useSignupSettings();
+  const signupsEnabled = signupSettings?.enabled ?? true;
 
   const signOut = async () => {
     // Sign-Out Hygiene: cancel in-flight queries → clear cache → sign out →
@@ -99,9 +102,11 @@ export function SiteHeader() {
               <Button asChild size="sm" variant="ghost">
                 <Link to="/login">{t("nav.login")}</Link>
               </Button>
-              <Button asChild size="sm">
-                <Link to="/signup">{t("nav.signup")}</Link>
-              </Button>
+              {signupsEnabled && (
+                <Button asChild size="sm">
+                  <Link to="/signup">{t("nav.signup")}</Link>
+                </Button>
+              )}
             </div>
           )}
           {!loading && user && (
@@ -138,9 +143,11 @@ export function SiteHeader() {
                 <Button asChild size="sm" variant="outline" className="flex-1">
                   <Link to="/login" onClick={() => setOpen(false)}>{t("nav.login")}</Link>
                 </Button>
-                <Button asChild size="sm" className="flex-1">
-                  <Link to="/signup" onClick={() => setOpen(false)}>{t("nav.signup")}</Link>
-                </Button>
+                {signupsEnabled && (
+                  <Button asChild size="sm" className="flex-1">
+                    <Link to="/signup" onClick={() => setOpen(false)}>{t("nav.signup")}</Link>
+                  </Button>
+                )}
               </div>
             )}
             {user && (

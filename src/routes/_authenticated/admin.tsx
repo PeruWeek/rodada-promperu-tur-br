@@ -40,6 +40,7 @@ import { PipelineDashboard } from "@/components/admin/pipeline/pipeline-tabs";
 import { AuditTab } from "@/components/admin/audit-tab";
 import { EmailTemplatesTab } from "@/components/admin/email-templates-tab";
 import { BookingRemindersTab } from "@/components/admin/booking-reminders-tab";
+import { SignupControlTab } from "@/components/admin/signup-control-tab";
 import { VisitorCancellationTab } from "@/components/admin/visitor-cancellation-tab";
 import { CompaniesTab } from "@/components/admin/companies/companies-tab";
 import { RegistrantsTab } from "@/components/admin/registrants-tab";
@@ -166,6 +167,7 @@ function AdminPage() {
             <TabsTrigger value="emails">{t("admin.tabs.emails")}</TabsTrigger>
             <TabsTrigger value="emailTemplates">{t("admin.tabs.emailTemplates")}</TabsTrigger>
             <TabsTrigger value="bookingReminders">Lembretes</TabsTrigger>
+            <TabsTrigger value="signupControl">Inscricoes</TabsTrigger>
             <TabsTrigger value="visitorCancellation">Cancelamento visitante</TabsTrigger>
             <TabsTrigger value="agendaCampaigns">Disparo de agendas</TabsTrigger>
             <TabsTrigger value="audit">Auditoria</TabsTrigger>
@@ -188,6 +190,7 @@ function AdminPage() {
           <TabsContent value="emails" className="mt-4"><EmailsTab /></TabsContent>
           <TabsContent value="emailTemplates" className="mt-4"><EmailTemplatesTab /></TabsContent>
           <TabsContent value="bookingReminders" className="mt-4"><BookingRemindersTab /></TabsContent>
+          <TabsContent value="signupControl" className="mt-4"><SignupControlTab /></TabsContent>
             <TabsContent value="visitorCancellation" className="mt-4"><VisitorCancellationTab /></TabsContent>
           <TabsContent value="agendaCampaigns" className="mt-4"><AgendaCampaignsTab /></TabsContent>
           <TabsContent value="audit" className="mt-4"><AuditTab /></TabsContent>

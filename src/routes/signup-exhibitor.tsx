@@ -5,11 +5,13 @@ import { toast } from "sonner";
 import { z } from "zod";
 
 import { SiteHeader } from "@/components/site-header";
+import { SignupClosedNotice } from "@/components/signup-closed-notice";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/ui/password-input";
 import { PasswordStrength } from "@/components/ui/password-strength";
+import { useSignupSettings } from "@/hooks/use-signup-settings";
 import { friendlyAuthErrorKey, passwordStrength } from "@/lib/password-strength";
 import { Checkbox } from "@/components/ui/checkbox";
 import { MultiSelectChips } from "@/components/multi-select-chips";
@@ -62,6 +64,8 @@ function flattenZodErrors(err: z.ZodError): Errors {
 
 function SignupExhibitorPage() {
   const { t, i18n } = useTranslation();
+  const { data: signupSettings } = useSignupSettings();
+  const signupsEnabled = signupSettings?.enabled ?? true;
   const lang = (i18n.language === "es" ? "es" : "pt") as "pt" | "es";
   const [step, setStep] = useState(1);
   const [data, setData] = useState<ExhibitorSignupData>({
@@ -134,7 +138,9 @@ function SignupExhibitorPage() {
     <div className="min-h-screen bg-background">
       <SiteHeader />
       <div className="mx-auto max-w-2xl px-4 py-12">
-        {sent ? (
+        {!signupsEnabled ? (
+          <SignupClosedNotice />
+        ) : sent ? (
           <div className="space-y-4 rounded-lg border bg-card p-6">
             <h1 className="text-2xl font-bold">{t("auth.signupSuccessTitle")}</h1>
             <p className="text-sm text-muted-foreground">{t("auth.checkEmailBody", { email: data.email })}</p>

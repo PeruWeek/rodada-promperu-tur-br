@@ -5,6 +5,7 @@ import { toast } from "sonner";
 
 import { SiteHeader } from "@/components/site-header";
 import { Button } from "@/components/ui/button";
+import { useSignupSettings } from "@/hooks/use-signup-settings";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/ui/password-input";
@@ -30,6 +31,8 @@ function LoginPage() {
   const navigate = useNavigate();
   const router = useRouter();
   const { reason } = Route.useSearch();
+  const { data: signupSettings } = useSignupSettings();
+  const signupsEnabled = signupSettings?.enabled ?? true;
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -152,6 +155,11 @@ function LoginPage() {
         <>
         <h1 className="text-3xl font-bold">{t("auth.loginTitle")}</h1>
         <p className="mt-2 text-sm text-muted-foreground">{t("auth.loginSubtitle")}</p>
+        {!signupsEnabled && (
+          <p className="mt-3 rounded-md border bg-muted/40 px-3 py-2 text-sm font-medium">
+            {t("auth.signupClosedTitle")}
+          </p>
+        )}
         {linkExpired && (
           <div className="mt-6 rounded-lg border border-destructive/40 bg-destructive/5 p-5">
             <h2 className="text-base font-semibold text-destructive">
@@ -226,11 +234,17 @@ function LoginPage() {
           <Button type="submit" className="w-full" size="lg" disabled={loading}>
             {t("auth.submitLogin")}
           </Button>
-          <p className="text-center text-sm text-muted-foreground">
-            <Link to="/signup" className="font-medium text-primary hover:underline">
-              {t("auth.switchToSignup")}
-            </Link>
-          </p>
+          {signupsEnabled ? (
+            <p className="text-center text-sm text-muted-foreground">
+              <Link to="/signup" className="font-medium text-primary hover:underline">
+                {t("auth.switchToSignup")}
+              </Link>
+            </p>
+          ) : (
+            <p className="text-center text-sm text-muted-foreground">
+              {t("auth.signupClosedTitle")}
+            </p>
+          )}
           <p className="text-center text-sm text-muted-foreground">
             <Link to="/forgot-password" className="font-medium text-primary hover:underline">
               {t("auth.forgotPassword")}
