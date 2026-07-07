@@ -431,6 +431,20 @@ export const cancelMeeting = createServerFn({ method: "POST" })
     const { userId } = context;
     await assertNotCliente(supabaseAdmin, userId);
 
+    // Kill-switch global: quando ativo, o visitante não pode cancelar.
+    // Bloqueio precede qualquer UPDATE em `meetings` e qualquer side effect
+    // (e-mail / notificação). Admin continua cancelando por outros fluxos.
+    {
+      const { data: block } = await supabaseAdmin
+        .from("visitor_cancellation_settings")
+        .select("enabled")
+        .eq("id", 1)
+        .maybeSingle();
+      if (block?.enabled) {
+        throw new Error("visitor_cancellation_blocked");
+      }
+    }
+
     const { data: profile } = await supabaseAdmin
       .from("profiles")
       .select("id, full_name, email, preferred_language")

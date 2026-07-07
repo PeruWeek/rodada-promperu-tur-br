@@ -11,6 +11,7 @@ import { hasRole, useProfile } from "@/hooks/use-profile";
 import { useAuth } from "@/hooks/use-auth";
 import { ensureBuyerWelcomeEmail } from "@/lib/buyer-welcome-email";
 import { cancelMeeting } from "@/lib/booking.functions";
+import { getVisitorCancellationBlock } from "@/lib/visitor-cancellation.functions";
 import { formatSlotFull } from "@/components/booking-dialog";
 import { buildAgendaPdf } from "@/lib/pdf";
 import { Badge } from "@/components/ui/badge";
@@ -28,6 +29,7 @@ function AgendaPage() {
   const { user } = useAuth();
   const qc = useQueryClient();
   const cancelFn = useServerFn(cancelMeeting);
+  const getBlockFn = useServerFn(getVisitorCancellationBlock);
   const welcomeFiredRef = useRef(false);
 
   // Safety net: any visitor with completed signup but no welcome_email_sent_at
@@ -49,6 +51,13 @@ function AgendaPage() {
       alreadySentAt: null,
     });
   }, [user, profile]);
+
+  const { data: cancellationBlock } = useQuery({
+    queryKey: ["visitor-cancellation-block"],
+    queryFn: () => getBlockFn(),
+    staleTime: 60_000,
+  });
+  const cancelBlocked = !!cancellationBlock?.enabled;
 
   const { data: meetings, isLoading } = useQuery({
     queryKey: ["my-agenda", profile?.id],
@@ -90,7 +99,14 @@ function AgendaPage() {
       toast.success(t("agenda.cancelled"));
       qc.invalidateQueries({ queryKey: ["my-agenda"] });
     },
-    onError: () => toast.error(t("agenda.cancelError")),
+    onError: (err: unknown) => {
+      const msg = err instanceof Error ? err.message : "";
+      if (msg.includes("visitor_cancellation_blocked")) {
+        toast.error(t("agenda.cancelBlocked", { defaultValue: "O cancelamento pela agenda está temporariamente indisponível. Fale com a organização." }));
+        return;
+      }
+      toast.error(t("agenda.cancelError"));
+    },
   });
 
   const scheduled = (meetings ?? [])
@@ -168,14 +184,16 @@ function AgendaPage() {
                     <Link to="/exhibitor/$id" params={{ id: m.exhibitor.id }}>{t("explore.viewDetails")}</Link>
                   </Button>
                 )}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => cancelMut.mutate(m.id)}
-                  disabled={cancelMut.isPending}
-                >
-                  <X size={14} /> {t("agenda.cancel")}
-                </Button>
+                {!cancelBlocked && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => cancelMut.mutate(m.id)}
+                    disabled={cancelMut.isPending}
+                  >
+                    <X size={14} /> {t("agenda.cancel")}
+                  </Button>
+                )}
               </div>
             </Card>
           ))}
