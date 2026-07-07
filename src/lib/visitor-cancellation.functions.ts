@@ -51,18 +51,3 @@ export const updateVisitorCancellationBlock = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return updated;
   });
-
-/**
- * Helper server-side reutilizável — chamado dentro de `cancelMeeting` para
- * bloquear o fluxo de visitante sem tocar em `meetings.status` e sem gerar
- * e-mail/notificação.
- */
-export async function isVisitorCancellationBlocked(): Promise<boolean> {
-  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const { data } = await supabaseAdmin
-    .from("visitor_cancellation_settings")
-    .select("enabled")
-    .eq("id", 1)
-    .maybeSingle();
-  return !!data?.enabled;
-}
