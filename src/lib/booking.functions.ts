@@ -62,33 +62,64 @@ export const listVisitorBookingSlots = createServerFn({ method: "POST" })
       .maybeSingle();
     if (!table) return { table: null, slots: [], visitor_busy_starts: [] };
 
-    const [{ data: slots }, { data: meetingsOnTable }, { data: myMeetings }] =
-      await Promise.all([
-        supabaseAdmin
-          .from("time_slots")
-          .select("id, start_at, end_at")
-          .eq("table_id", table.id)
-          .eq("is_active", true)
-          .order("start_at"),
-        supabaseAdmin
-          .from("meetings")
-          .select("slot_id, table_id, time_slots!meetings_slot_id_fkey!inner(start_at,end_at), visitor_profile_id, visitor:profiles!visitor_profile_id(company_id)")
-          .eq("table_id", table.id)
-          .eq("status", "scheduled"),
-        supabaseAdmin
-          .from("meetings")
-          .select("slot_id, table_id, time_slots!meetings_slot_id_fkey!inner(start_at)")
-          .eq("visitor_profile_id", profile.id)
-          .eq("status", "scheduled"),
-      ]);
+    // NOTE: `meetings.visitor_profile_id` FK targets `visitor_profiles`, not
+    // `profiles` — so a PostgREST embed `visitor:profiles!visitor_profile_id(...)`
+    // fails with PGRST200 and silently drops meetings, making every slot look
+    // "free" to the visitor. Fetch meetings without the embed, then hydrate
+    // company_id via a second query on profiles.
+    const [slotsRes, meetingsOnTableRes, myMeetingsRes] = await Promise.all([
+      supabaseAdmin
+        .from("time_slots")
+        .select("id, start_at, end_at")
+        .eq("table_id", table.id)
+        .eq("is_active", true)
+        .order("start_at"),
+      supabaseAdmin
+        .from("meetings")
+        .select("slot_id, table_id, visitor_profile_id, time_slots!meetings_slot_id_fkey!inner(start_at,end_at)")
+        .eq("table_id", table.id)
+        .eq("status", "scheduled"),
+      supabaseAdmin
+        .from("meetings")
+        .select("slot_id, table_id, time_slots!meetings_slot_id_fkey!inner(start_at)")
+        .eq("visitor_profile_id", profile.id)
+        .eq("status", "scheduled"),
+    ]);
+    if (slotsRes.error) throw slotsRes.error;
+    if (meetingsOnTableRes.error) throw meetingsOnTableRes.error;
+    if (myMeetingsRes.error) throw myMeetingsRes.error;
+    const slots = slotsRes.data;
+    const meetingsOnTable = meetingsOnTableRes.data ?? [];
+    const myMeetings = myMeetingsRes.data ?? [];
+
+    // Hydrate visitor_company_id via profiles (FK does not exist between
+    // meetings.visitor_profile_id and profiles, so no embed possible).
+    const visitorIds = Array.from(
+      new Set(
+        (meetingsOnTable as any[])
+          .map((m) => m.visitor_profile_id)
+          .filter((v): v is string => !!v),
+      ),
+    );
+    const companyByProfile = new Map<string, string | null>();
+    if (visitorIds.length > 0) {
+      const { data: profRows, error: profErr } = await supabaseAdmin
+        .from("profiles")
+        .select("id, company_id")
+        .in("id", visitorIds);
+      if (profErr) throw profErr;
+      for (const p of (profRows ?? []) as any[]) {
+        companyByProfile.set(p.id, p.company_id ?? null);
+      }
+    }
 
     // Normaliza para MeetingLite (fonte canônica em scheduling-rules).
-    const pairMeetings: MeetingLite[] = ((meetingsOnTable ?? []) as any[])
+    const pairMeetings: MeetingLite[] = (meetingsOnTable as any[])
       .map((m) => ({
         table_id: m.table_id ?? table.id,
         slot_id: m.slot_id,
         visitor_profile_id: m.visitor_profile_id,
-        visitor_company_id: m.visitor?.company_id ?? null,
+        visitor_company_id: companyByProfile.get(m.visitor_profile_id) ?? null,
         start_at: m.time_slots?.start_at ?? "",
         end_at: m.time_slots?.end_at ?? "",
       }));
@@ -97,7 +128,7 @@ export const listVisitorBookingSlots = createServerFn({ method: "POST" })
     // Horários (start_at) em que o visitante já tem reunião em OUTRAS mesas.
     const visitorBusyStarts = new Set<string>();
     const visitorTables = new Set<string>();
-    for (const m of (myMeetings ?? []) as any[]) {
+    for (const m of myMeetings as any[]) {
       const s = m.time_slots?.start_at as string | undefined;
       if (m.table_id && m.table_id !== table.id) {
         if (s) visitorBusyStarts.add(s);

@@ -1,91 +1,62 @@
-# Ocultar CTA de agendamento para expositores lotados
+## Root cause
 
-## Objetivo
-Impedir que o visitante veja o botão de agendamento quando o expositor não tem mais nenhum slot livre, mantendo o acesso ao perfil. A decisão vem de dado real (mesa do evento ativo + `time_slots.is_active` − `meetings.status='scheduled'`), calculado já na listagem/detalhe — sem esperar o clique no `BookingDialog`.
+`src/lib/booking.functions.ts` → `listVisitorBookingSlots` reads meetings on the exhibitor's table with:
 
-## Regra canônica de disponibilidade
-Um slot está ocupado quando existe qualquer `meetings` com `status='scheduled'` em `(table_id, slot_id)` (consistente com `listVisitorBookingSlots` e com a regra "1 slot = 1 empresa"). O expositor está "lotado" quando:
-
-- existe `event_tables` do expositor **no evento ativo**, e
-- `count(time_slots.is_active=true) − count(distinct slot_id em meetings scheduled da mesma mesa) = 0`.
-
-Sem mesa no evento ativo ou sem slots ativos → `available_slots_count = 0`.
-
-## Backend (1 migração — ajusta 2 RPCs)
-
-### `public.public_exhibitor_catalog(_event_id uuid default null)`
-Adicionar coluna `available_slots_count int` ao RETURNS TABLE. `et` já está escopado por `v_event`; subquery:
-
-```sql
-(SELECT COUNT(*)::int
-   FROM public.time_slots ts
-  WHERE ts.table_id = et.id
-    AND ts.is_active = true
-    AND NOT EXISTS (
-      SELECT 1 FROM public.meetings m
-       WHERE m.table_id = et.id
-         AND m.slot_id  = ts.id
-         AND m.status   = 'scheduled'
-    )) AS available_slots_count
+```
+supabaseAdmin.from("meetings").select("... visitor:profiles!visitor_profile_id(company_id)")
 ```
 
-### `public.public_exhibitor_detail(_profile_id uuid, _event_id uuid default null)`
-**Ajuste obrigatório**: `available_slots_count` precisa ser calculado **no escopo do evento ativo**, não em qualquer mesa do expositor. Mudanças:
+There is no FK from `meetings.visitor_profile_id` to `profiles` (the FK targets `visitor_profiles`). PostgREST rejects the query with:
 
-1. Assinatura: adicionar `_event_id uuid default null`.
-2. Corpo: `v_event := COALESCE(_event_id, public.pipeline_active_event_id())`.
-3. Trocar a linguagem para `plpgsql` (para usar a variável) e manter `STABLE SECURITY DEFINER SET search_path=public`.
-4. Restringir o `LEFT JOIN public.event_tables et`: `ON et.exhibitor_profile_id = p.id AND et.event_id = v_event`.
-5. Adicionar `available_slots_count int` no RETURNS TABLE, com a mesma subquery acima (retorna 0 quando `et.id IS NULL`, via `COALESCE`).
-6. Manter GRANTs atuais (`REVOKE ... FROM PUBLIC, anon; GRANT EXECUTE TO authenticated, service_role`) — recriar após `DROP FUNCTION` porque a assinatura muda.
-
-Nenhuma tabela nova. Nenhuma alteração em RLS ou GRANTs de tabela.
-
-## Types
-
-`src/integrations/supabase/types.ts` (arquivo auto-gerado — será regenerado após a migração) precisa refletir a nova coluna nos `Returns` de:
-
-- `public_exhibitor_catalog`: acrescentar `available_slots_count: number` no objeto Returns.
-- `public_exhibitor_detail`: acrescentar `available_slots_count: number` no objeto Returns e `_event_id?: string` nos `Args`.
-
-Como o arquivo é regenerado automaticamente pela integração Supabase após a migração ser aprovada, o passo é: aplicar a migração → confirmar que `types.ts` foi regenerado com as colunas → seguir para o frontend. Se a regeneração automática não incluir, aplicar manualmente o patch mínimo nos dois blocos `Returns`/`Args` acima.
-
-## Frontend
-
-### `src/components/exhibitor-card.tsx`
-- Adicionar `available_slots_count: number` em `ExhibitorListItem`.
-- Se `> 0`: CTA atual `explore.viewProfileAndSchedule`.
-- Se `= 0`: CTA neutro `Ver perfil` (`explore.viewProfileOnly`) apontando para `/exhibitor/$id`, e `Badge` `Agenda lotada` (`explore.fullyBooked`).
-
-### `src/routes/_authenticated/explore.tsx`
-Mapear na `queryFn`:
-```ts
-available_slots_count: r.available_slots_count ?? 0,
 ```
-Nada mais muda (sem novo filtro/ordem).
+PGRST200 Could not find a relationship between 'meetings' and 'profiles'
+Hint: Perhaps you meant 'visitor_profiles' instead of 'profiles'.
+```
 
-### `src/routes/_authenticated/exhibitor.$id.tsx`
-- Ler `available_slots_count` do RPC.
-- Renderizar `<BookingDialog>` só quando `canBook && available_slots_count > 0`.
-- Caso contrário, exibir badge `Agenda lotada` no lugar.
+The destructuring `{ data: meetingsOnTable }` silently swallows the error, so `meetingsOnTable` is `null`. `pairMeetings` becomes `[]`, `classifySlotForVisitor` sees `meetingsOnPair.length === 0` for every slot, and returns `"free"` for all 20 slots — regardless of the 19 real `scheduled` meetings in the DB. That is exactly why TIERRA BIRU, TRIP360 and VIPAC show every horário as livre no visitor flow while the admin availability tab (which uses SQL directly) shows only 1 vaga.
 
-### i18n
-`src/lib/i18n/pt-BR.json` e `es.json`:
-- `explore.viewProfileOnly` → "Ver perfil" / "Ver perfil"
-- `explore.fullyBooked` → "Agenda lotada" / "Agenda completa"
+The same broken join exists in `bookMeeting` for `pairMtgsRaw` and `sameEventMtgsRaw`; the preflight rule checks degrade to no-op, but the DB triggers (`trg_meetings_no_conflict`, `trg_meetings_one_company_per_slot`, `uq_meetings_visitor_table_scheduled`) still enforce concurrency, so no bad inserts have gotten through.
 
-## `BookingDialog`
-Sem alterações — segue como proteção secundária contra corrida.
+## Fix (frontend + server function only, no schema change)
 
-## Fora do escopo
-Regras de booking, triggers, constraints, esconder perfil, admin, exportações.
+1. In `src/lib/booking.functions.ts` → `listVisitorBookingSlots.handler`:
+   - Replace the broken embedded join. Fetch meetings on the table without the profiles embed:
+     ```
+     supabaseAdmin.from("meetings")
+       .select("slot_id, table_id, visitor_profile_id, time_slots!meetings_slot_id_fkey!inner(start_at,end_at)")
+       .eq("table_id", table.id).eq("status", "scheduled")
+     ```
+   - Collect the distinct `visitor_profile_id`s and do a second query:
+     ```
+     supabaseAdmin.from("profiles").select("id, company_id").in("id", ids)
+     ```
+     Build a `profileId → company_id` map and hydrate `visitor_company_id` on each `MeetingLite`.
+   - Add explicit error checks: if any of the three parallel queries returns `error`, throw. Silent `?? []` on a failed query is what hid this bug.
 
-## Evidências finais
-- Diff das duas RPCs (assinatura + subquery `available_slots_count` + escopo por `v_event`).
-- Diff de `types.ts` (novas propriedades em `Returns`/`Args`).
-- Arquivos alterados: migração, `types.ts`, `explore.tsx`, `exhibitor-card.tsx`, `exhibitor.$id.tsx`, `i18n/pt-BR.json`, `i18n/es.json`.
-- Validação SQL:
-  - `SELECT profile_id, available_slots_count FROM public.public_exhibitor_catalog();`
-  - `SELECT profile_id, available_slots_count FROM public.public_exhibitor_detail('<id lotado>');` → 0
-  - `SELECT profile_id, available_slots_count FROM public.public_exhibitor_detail('<id com vaga>');` → > 0
-- Screenshots/descrição: card lotado (CTA "Ver perfil" + badge) vs disponível (CTA agendamento); detalhe lotado sem `BookingDialog` vs detalhe com vaga com `BookingDialog`.
+2. Apply the same two-step pattern in `bookMeeting.handler` for `pairMtgsRaw` and `sameEventMtgsRaw` so `assertCanBook` rules 1 and 5 use real `visitor_company_id`s instead of `null`. Behavior on success is unchanged; failures move from DB trigger to friendlier `SchedulingError` messages.
+
+3. Add error propagation to the destructured `Promise.all`s so future FK/embed regressions fail loudly instead of silently returning "everything free".
+
+No changes to:
+- `BookingDialog` UI (already consumes `status` correctly)
+- classification rules in `scheduling-rules.ts`
+- DB schema, RLS, triggers
+- admin availability tab, exhibitor detail, `available_slots_count`
+- exports, dedupe, cancellation, reminders
+
+## Validation
+
+- Manual: re-run the PostgREST call after the fix (2 queries) against TIERRA BIRU's `table_id = 5acf1012-5965-4a18-9e2e-70a9606995f6` and confirm 19 slots come back with `visitor_company_id` populated, 1 slot has no meeting.
+- End-to-end: sign in as a visitor from a different company, open BookingDialog for each of the 3 tables, confirm exactly 1 slot is enabled and the other 19 render as `other_company` (disabled, tooltip "Ocupado por outra empresa").
+- Parity: numbers match `available_slots_count` in the admin availability tab and in `public_exhibitor_detail`.
+- Regression: booking a free slot still succeeds; booking an occupied one fails with the friendly "ocupado por outra empresa" toast.
+
+## Files touched
+
+- `src/lib/booking.functions.ts` (two handlers, no signature change)
+
+## Evidence to report back
+
+- diff of `listVisitorBookingSlots` and `bookMeeting`
+- PGRST200 payload as proof of the root cause
+- before/after slot counts for the 3 companies matching admin numbers
