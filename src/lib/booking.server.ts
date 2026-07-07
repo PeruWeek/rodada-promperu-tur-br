@@ -102,8 +102,12 @@ export async function performMeetingCancellation(input: {
   reason?: string | null;
   cancellingProfile: CancellingProfile;
   visitorScope?: string;
+  origin: CancellationOrigin;
+  actorType: CancellationActorType;
+  actorProfileId?: string | null;
 }): Promise<PerformCancellationResult> {
-  const { meetingId, reason, cancellingProfile, visitorScope } = input;
+  const { meetingId, reason, cancellingProfile, visitorScope, origin, actorType } = input;
+  const actorProfileId = input.actorProfileId ?? cancellingProfile.id ?? null;
 
   // 1. Blindaged UPDATE — only decision point for cancellation success.
   let q = supabaseAdmin
@@ -123,6 +127,8 @@ export async function performMeetingCancellation(input: {
     return { ok: false, reason: "not_scheduled" };
   }
 
+  const cancelledAt = new Date().toISOString();
+
   // From here on, cancellation is committed. All side effects are best-effort.
   let tableRow: {
     table_number: number | null;
@@ -130,6 +136,9 @@ export async function performMeetingCancellation(input: {
   } | null = null;
   let slot: { start_at: string; end_at: string } | null = null;
   let exhibitorCompany = "—";
+  let exhibitorCompanyId: string | null = null;
+  let visitorName: string | null = null;
+  let visitorCompany: string | null = null;
 
   try {
     const { data } = await supabaseAdmin
@@ -160,6 +169,7 @@ export async function performMeetingCancellation(input: {
         .select("company_id, companies(trade_name)")
         .eq("id", tableRow.exhibitor_profile_id)
         .maybeSingle();
+      exhibitorCompanyId = (exhibProfile as any)?.company_id ?? null;
       exhibitorCompany =
         (exhibProfile as any)?.companies?.trade_name ?? exhibitorCompany;
     } catch (e) {
@@ -179,11 +189,128 @@ export async function performMeetingCancellation(input: {
           meeting_id: updated.id,
           slot_start: slot?.start_at,
           table_number: tableRow.table_number,
+          origin,
+          actor_type: actorType,
         },
       });
     } catch (e) {
       console.warn("[cancel] notification insert failed", { meetingId, e });
     }
+  }
+
+  // Lookup visitor name/company (for audit + admin ops alert body).
+  try {
+    const { data: vProf } = await supabaseAdmin
+      .from("profiles")
+      .select("full_name, companies(trade_name)")
+      .eq("id", updated.visitor_profile_id)
+      .maybeSingle();
+    visitorName = (vProf as any)?.full_name ?? null;
+    visitorCompany = (vProf as any)?.companies?.trade_name ?? null;
+  } catch (e) {
+    console.warn("[cancel] visitor profile lookup failed", { meetingId, e });
+  }
+
+  // === Audit log — canonical, single line per meeting cancellation ===
+  try {
+    await supabaseAdmin.from("audit_logs").insert({
+      event_id: updated.event_id,
+      actor_profile_id: actorType === "system" ? null : actorProfileId,
+      action: "meeting.cancelled",
+      payload: {
+        meeting_id: updated.id,
+        event_id: updated.event_id,
+        table_id: updated.table_id,
+        slot_id: updated.slot_id,
+        visitor_profile_id: updated.visitor_profile_id,
+        exhibitor_profile_id: tableRow?.exhibitor_profile_id ?? null,
+        exhibitor_company_id: exhibitorCompanyId,
+        exhibitor_company: exhibitorCompany,
+        visitor_name: visitorName,
+        visitor_company: visitorCompany,
+        actor_type: actorType,
+        actor_profile_id: actorProfileId,
+        actor_name: cancellingProfile.full_name,
+        origin,
+        cancel_reason: reason ?? null,
+        slot_start: slot?.start_at ?? null,
+        slot_end: slot?.end_at ?? null,
+        table_number: tableRow?.table_number ?? null,
+        cancelled_at: cancelledAt,
+      },
+    });
+  } catch (e) {
+    console.warn("[cancel] audit_logs insert failed", { meetingId, e });
+  }
+
+  // === Admin ops fan-out — one in-app notification per admin ===
+  try {
+    const { data: adminRoles } = await supabaseAdmin
+      .from("user_roles")
+      .select("user_id")
+      .eq("role", "admin");
+    const authIds = Array.from(
+      new Set(
+        (adminRoles ?? [])
+          .map((r) => r.user_id)
+          .filter((v): v is string => !!v),
+      ),
+    );
+    if (authIds.length > 0) {
+      const { data: adminProfiles } = await supabaseAdmin
+        .from("profiles")
+        .select("id")
+        .in("auth_user_id", authIds);
+      const adminProfileIds = Array.from(
+        new Set(
+          (adminProfiles ?? [])
+            .map((p) => p.id)
+            .filter((v): v is string => !!v),
+        ),
+      );
+      if (adminProfileIds.length > 0) {
+        const originLabel = CANCELLATION_ORIGIN_LABELS[origin] ?? origin;
+        const bodyLines = [
+          `Cancelado por: ${cancellingProfile.full_name} (${actorType})`,
+          `Visitante: ${visitorName ?? updated.visitor_profile_id}${visitorCompany ? ` — ${visitorCompany}` : ""}`,
+          `Expositor: ${exhibitorCompany}${tableRow?.table_number != null ? ` — Mesa ${tableRow.table_number}` : ""}`,
+          slot?.start_at ? `Horário: ${slot.start_at}` : null,
+          `Motivo: ${reason ?? "—"}`,
+        ].filter(Boolean);
+        const rows = adminProfileIds.map((pid) => ({
+          event_id: updated.event_id,
+          recipient_profile_id: pid,
+          type: "meeting_cancelled" as const,
+          channel: "in_app" as const,
+          status: "sent" as const,
+          title: `Cancelamento — ${originLabel}`,
+          body: bodyLines.join(" • "),
+          data: {
+            audience: "admin_ops",
+            origin,
+            actor_type: actorType,
+            actor_profile_id: actorProfileId,
+            actor_name: cancellingProfile.full_name,
+            meeting_id: updated.id,
+            visitor_profile_id: updated.visitor_profile_id,
+            visitor_name: visitorName,
+            visitor_company: visitorCompany,
+            exhibitor_profile_id: tableRow?.exhibitor_profile_id ?? null,
+            exhibitor_company: exhibitorCompany,
+            table_id: updated.table_id,
+            table_number: tableRow?.table_number ?? null,
+            slot_id: updated.slot_id,
+            slot_start: slot?.start_at ?? null,
+            slot_end: slot?.end_at ?? null,
+            cancel_reason: reason ?? null,
+            cancelled_at: cancelledAt,
+          },
+        }));
+        await supabaseAdmin.from("notifications").insert(rows);
+      }
+    }
+  } catch (e) {
+    console.warn("[cancel] admin ops fan-out failed", { meetingId, e });
   }
 
   let emailFailed = false;
