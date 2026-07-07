@@ -531,6 +531,8 @@ export const adminCancelMeeting = createServerFn({ method: "POST" })
         preferred_language: adminProfile.preferred_language,
       },
       // no visitorScope: admin can cancel any meeting
+      origin: "admin_manual",
+      actorType: "admin",
     });
 
     if (!res.ok) {
@@ -623,18 +625,10 @@ export const adminCancelVisitorFutureMeetings = createServerFn({ method: "POST" 
             email: adminProfile.email,
             preferred_language: adminProfile.preferred_language,
           },
+          origin: "admin_cancel_all_future",
+          actorType: "admin",
         });
         if (res.ok) {
-          await writeAdminCancelAuditLog({
-            actorProfileId: adminProfile.id,
-            eventId: res.eventId,
-            meetingId: res.meetingId,
-            visitorProfileId: res.visitorProfileId,
-            tableId: res.tableId,
-            slotId: res.slotId,
-            reason: data.reason ?? null,
-            emailFailed: res.emailFailed,
-          });
           cancelled.push({
             meetingId: res.meetingId,
             tableId: res.tableId,
