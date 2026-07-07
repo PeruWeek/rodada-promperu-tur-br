@@ -59,6 +59,8 @@
     "submitSignup": "Crear cuenta",
     "switchToSignup": "¿No tienes cuenta? Regístrate",
     "switchToLogin": "¿Ya tienes cuenta? Ingresar",
+    "signupClosedTitle": "Inscripciones cerradas",
+    "signupClosedBody": "Las inscripciones estan cerradas por ahora. Si ya tienes cuenta, ingresa para consultar tu agenda.",
     "errorInvalid": "Correo o contraseña incorrectos.",
     "errorGeneric": "No fue posible completar. Intenta de nuevo.",
     "checkEmail": "Revisa tu correo para confirmar la cuenta.",

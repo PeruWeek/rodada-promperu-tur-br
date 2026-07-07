@@ -1778,6 +1778,27 @@ export type Database = {
         }
         Relationships: []
       }
+      signup_settings: {
+        Row: {
+          enabled: boolean
+          id: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          enabled?: boolean
+          id?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          enabled?: boolean
+          id?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       visitor_cancellation_settings: {
         Row: {
           enabled: boolean

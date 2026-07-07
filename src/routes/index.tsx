@@ -3,7 +3,9 @@ import { useTranslation } from "react-i18next";
 import { ArrowRight, Calendar, FileText, Users2, Briefcase, Clock, MapPin } from "lucide-react";
 
 import { SiteHeader } from "@/components/site-header";
+import { SignupClosedNotice } from "@/components/signup-closed-notice";
 import { Button } from "@/components/ui/button";
+import { useSignupSettings } from "@/hooks/use-signup-settings";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -20,6 +22,8 @@ export const Route = createFileRoute("/")({
 
 function LandingPage() {
   const { t } = useTranslation();
+  const { data: signupSettings } = useSignupSettings();
+  const signupsEnabled = signupSettings?.enabled ?? true;
 
   const steps = [
     { icon: Users2, title: t("landing.step1Title"), body: t("landing.step1Body") },
@@ -54,16 +58,23 @@ function LandingPage() {
           </h1>
           <p className="mt-6 max-w-2xl text-lg text-muted-foreground">{t("landing.heroSubtitle")}</p>
           <div className="mt-8 flex flex-wrap gap-3">
-            <Button asChild size="lg" className="text-base">
-              <Link to="/signup">
-                {t("landing.ctaSignup")}
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Link>
-            </Button>
+            {signupsEnabled && (
+              <Button asChild size="lg" className="text-base">
+                <Link to="/signup">
+                  {t("landing.ctaSignup")}
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Link>
+              </Button>
+            )}
             <Button asChild size="lg" variant="outline" className="text-base">
               <Link to="/login">{t("landing.ctaLogin")}</Link>
             </Button>
           </div>
+          {!signupsEnabled && (
+            <div className="mt-6 max-w-xl">
+              <SignupClosedNotice compact />
+            </div>
+          )}
         </div>
       </section>
 
