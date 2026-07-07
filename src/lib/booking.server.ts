@@ -27,6 +27,33 @@ export type CancellingProfile = {
   preferred_language: string | null;
 };
 
+/**
+ * Origem canônica de todo cancelamento que passa pelo helper. Triggers /
+ * migrations que setam `status='cancelled'` direto no banco NÃO passam por
+ * aqui — mas `system_dedupe` / `system_sanitize` ficam reservados para o dia
+ * em que passarem.
+ */
+export type CancellationOrigin =
+  | "visitor_self"
+  | "admin_manual"
+  | "admin_cancel_all_future"
+  | "admin_deactivation"
+  | "system_dedupe"
+  | "system_sanitize"
+  | "system_other";
+
+export type CancellationActorType = "visitor" | "admin" | "system";
+
+export const CANCELLATION_ORIGIN_LABELS: Record<CancellationOrigin, string> = {
+  visitor_self: "Visitante",
+  admin_manual: "Admin — manual",
+  admin_cancel_all_future: "Admin — futuras",
+  admin_deactivation: "Admin — inativação",
+  system_dedupe: "Sistema — dedupe",
+  system_sanitize: "Sistema — sanitize",
+  system_other: "Sistema — outro",
+};
+
 export type PerformCancellationOk = {
   ok: true;
   meetingId: string;
