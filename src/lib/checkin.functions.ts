@@ -1115,6 +1115,147 @@ export type PostEventRow = {
 };
 
 // ============================================================================
+// Operational list of meetings for the current event, so Admin/Staff can mark
+// each meeting as present | late | no_show from a single panel. Reads
+// meetings + meeting_checkins; writes go through `meetingCheckIn` above.
+// ============================================================================
+
+export type MeetingOpsRow = {
+  meetingId: string;
+  status: string;
+  slotId: string | null;
+  slotStart: string | null;
+  slotEnd: string | null;
+  tableId: string | null;
+  tableNumber: number | null;
+  visitorProfileId: string | null;
+  visitorName: string | null;
+  visitorCompany: string | null;
+  exhibitorProfileId: string | null;
+  exhibitorName: string | null;
+  exhibitorCompany: string | null;
+  checkinStatus: "present" | "late" | "no_show" | null;
+  lateMinutes: number | null;
+};
+
+export const listMeetingsForOps = createServerFn({ method: "POST" })
+  .inputValidator((input) =>
+    z.object({ eventId: z.string().uuid().optional() }).parse(input),
+  )
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    if (!(await isAdminOrStaff(context.userId)))
+      throw new Error("Forbidden: admin/staff only");
+    const event = await loadEventOrLatest(data.eventId ?? null);
+    if (!event) return { eventId: null, rows: [] as MeetingOpsRow[] };
+    const eventId = event.id as string;
+
+    const { data: meetings } = await supabaseAdmin
+      .from("meetings")
+      .select("id, status, slot_id, table_id, visitor_profile_id")
+      .eq("event_id", eventId)
+      .in("status", ["scheduled", "done", "no_show"]);
+    const meetingList = meetings ?? [];
+    if (meetingList.length === 0) return { eventId, rows: [] as MeetingOpsRow[] };
+
+    const slotIds = Array.from(
+      new Set(meetingList.map((m) => m.slot_id).filter(Boolean) as string[]),
+    );
+    const tableIds = Array.from(
+      new Set(meetingList.map((m) => m.table_id).filter(Boolean) as string[]),
+    );
+    const visitorIds = Array.from(
+      new Set(meetingList.map((m) => m.visitor_profile_id).filter(Boolean) as string[]),
+    );
+    const meetingIds = meetingList.map((m) => m.id as string);
+
+    const [{ data: slots }, { data: tables }, { data: visitors }, { data: mcks }] =
+      await Promise.all([
+        slotIds.length
+          ? supabaseAdmin
+              .from("time_slots")
+              .select("id, start_at, end_at")
+              .in("id", slotIds)
+          : Promise.resolve({ data: [] as Array<{ id: string; start_at: string; end_at: string }> }),
+        tableIds.length
+          ? supabaseAdmin
+              .from("event_tables")
+              .select("id, table_number, exhibitor_profile_id")
+              .in("id", tableIds)
+          : Promise.resolve({ data: [] as Array<{ id: string; table_number: number | null; exhibitor_profile_id: string | null }> }),
+        visitorIds.length
+          ? supabaseAdmin
+              .from("profiles")
+              .select("id, full_name, company_id")
+              .in("id", visitorIds)
+          : Promise.resolve({ data: [] as Array<{ id: string; full_name: string | null; company_id: string | null }> }),
+        supabaseAdmin
+          .from("meeting_checkins")
+          .select("meeting_id, status, late_minutes")
+          .in("meeting_id", meetingIds),
+      ]);
+
+    const exhIds = Array.from(
+      new Set((tables ?? []).map((t) => t.exhibitor_profile_id).filter(Boolean) as string[]),
+    );
+    const { data: exhProfs } = exhIds.length
+      ? await supabaseAdmin
+          .from("profiles")
+          .select("id, full_name, company_id")
+          .in("id", exhIds)
+      : { data: [] as Array<{ id: string; full_name: string | null; company_id: string | null }> };
+
+    const allCompanyIds = Array.from(
+      new Set([
+        ...((visitors ?? []).map((v) => v.company_id).filter(Boolean) as string[]),
+        ...((exhProfs ?? []).map((p) => p.company_id).filter(Boolean) as string[]),
+      ]),
+    );
+    const { data: comps } = allCompanyIds.length
+      ? await supabaseAdmin.from("companies").select("id, trade_name").in("id", allCompanyIds)
+      : { data: [] as Array<{ id: string; trade_name: string }> };
+    const compMap = new Map((comps ?? []).map((c) => [c.id as string, c.trade_name as string]));
+
+    const slotMap = new Map((slots ?? []).map((s) => [s.id as string, s]));
+    const tableMap = new Map((tables ?? []).map((t) => [t.id as string, t]));
+    const visitorMap = new Map((visitors ?? []).map((v) => [v.id as string, v]));
+    const exhMap = new Map((exhProfs ?? []).map((p) => [p.id as string, p]));
+    const mckMap = new Map((mcks ?? []).map((m) => [m.meeting_id as string, m]));
+
+    const rows: MeetingOpsRow[] = meetingList.map((m) => {
+      const slot = m.slot_id ? slotMap.get(m.slot_id as string) : null;
+      const tbl = m.table_id ? tableMap.get(m.table_id as string) : null;
+      const v = m.visitor_profile_id ? visitorMap.get(m.visitor_profile_id as string) : null;
+      const exh = tbl?.exhibitor_profile_id ? exhMap.get(tbl.exhibitor_profile_id as string) : null;
+      const mck = mckMap.get(m.id as string);
+      return {
+        meetingId: m.id as string,
+        status: m.status as string,
+        slotId: (m.slot_id as string | null) ?? null,
+        slotStart: slot?.start_at ?? null,
+        slotEnd: slot?.end_at ?? null,
+        tableId: (m.table_id as string | null) ?? null,
+        tableNumber: tbl?.table_number ?? null,
+        visitorProfileId: (m.visitor_profile_id as string | null) ?? null,
+        visitorName: v?.full_name ?? null,
+        visitorCompany: v?.company_id ? compMap.get(v.company_id as string) ?? null : null,
+        exhibitorProfileId: tbl?.exhibitor_profile_id ?? null,
+        exhibitorName: exh?.full_name ?? null,
+        exhibitorCompany: exh?.company_id ? compMap.get(exh.company_id as string) ?? null : null,
+        checkinStatus: (mck?.status as MeetingOpsRow["checkinStatus"]) ?? null,
+        lateMinutes: (mck?.late_minutes as number | null) ?? null,
+      };
+    });
+    rows.sort((a, b) => {
+      const sa = a.slotStart ?? "";
+      const sb = b.slotStart ?? "";
+      if (sa !== sb) return sa.localeCompare(sb);
+      return (a.tableNumber ?? 0) - (b.tableNumber ?? 0);
+    });
+    return { eventId, rows };
+  });
+
+// ============================================================================
 // Restore cancelled meetings — admin only, applies the exact booking guards.
 // No blind UPDATE, no bypass, no side-effects (no email, no notification).
 // Each attempt is audited (meeting.restored | meeting.restore_blocked).
