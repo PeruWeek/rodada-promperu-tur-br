@@ -97,6 +97,32 @@ export const TEMPLATE_COPY_DEFAULTS: Record<string, TemplateCopyDefaults> = {
   },
 };
 
+TEMPLATE_COPY_DEFAULTS["postevent-qa"] = {
+  fromName: DEFAULT_FROM_NAME,
+  subject: {
+    "pt-BR": "Obrigado por participar — confirme suas reuniões",
+    es: "Gracias por participar — confirma tus reuniones",
+  },
+  copy: {
+    "pt-BR": {
+      greeting: "Olá, {{visitorName}}!",
+      intro:
+        "Obrigado por participar da Rodada de Negócios. Para fecharmos o relatório do evento, confirme abaixo com quais empresas você realmente se reuniu.",
+      outro: "Basta 1 minuto. Você pode marcar como “não informar agora” em qualquer reunião.",
+      ctaLabel: "Confirmar minhas reuniões",
+      signature: `Você está recebendo este e-mail porque participou da ${SITE_NAME}.`,
+    },
+    es: {
+      greeting: "¡Hola, {{visitorName}}!",
+      intro:
+        "Gracias por participar de la Rueda de Negocios. Para cerrar el reporte del evento, confirma abajo con qué empresas realmente te reuniste.",
+      outro: "Solo 1 minuto. Puedes marcar como “no informar ahora” en cualquier reunión.",
+      ctaLabel: "Confirmar mis reuniones",
+      signature: `Recibes este correo porque participaste en la ${SITE_NAME}.`,
+    },
+  },
+};
+
 // Agenda delivery (admin campaign) — content per campaign is snapshotted;
 // only greeting/subject/signature use these defaults when the admin does
 // not override them.
