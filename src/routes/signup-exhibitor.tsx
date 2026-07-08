@@ -6,6 +6,8 @@ import { z } from "zod";
 
 import { SiteHeader } from "@/components/site-header";
 import { Button } from "@/components/ui/button";
+import { useSignupOpen } from "@/hooks/use-signup-open";
+import { SignupClosedPage } from "@/components/signup-closed-page";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/ui/password-input";
@@ -62,6 +64,7 @@ function flattenZodErrors(err: z.ZodError): Errors {
 
 function SignupExhibitorPage() {
   const { t, i18n } = useTranslation();
+  const { enabled: signupOpen, isLoading: signupOpenLoading } = useSignupOpen();
   const lang = (i18n.language === "es" ? "es" : "pt") as "pt" | "es";
   const [step, setStep] = useState(1);
   const [data, setData] = useState<ExhibitorSignupData>({
@@ -71,6 +74,10 @@ function SignupExhibitorPage() {
   const [errors, setErrors] = useState<Errors>({});
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
+
+  if (!signupOpenLoading && !signupOpen) {
+    return <SignupClosedPage />;
+  }
 
   const set = <K extends keyof ExhibitorSignupData>(k: K, v: ExhibitorSignupData[K]) =>
     setData((d) => ({ ...d, [k]: v }));

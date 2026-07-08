@@ -7,6 +7,8 @@ import { z } from "zod";
 
 import { SiteHeader } from "@/components/site-header";
 import { Button } from "@/components/ui/button";
+import { useSignupOpen } from "@/hooks/use-signup-open";
+import { SignupClosedPage } from "@/components/signup-closed-page";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/ui/password-input";
@@ -106,6 +108,7 @@ function flattenZodErrors(err: z.ZodError): Errors {
 function SignupPage() {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
+  const { enabled: signupOpen, isLoading: signupOpenLoading } = useSignupOpen();
   const lang = (i18n.language === "es" ? "es" : "pt") as "pt" | "es";
   const [step, setStep] = useState(1);
   const [data, setData] = useState<BuyerSignupData>({
@@ -118,6 +121,10 @@ function SignupPage() {
   const [prefill, setPrefill] = useState<Prefill>({ status: "idle" });
   const prefillRequestId = useRef(0);
   const lookupFn = useServerFn(lookupPreRegistration);
+
+  if (!signupOpenLoading && !signupOpen) {
+    return <SignupClosedPage />;
+  }
   const availabilityFn = useServerFn(checkSignupAvailability);
   const stepStartRef = useRef<number>(typeof performance !== "undefined" ? performance.now() : Date.now());
   const continueAttemptsRef = useRef(0);

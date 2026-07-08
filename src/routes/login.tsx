@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/ui/password-input";
 import { supabase } from "@/integrations/supabase/client";
+import { useSignupOpen } from "@/hooks/use-signup-open";
 
 type LoginSearch = { reason?: string };
 
@@ -29,6 +30,7 @@ function LoginPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const router = useRouter();
+  const { enabled: signupOpen } = useSignupOpen();
   const { reason } = Route.useSearch();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -226,11 +228,17 @@ function LoginPage() {
           <Button type="submit" className="w-full" size="lg" disabled={loading}>
             {t("auth.submitLogin")}
           </Button>
-          <p className="text-center text-sm text-muted-foreground">
-            <Link to="/signup" className="font-medium text-primary hover:underline">
-              {t("auth.switchToSignup")}
-            </Link>
-          </p>
+          {signupOpen ? (
+            <p className="text-center text-sm text-muted-foreground">
+              <Link to="/signup" className="font-medium text-primary hover:underline">
+                {t("auth.switchToSignup")}
+              </Link>
+            </p>
+          ) : (
+            <p className="text-center text-xs text-muted-foreground">
+              Inscrições encerradas
+            </p>
+          )}
           <p className="text-center text-sm text-muted-foreground">
             <Link to="/forgot-password" className="font-medium text-primary hover:underline">
               {t("auth.forgotPassword")}
