@@ -8,6 +8,7 @@ import { z } from "zod";
 import { SiteHeader } from "@/components/site-header";
 import { Button } from "@/components/ui/button";
 import { useSignupOpen } from "@/hooks/use-signup-open";
+import { SignupClosedPage } from "@/components/signup-closed-page";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/ui/password-input";
