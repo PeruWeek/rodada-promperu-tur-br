@@ -255,6 +255,7 @@
     "empty": "Aún no hay reuniones agendadas en tu mesa.",
     "checkin": "Check-in",
     "noShow": "No vino",
+    "late": "Tarde",
     "checkinSaved": "Check-in registrado.",
     "pdfTitle": "Agenda Mesa #{{number}}",
     "status": {
