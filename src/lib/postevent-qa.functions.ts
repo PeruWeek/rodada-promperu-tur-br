@@ -140,6 +140,7 @@ export const sendPostEventQA = createServerFn({ method: "POST" })
         .map((b) => b.toString(16).padStart(2, "0"))
         .join("");
     };
+    const siteUrl = "https://rodada.promperu.tur.br";
     const describeSendFailure = (res: { status: number; body?: unknown }) => {
       const body = (res.body ?? {}) as Record<string, unknown>;
       if (body.reason === "email_suppressed") {
@@ -258,7 +259,7 @@ export const sendPostEventQA = createServerFn({ method: "POST" })
         tokenRowId = inserted.id as string;
       }
 
-      const qaUrl = `${SITE_URL}/qa/${token}`;
+      const qaUrl = `${siteUrl}/qa/${token}`;
       const res = await processTransactionalSend(supabaseAdmin as any, {
         templateName: "postevent-qa",
         recipientEmail: p.email,
