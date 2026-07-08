@@ -107,16 +107,55 @@ export const sendPostEventQA = createServerFn({ method: "POST" })
     z
       .object({
         eventId: z.string().uuid().optional(),
-        profileIds: z.array(z.string().uuid()).min(1).max(25),
+        profileIds: z.array(z.string().uuid()).min(1).max(10),
       })
       .parse(input),
   )
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
-    if (!(await isAdminOrStaff(context.userId)))
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: roles } = await supabaseAdmin
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", context.userId);
+    const canSend = (roles ?? []).some((r) => r.role === "admin" || r.role === "staff");
+    if (!canSend)
       throw new Error("Forbidden: admin/staff only");
-    const eventId = await loadLatestEventId(data.eventId ?? null);
+
+    const eventId = data.eventId ?? (await (async () => {
+      const { data: evt } = await supabaseAdmin
+        .from("events")
+        .select("id")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      return evt?.id ?? null;
+    })());
     if (!eventId) throw new Error("No event found");
+
+    const makeToken = () => {
+      const bytes = new Uint8Array(24);
+      crypto.getRandomValues(bytes);
+      return Array.from(bytes)
+        .map((b) => b.toString(16).padStart(2, "0"))
+        .join("");
+    };
+    const describeSendFailure = (res: { status: number; body?: unknown }) => {
+      const body = (res.body ?? {}) as Record<string, unknown>;
+      if (body.reason === "email_suppressed") {
+        return "E-mail está suprimido/descadastrado e não pode receber mensagens.";
+      }
+      if (typeof body.error === "string" && body.error.trim()) return body.error;
+      if (typeof body.details === "string" && body.details.trim()) return body.details;
+      return `Serviço de e-mail retornou status ${res.status}.`;
+    };
+
+    const failures: Array<{
+      profileId: string;
+      email: string | null;
+      name: string | null;
+      reason: string;
+    }> = [];
 
     // Only allow profiles actually present in general_checkins for the event.
     const { data: chks } = await supabaseAdmin
@@ -126,7 +165,16 @@ export const sendPostEventQA = createServerFn({ method: "POST" })
       .in("profile_id", data.profileIds);
     const eligibleSet = new Set((chks ?? []).map((c) => c.profile_id as string));
     const eligibleIds = data.profileIds.filter((id) => eligibleSet.has(id));
-    if (!eligibleIds.length) return { sent: 0, skipped: data.profileIds.length };
+    const skippedIds = data.profileIds.filter((id) => !eligibleSet.has(id));
+    if (!eligibleIds.length) {
+      return {
+        sent: 0,
+        failed: 0,
+        skipped: skippedIds.length,
+        eligible: 0,
+        failures,
+      };
+    }
 
     const { data: evt } = await supabaseAdmin
       .from("events")
@@ -140,11 +188,43 @@ export const sendPostEventQA = createServerFn({ method: "POST" })
 
     const { processTransactionalSend } = await import("@/lib/email-send.server");
 
+    const profiles = profs ?? [];
+    const foundProfileIds = new Set(profiles.map((p) => p.id as string));
+    for (const id of eligibleIds) {
+      if (!foundProfileIds.has(id)) {
+        failures.push({
+          profileId: id,
+          email: null,
+          name: null,
+          reason: "Perfil não encontrado para este participante.",
+        });
+      }
+    }
+
     let sent = 0;
-    let failed = 0;
-    for (const p of profs ?? []) {
+    const startedAt = Date.now();
+    const REQUEST_BUDGET_MS = 22_000;
+    for (let i = 0; i < profiles.length; i++) {
+      const p = profiles[i];
+      if (Date.now() - startedAt > REQUEST_BUDGET_MS) {
+        for (const pending of profiles.slice(i)) {
+          failures.push({
+            profileId: pending.id as string,
+            email: pending.email ?? null,
+            name: pending.full_name ?? null,
+            reason:
+              "Lote interrompido para evitar timeout. Reenvie este participante em uma nova tentativa.",
+          });
+        }
+        break;
+      }
       if (!p.email) {
-        failed++;
+        failures.push({
+          profileId: p.id as string,
+          email: null,
+          name: p.full_name ?? null,
+          reason: "Participante sem e-mail cadastrado.",
+        });
         continue;
       }
       // Idempotent token: reuse existing unless submitted.
@@ -160,14 +240,19 @@ export const sendPostEventQA = createServerFn({ method: "POST" })
         token = existing.token as string;
         tokenRowId = existing.id as string;
       } else {
-        token = generateToken();
+        token = makeToken();
         const { data: inserted, error: insErr } = await supabaseAdmin
           .from("postevent_qa_tokens")
           .insert({ event_id: eventId, profile_id: p.id, token } as never)
           .select("id")
           .single();
         if (insErr) {
-          failed++;
+          failures.push({
+            profileId: p.id as string,
+            email: p.email,
+            name: p.full_name ?? null,
+            reason: `Não foi possível criar o link individual: ${insErr.message}`,
+          });
           continue;
         }
         tokenRowId = inserted.id as string;
@@ -192,10 +277,21 @@ export const sendPostEventQA = createServerFn({ method: "POST" })
           .eq("id", tokenRowId);
         sent++;
       } else {
-        failed++;
+        failures.push({
+          profileId: p.id as string,
+          email: p.email,
+          name: p.full_name ?? null,
+          reason: describeSendFailure(res),
+        });
       }
     }
-    return { sent, failed, eligible: eligibleIds.length };
+    return {
+      sent,
+      failed: failures.length,
+      skipped: skippedIds.length,
+      eligible: eligibleIds.length,
+      failures,
+    };
   });
 
 // ============================================================
