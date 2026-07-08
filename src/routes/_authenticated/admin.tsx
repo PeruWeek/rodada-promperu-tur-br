@@ -176,7 +176,7 @@ function AdminPage() {
             <TabsTrigger value="qaSim">QA Sim</TabsTrigger>
             <TabsTrigger value="dedupeRecovery">Reacomodação</TabsTrigger>
             <TabsTrigger value="lostBookings">Histórico de perdas</TabsTrigger>
-            <TabsTrigger value="posteventQa">Q&amp;A do evento</TabsTrigger>
+            <TabsTrigger value="posteventQa">Pesquisa do evento</TabsTrigger>
           </TabsList>
           <TabsContent value="dashboard" className="mt-4"><PipelineDashboard isAdmin /></TabsContent>
           <TabsContent value="tables" className="mt-4"><TablesTab /></TabsContent>
