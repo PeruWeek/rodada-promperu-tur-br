@@ -107,16 +107,16 @@ TEMPLATE_COPY_DEFAULTS["postevent-qa"] = {
     "pt-BR": {
       greeting: "Olá, {{visitorName}}!",
       intro:
-        "Obrigado por participar da Rodada de Negócios. Para fecharmos o relatório do evento, confirme abaixo com quais empresas você realmente se reuniu.",
-      outro: "Basta 1 minuto. Você pode marcar como “não informar agora” em qualquer reunião.",
+        "Obrigado por participar da Rodada de Negócios. Para fecharmos o relatório do evento, confirme abaixo com quais empresas você realmente se reuniu e responda 3 perguntas rápidas sobre o evento.",
+      outro: "Leva menos de 2 minutos. Sua resposta é essencial para melhorarmos a próxima edição.",
       ctaLabel: "Confirmar minhas reuniões",
       signature: `Você está recebendo este e-mail porque participou da ${SITE_NAME}.`,
     },
     es: {
       greeting: "¡Hola, {{visitorName}}!",
       intro:
-        "Gracias por participar de la Rueda de Negocios. Para cerrar el reporte del evento, confirma abajo con qué empresas realmente te reuniste.",
-      outro: "Solo 1 minuto. Puedes marcar como “no informar ahora” en cualquier reunión.",
+        "Gracias por participar de la Rueda de Negocios. Para cerrar el reporte del evento, confirma abajo con qué empresas realmente te reuniste y responde 3 preguntas rápidas sobre el evento.",
+      outro: "Menos de 2 minutos. Tu respuesta es esencial para mejorar la próxima edición.",
       ctaLabel: "Confirmar mis reuniones",
       signature: `Recibes este correo porque participaste en la ${SITE_NAME}.`,
     },
