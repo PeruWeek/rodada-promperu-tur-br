@@ -6,6 +6,8 @@ import { Mail, Send, RefreshCw, CheckCircle2, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import {
@@ -20,6 +22,7 @@ import {
 import {
   listPostEventQAStatus,
   sendPostEventQA,
+  sendPostEventQATest,
 } from "@/lib/postevent-qa.functions";
 
 function fmt(dt: string | null): string {
@@ -30,14 +33,27 @@ function fmt(dt: string | null): string {
 export function PostEventQATab() {
   const listFn = useServerFn(listPostEventQAStatus);
   const sendFn = useServerFn(sendPostEventQA);
+  const sendTestFn = useServerFn(sendPostEventQATest);
   const qc = useQueryClient();
   const { data, isLoading } = useQuery({
     queryKey: ["postevent-qa-status"],
     queryFn: () => listFn({ data: {} }),
   });
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [search, setSearch] = useState("");
+  const [testEmail, setTestEmail] = useState("");
 
-  const rows = useMemo(() => data?.rows ?? [], [data]);
+  const allRows = useMemo(() => data?.rows ?? [], [data]);
+  const rows = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return allRows;
+    return allRows.filter(
+      (r) =>
+        (r.full_name ?? "").toLowerCase().includes(q) ||
+        (r.email ?? "").toLowerCase().includes(q) ||
+        (r.company ?? "").toLowerCase().includes(q),
+    );
+  }, [allRows, search]);
 
   const toggle = (id: string) => {
     setSelected((prev) => {
@@ -61,6 +77,15 @@ export function PostEventQATab() {
       qc.invalidateQueries({ queryKey: ["postevent-qa-status"] });
     },
     onError: (e: any) => toast.error(e?.message ?? "Falha ao enviar"),
+  });
+
+  const testMutation = useMutation({
+    mutationFn: async () => sendTestFn({ data: { testEmail } }),
+    onSuccess: (res) => {
+      if (res.ok) toast.success("E-mail de teste enviado.");
+      else toast.error("Não foi possível enviar o e-mail de teste.");
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Falha ao enviar teste"),
   });
 
   return (
@@ -92,15 +117,47 @@ export function PostEventQATab() {
             </Button>
           </div>
         </div>
+        <div className="mt-4 flex flex-wrap items-end gap-3 border-t pt-4">
+          <div className="min-w-[240px] flex-1">
+            <Label className="text-xs">E-mail de teste</Label>
+            <Input
+              type="email"
+              placeholder="voce@exemplo.com"
+              value={testEmail}
+              onChange={(e) => setTestEmail(e.target.value)}
+            />
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={!testEmail || testMutation.isPending}
+            onClick={() => testMutation.mutate()}
+          >
+            <Send size={14} /> Enviar teste
+          </Button>
+          <p className="w-full text-xs text-muted-foreground">
+            O envio de teste vai para o e-mail informado, não gera campanha, não cria
+            token e não altera <code>meeting_checkins</code> ou <code>meetings.status</code>.
+          </p>
+        </div>
       </Card>
 
       <Card className="p-5">
+        <div className="mb-3">
+          <Input
+            placeholder="Buscar por empresa, participante ou e-mail…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="max-w-md"
+          />
+        </div>
         {isLoading ? (
           <Skeleton className="h-40 w-full" />
         ) : rows.length === 0 ? (
           <p className="py-4 text-sm text-muted-foreground">
-            Nenhum participante presente no evento ainda. O Q&amp;A só é habilitado para
-            quem tem check-in geral registrado.
+            {allRows.length === 0
+              ? "Nenhum participante presente no evento ainda. A Pesquisa só é habilitada para quem tem check-in geral registrado."
+              : "Nenhum resultado para a busca."}
           </p>
         ) : (
           <div className="overflow-x-auto">
