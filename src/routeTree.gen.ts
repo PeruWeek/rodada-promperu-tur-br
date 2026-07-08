@@ -18,6 +18,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as QaTokenRouteImport } from './routes/qa.$token'
 import { Route as EmailUnsubscribeRouteImport } from './routes/email/unsubscribe'
 import { Route as AuthCallbackRouteImport } from './routes/auth.callback'
 import { Route as AuthenticatedTableAgendaRouteImport } from './routes/_authenticated/table-agenda'
@@ -82,6 +83,11 @@ const AuthenticatedRoute = AuthenticatedRouteImport.update({
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const QaTokenRoute = QaTokenRouteImport.update({
+  id: '/qa/$token',
+  path: '/qa/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
 const EmailUnsubscribeRoute = EmailUnsubscribeRouteImport.update({
@@ -220,6 +226,7 @@ export interface FileRoutesByFullPath {
   '/table-agenda': typeof AuthenticatedTableAgendaRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
+  '/qa/$token': typeof QaTokenRoute
   '/exhibitor/$id': typeof AuthenticatedExhibitorIdRoute
   '/api/public/sendgrid-webhook': typeof ApiPublicSendgridWebhookRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
@@ -251,6 +258,7 @@ export interface FileRoutesByTo {
   '/table-agenda': typeof AuthenticatedTableAgendaRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
+  '/qa/$token': typeof QaTokenRoute
   '/exhibitor/$id': typeof AuthenticatedExhibitorIdRoute
   '/api/public/sendgrid-webhook': typeof ApiPublicSendgridWebhookRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
@@ -284,6 +292,7 @@ export interface FileRoutesById {
   '/_authenticated/table-agenda': typeof AuthenticatedTableAgendaRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
+  '/qa/$token': typeof QaTokenRoute
   '/_authenticated/exhibitor/$id': typeof AuthenticatedExhibitorIdRoute
   '/api/public/sendgrid-webhook': typeof ApiPublicSendgridWebhookRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
@@ -317,6 +326,7 @@ export interface FileRouteTypes {
     | '/table-agenda'
     | '/auth/callback'
     | '/email/unsubscribe'
+    | '/qa/$token'
     | '/exhibitor/$id'
     | '/api/public/sendgrid-webhook'
     | '/lovable/email/suppression'
@@ -348,6 +358,7 @@ export interface FileRouteTypes {
     | '/table-agenda'
     | '/auth/callback'
     | '/email/unsubscribe'
+    | '/qa/$token'
     | '/exhibitor/$id'
     | '/api/public/sendgrid-webhook'
     | '/lovable/email/suppression'
@@ -380,6 +391,7 @@ export interface FileRouteTypes {
     | '/_authenticated/table-agenda'
     | '/auth/callback'
     | '/email/unsubscribe'
+    | '/qa/$token'
     | '/_authenticated/exhibitor/$id'
     | '/api/public/sendgrid-webhook'
     | '/lovable/email/suppression'
@@ -404,6 +416,7 @@ export interface RootRouteChildren {
   UnsubscribeRoute: typeof UnsubscribeRoute
   AuthCallbackRoute: typeof AuthCallbackRoute
   EmailUnsubscribeRoute: typeof EmailUnsubscribeRoute
+  QaTokenRoute: typeof QaTokenRoute
   ApiPublicSendgridWebhookRoute: typeof ApiPublicSendgridWebhookRoute
   LovableEmailSuppressionRoute: typeof LovableEmailSuppressionRoute
   ApiPublicHooksBookingRemindersRoute: typeof ApiPublicHooksBookingRemindersRoute
@@ -478,6 +491,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/qa/$token': {
+      id: '/qa/$token'
+      path: '/qa/$token'
+      fullPath: '/qa/$token'
+      preLoaderRoute: typeof QaTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/email/unsubscribe': {
@@ -672,6 +692,7 @@ const rootRouteChildren: RootRouteChildren = {
   UnsubscribeRoute: UnsubscribeRoute,
   AuthCallbackRoute: AuthCallbackRoute,
   EmailUnsubscribeRoute: EmailUnsubscribeRoute,
+  QaTokenRoute: QaTokenRoute,
   ApiPublicSendgridWebhookRoute: ApiPublicSendgridWebhookRoute,
   LovableEmailSuppressionRoute: LovableEmailSuppressionRoute,
   ApiPublicHooksBookingRemindersRoute: ApiPublicHooksBookingRemindersRoute,

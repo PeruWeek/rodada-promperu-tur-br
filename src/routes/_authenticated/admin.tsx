@@ -53,6 +53,7 @@ import { ReviewQueueTab } from "@/components/admin/review-queue-tab";
 import { DedupeRecoveryTab } from "@/components/admin/dedupe-recovery-tab";
 import { LostBookingsTab } from "@/components/admin/lost-bookings-tab";
 import { AgendaCampaignsTab } from "@/components/admin/agenda-campaigns-tab";
+import { PostEventQATab } from "@/components/admin/postevent-qa-tab";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -175,6 +176,7 @@ function AdminPage() {
             <TabsTrigger value="qaSim">QA Sim</TabsTrigger>
             <TabsTrigger value="dedupeRecovery">Reacomodação</TabsTrigger>
             <TabsTrigger value="lostBookings">Histórico de perdas</TabsTrigger>
+            <TabsTrigger value="posteventQa">Q&amp;A do evento</TabsTrigger>
           </TabsList>
           <TabsContent value="dashboard" className="mt-4"><PipelineDashboard isAdmin /></TabsContent>
           <TabsContent value="tables" className="mt-4"><TablesTab /></TabsContent>
@@ -198,6 +200,7 @@ function AdminPage() {
           <TabsContent value="qaSim" className="mt-4"><QaSimulationTab /></TabsContent>
           <TabsContent value="dedupeRecovery" className="mt-4"><DedupeRecoveryTab /></TabsContent>
             <TabsContent value="lostBookings" className="mt-4"><LostBookingsTab /></TabsContent>
+          <TabsContent value="posteventQa" className="mt-4"><PostEventQATab /></TabsContent>
         </Tabs>
       )}
     </div>

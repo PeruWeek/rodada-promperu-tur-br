@@ -12,6 +12,65 @@ async function isAdmin(userId: string) {
   return (data ?? []).some((r) => r.role === "admin");
 }
 
+// Canonical meeting check-in writer. Used by `meetingCheckIn` (exhibitor/staff
+// UI) and by the post-event Q&A public form so both funnel through a single
+// source of truth for `meeting_checkins` + `meetings.status`.
+export async function applyMeetingCheckIn(input: {
+  meetingId: string;
+  status: "present" | "late" | "no_show";
+  byRole: "staff" | "exhibitor" | "visitor";
+  lateMinutes?: number | null;
+}): Promise<{ id: string; updated: boolean }> {
+  let lateMinutes = input.lateMinutes ?? null;
+  if (input.status === "present" && lateMinutes == null) {
+    const { data: m } = await supabaseAdmin
+      .from("meetings")
+      .select("slot_id, time_slots!inner(start_at)")
+      .eq("id", input.meetingId)
+      .maybeSingle();
+    const startAt = (m as unknown as { time_slots?: { start_at?: string } })
+      ?.time_slots?.start_at;
+    if (startAt) {
+      const diffMin = Math.floor((Date.now() - new Date(startAt).getTime()) / 60000);
+      if (diffMin > 0) lateMinutes = Math.min(60, diffMin);
+    }
+  }
+  const { data: existing } = await supabaseAdmin
+    .from("meeting_checkins")
+    .select("id")
+    .eq("meeting_id", input.meetingId)
+    .maybeSingle();
+  let rowId: string;
+  let updated = false;
+  if (existing) {
+    await supabaseAdmin
+      .from("meeting_checkins")
+      .update({ status: input.status, late_minutes: lateMinutes, by_role: input.byRole })
+      .eq("id", existing.id);
+    rowId = existing.id as string;
+    updated = true;
+  } else {
+    const { data: row, error } = await supabaseAdmin
+      .from("meeting_checkins")
+      .insert({
+        meeting_id: input.meetingId,
+        status: input.status,
+        late_minutes: lateMinutes,
+        by_role: input.byRole,
+      })
+      .select("id")
+      .single();
+    if (error) throw new Error(error.message);
+    rowId = row.id as string;
+  }
+  if (input.status === "present" || input.status === "late") {
+    await supabaseAdmin.from("meetings").update({ status: "done" }).eq("id", input.meetingId);
+  } else if (input.status === "no_show") {
+    await supabaseAdmin.from("meetings").update({ status: "no_show" }).eq("id", input.meetingId);
+  }
+  return { id: rowId, updated };
+}
+
 async function isAdminOrStaff(userId: string) {
   const { data } = await supabaseAdmin
     .from("user_roles")
@@ -282,54 +341,12 @@ export const meetingCheckIn = createServerFn({ method: "POST" })
       if (tbl?.exhibitor_profile_id !== prof.id) throw new Error("Forbidden");
     }
 
-    // Auto-compute late_minutes when marking present after slot start.
-    let lateMinutes = data.lateMinutes ?? null;
-    if (data.status === "present" && lateMinutes == null) {
-      const { data: m } = await supabaseAdmin
-        .from("meetings")
-        .select("slot_id, time_slots!inner(start_at)")
-        .eq("id", data.meetingId)
-        .maybeSingle();
-      const startAt = (m as unknown as { time_slots?: { start_at?: string } })
-        ?.time_slots?.start_at;
-      if (startAt) {
-        const diffMin = Math.floor((Date.now() - new Date(startAt).getTime()) / 60000);
-        if (diffMin > 0) lateMinutes = Math.min(60, diffMin);
-      }
-    }
-
-    // upsert via insert (one check-in per meeting expected)
-    const { data: existing } = await supabaseAdmin
-      .from("meeting_checkins")
-      .select("id")
-      .eq("meeting_id", data.meetingId)
-      .maybeSingle();
-    if (existing) {
-      await supabaseAdmin
-        .from("meeting_checkins")
-        .update({ status: data.status, late_minutes: lateMinutes, by_role: byRole })
-        .eq("id", existing.id);
-      return { id: existing.id, updated: true };
-    }
-    const { data: row, error } = await supabaseAdmin
-      .from("meeting_checkins")
-      .insert({
-        meeting_id: data.meetingId,
-        status: data.status,
-        late_minutes: lateMinutes,
-        by_role: byRole,
-      })
-      .select("id")
-      .single();
-    if (error) throw new Error(error.message);
-
-    // mark meeting completed if present
-    if (data.status === "present" || data.status === "late") {
-      await supabaseAdmin.from("meetings").update({ status: "done" }).eq("id", data.meetingId);
-    } else if (data.status === "no_show") {
-      await supabaseAdmin.from("meetings").update({ status: "no_show" }).eq("id", data.meetingId);
-    }
-    return { id: row.id, updated: false };
+    return await applyMeetingCheckIn({
+      meetingId: data.meetingId,
+      status: data.status,
+      byRole,
+      lateMinutes: data.lateMinutes ?? null,
+    });
   });
 
 // ============================================================
