@@ -788,15 +788,15 @@ export const getPostEventSurveyReport = createServerFn({ method: "POST" })
 
     const ratings = (surveys ?? [])
       .map((s: any) => s.overall_rating as number | null)
-      .filter((v): v is number => typeof v === "number");
+      .filter((v: number | null): v is number => typeof v === "number");
     const qualities = (surveys ?? [])
       .map((s: any) => s.meetings_quality as number | null)
-      .filter((v): v is number => typeof v === "number");
+      .filter((v: number | null): v is number => typeof v === "number");
     const overallRatingAvg = ratings.length
-      ? Math.round((ratings.reduce((a, b) => a + b, 0) / ratings.length) * 100) / 100
+      ? Math.round((ratings.reduce((a: number, b: number) => a + b, 0) / ratings.length) * 100) / 100
       : null;
     const meetingsQualityAvg = qualities.length
-      ? Math.round((qualities.reduce((a, b) => a + b, 0) / qualities.length) * 100) / 100
+      ? Math.round((qualities.reduce((a: number, b: number) => a + b, 0) / qualities.length) * 100) / 100
       : null;
 
     const nextEdition = { yes: 0, maybe: 0, no: 0 };
