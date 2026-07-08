@@ -569,3 +569,257 @@ export const submitPostEventQA = createServerFn({ method: "POST" })
 
     return { ok: true, recorded };
   });
+
+// ============================================================
+// ADMIN: consolidated survey report for the "Pesquisa do evento".
+// Returns aggregate metrics + per-participant drilldown rows,
+// including canonical meeting confirmations from meeting_checkins
+// / meetings.status.
+// ============================================================
+export const getPostEventSurveyReport = createServerFn({ method: "POST" })
+  .inputValidator((input) =>
+    z.object({ eventId: z.string().uuid().optional() }).parse(input ?? {}),
+  )
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    if (!(await isAdminOrStaff(context.userId)))
+      throw new Error("Forbidden: admin/staff only");
+    const eventId = await loadLatestEventId(data.eventId ?? null);
+    if (!eventId) {
+      return {
+        eventId: null as string | null,
+        metrics: {
+          eligible: 0,
+          sent: 0,
+          opened: 0,
+          submitted: 0,
+          responseRate: 0,
+          meetingsDone: 0,
+          meetingsNoShow: 0,
+          meetingsPending: 0,
+          overallRatingAvg: null as number | null,
+          meetingsQualityAvg: null as number | null,
+          nextEdition: { yes: 0, maybe: 0, no: 0 },
+        },
+        rows: [] as Array<any>,
+      };
+    }
+
+    // Eligible universe = general_checkins participants
+    const { data: chks } = await supabaseAdmin
+      .from("general_checkins")
+      .select("profile_id")
+      .eq("event_id", eventId);
+    const profileIds = Array.from(
+      new Set((chks ?? []).map((c) => c.profile_id as string)),
+    );
+
+    const [{ data: profs }, { data: tokens }, { data: surveys }, { data: tables }, { data: mtgs }] =
+      await Promise.all([
+        profileIds.length
+          ? supabaseAdmin
+              .from("profiles")
+              .select("id, full_name, email, company_id")
+              .in("id", profileIds)
+          : Promise.resolve({ data: [] as Array<{ id: string; full_name: string; email: string; company_id: string | null }> } as any),
+        supabaseAdmin
+          .from("postevent_qa_tokens")
+          .select("id, profile_id, sent_at, first_opened_at, submitted_at")
+          .eq("event_id", eventId),
+        (supabaseAdmin as any)
+          .from("postevent_survey_responses")
+          .select("token_id, profile_id, overall_rating, meetings_quality, next_edition_interest, comments, created_at")
+          .eq("event_id", eventId),
+        supabaseAdmin
+          .from("event_tables")
+          .select("id, table_number, exhibitor_profile_id")
+          .eq("event_id", eventId),
+        supabaseAdmin
+          .from("meetings")
+          .select("id, visitor_profile_id, table_id, slot_id, status")
+          .eq("event_id", eventId)
+          .in("status", ["scheduled", "done", "no_show"]),
+      ]);
+
+    const compIds = Array.from(
+      new Set(((profs ?? []) as any[]).map((p) => p.company_id).filter(Boolean) as string[]),
+    );
+    const { data: comps } = compIds.length
+      ? await supabaseAdmin
+          .from("companies")
+          .select("id, trade_name")
+          .in("id", compIds)
+      : { data: [] as Array<{ id: string; trade_name: string }> };
+    const compMap = new Map((comps ?? []).map((c) => [c.id as string, c.trade_name]));
+
+    const tableMap = new Map((tables ?? []).map((t) => [t.id as string, t]));
+    const tokByProfile = new Map(
+      (tokens ?? []).map((t) => [t.profile_id as string, t]),
+    );
+    const surveyByProfile = new Map(
+      (surveys ?? []).map((s: any) => [s.profile_id as string, s]),
+    );
+
+    // Meeting checkins for status truth (canonical: meeting_checkins + meetings.status)
+    const meetingIds = (mtgs ?? []).map((m) => m.id as string);
+    const { data: checks } = meetingIds.length
+      ? await supabaseAdmin
+          .from("meeting_checkins")
+          .select("meeting_id, status")
+          .in("meeting_id", meetingIds)
+      : { data: [] as Array<{ meeting_id: string; status: string }> };
+    const checkMap = new Map((checks ?? []).map((c) => [c.meeting_id as string, c.status as string]));
+
+    // Slots for optional context
+    const slotIds = Array.from(
+      new Set((mtgs ?? []).map((m) => m.slot_id).filter(Boolean) as string[]),
+    );
+    const { data: slots } = slotIds.length
+      ? await supabaseAdmin
+          .from("time_slots")
+          .select("id, start_at")
+          .in("id", slotIds)
+      : { data: [] as Array<{ id: string; start_at: string }> };
+    const slotMap = new Map((slots ?? []).map((s) => [s.id as string, s.start_at as string]));
+
+    // Counterpart profiles (for drilldown display)
+    const cpIds = new Set<string>();
+    for (const m of (mtgs ?? [])) {
+      if (m.visitor_profile_id) cpIds.add(m.visitor_profile_id as string);
+      const t = m.table_id ? tableMap.get(m.table_id as string) : null;
+      if (t?.exhibitor_profile_id) cpIds.add(t.exhibitor_profile_id as string);
+    }
+    const cpIdArr = Array.from(cpIds);
+    const { data: cpProfs } = cpIdArr.length
+      ? await supabaseAdmin
+          .from("profiles")
+          .select("id, full_name, company_id")
+          .in("id", cpIdArr)
+      : { data: [] as Array<{ id: string; full_name: string; company_id: string | null }> };
+    const cpCompIds = Array.from(
+      new Set((cpProfs ?? []).map((p) => p.company_id).filter(Boolean) as string[]),
+    );
+    const { data: cpComps } = cpCompIds.length
+      ? await supabaseAdmin
+          .from("companies")
+          .select("id, trade_name")
+          .in("id", cpCompIds)
+      : { data: [] as Array<{ id: string; trade_name: string }> };
+    const cpCompMap = new Map((cpComps ?? []).map((c) => [c.id as string, c.trade_name]));
+    const cpProfMap = new Map((cpProfs ?? []).map((p) => [p.id as string, p]));
+
+    // Build per-participant rows
+    const rows = ((profs ?? []) as any[]).map((p) => {
+      const tok = tokByProfile.get(p.id) ?? null;
+      const survey = surveyByProfile.get(p.id) ?? null;
+
+      const myTableIds = (tables ?? [])
+        .filter((t) => t.exhibitor_profile_id === p.id)
+        .map((t) => t.id as string);
+      const myMeetings = (mtgs ?? []).filter(
+        (m) =>
+          m.visitor_profile_id === p.id ||
+          (m.table_id && myTableIds.includes(m.table_id as string)),
+      );
+      const meetingsDetail = myMeetings.map((m) => {
+        const t = m.table_id ? tableMap.get(m.table_id as string) : null;
+        const otherProfileId =
+          m.visitor_profile_id === p.id
+            ? (t?.exhibitor_profile_id as string | null)
+            : (m.visitor_profile_id as string | null);
+        const otherProf = otherProfileId ? cpProfMap.get(otherProfileId) : null;
+        const otherCompany = otherProf?.company_id ? cpCompMap.get(otherProf.company_id) ?? null : null;
+        const canonicalStatus = (m.status as string) ?? "scheduled";
+        return {
+          meeting_id: m.id as string,
+          counterpart_name: otherProf?.full_name ?? "—",
+          counterpart_company: otherCompany ?? "—",
+          table_number: t?.table_number ?? null,
+          slot_start: m.slot_id ? slotMap.get(m.slot_id as string) ?? null : null,
+          status: canonicalStatus,
+          checkin_status: checkMap.get(m.id as string) ?? null,
+        };
+      });
+      meetingsDetail.sort((a, b) => (a.slot_start ?? "").localeCompare(b.slot_start ?? ""));
+
+      const doneCount = meetingsDetail.filter((m) => m.status === "done").length;
+      const noShowCount = meetingsDetail.filter((m) => m.status === "no_show").length;
+      const pendingCount = meetingsDetail.filter((m) => m.status !== "done" && m.status !== "no_show").length;
+
+      return {
+        profile_id: p.id as string,
+        full_name: p.full_name as string,
+        email: p.email as string,
+        company: p.company_id ? compMap.get(p.company_id) ?? null : null,
+        sent_at: tok?.sent_at ?? null,
+        first_opened_at: tok?.first_opened_at ?? null,
+        submitted_at: tok?.submitted_at ?? null,
+        survey: survey
+          ? {
+              overall_rating: (survey as any).overall_rating ?? null,
+              meetings_quality: (survey as any).meetings_quality ?? null,
+              next_edition_interest: (survey as any).next_edition_interest ?? null,
+              comments: (survey as any).comments ?? null,
+              created_at: (survey as any).created_at ?? null,
+            }
+          : null,
+        meetings: meetingsDetail,
+        meetings_done: doneCount,
+        meetings_no_show: noShowCount,
+        meetings_pending: pendingCount,
+      };
+    });
+    rows.sort((a, b) => (a.full_name ?? "").localeCompare(b.full_name ?? "", "pt-BR"));
+
+    // Aggregate metrics
+    const sentCount = (tokens ?? []).filter((t) => !!t.sent_at).length;
+    const openedCount = (tokens ?? []).filter((t) => !!t.first_opened_at).length;
+    const submittedCount = (tokens ?? []).filter((t) => !!t.submitted_at).length;
+    const responseRate = sentCount > 0 ? submittedCount / sentCount : 0;
+
+    let meetingsDone = 0;
+    let meetingsNoShow = 0;
+    let meetingsPending = 0;
+    for (const m of (mtgs ?? [])) {
+      if (m.status === "done") meetingsDone++;
+      else if (m.status === "no_show") meetingsNoShow++;
+      else meetingsPending++;
+    }
+
+    const ratings = (surveys ?? [])
+      .map((s: any) => s.overall_rating as number | null)
+      .filter((v): v is number => typeof v === "number");
+    const qualities = (surveys ?? [])
+      .map((s: any) => s.meetings_quality as number | null)
+      .filter((v): v is number => typeof v === "number");
+    const overallRatingAvg = ratings.length
+      ? Math.round((ratings.reduce((a, b) => a + b, 0) / ratings.length) * 100) / 100
+      : null;
+    const meetingsQualityAvg = qualities.length
+      ? Math.round((qualities.reduce((a, b) => a + b, 0) / qualities.length) * 100) / 100
+      : null;
+
+    const nextEdition = { yes: 0, maybe: 0, no: 0 };
+    for (const s of (surveys ?? []) as any[]) {
+      const v = s.next_edition_interest as "yes" | "maybe" | "no" | null;
+      if (v === "yes" || v === "maybe" || v === "no") nextEdition[v]++;
+    }
+
+    return {
+      eventId,
+      metrics: {
+        eligible: profileIds.length,
+        sent: sentCount,
+        opened: openedCount,
+        submitted: submittedCount,
+        responseRate,
+        meetingsDone,
+        meetingsNoShow,
+        meetingsPending,
+        overallRatingAvg,
+        meetingsQualityAvg,
+        nextEdition,
+      },
+      rows,
+    };
+  });
