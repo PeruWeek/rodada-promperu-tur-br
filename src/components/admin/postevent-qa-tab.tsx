@@ -25,6 +25,21 @@ import {
   sendPostEventQATest,
 } from "@/lib/postevent-qa.functions";
 
+type SendFailure = {
+  profileId: string;
+  email: string | null;
+  name: string | null;
+  reason: string;
+};
+
+type SendSummary = {
+  total: number;
+  sent: number;
+  failed: number;
+  skipped: number;
+  failures: SendFailure[];
+};
+
 function fmt(dt: string | null): string {
   if (!dt) return "—";
   return new Date(dt).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
@@ -47,7 +62,9 @@ export function PostEventQATab() {
     done: number;
     sent: number;
     failed: number;
+    skipped: number;
   } | null>(null);
+  const [lastSendSummary, setLastSendSummary] = useState<SendSummary | null>(null);
 
   const allRows = useMemo(() => data?.rows ?? [], [data]);
   const rows = useMemo(() => {
@@ -74,7 +91,7 @@ export function PostEventQATab() {
     else setSelected(new Set(rows.map((r) => r.profile_id)));
   };
 
-  const CHUNK_SIZE = 20;
+  const CHUNK_SIZE = 8;
   const sendMutation = useMutation({
     mutationFn: async (profileIds: string[]) => {
       const chunks: string[][] = [];
@@ -83,24 +100,54 @@ export function PostEventQATab() {
       }
       let sent = 0;
       let failed = 0;
+      let skipped = 0;
       let done = 0;
-      setBatchProgress({ total: profileIds.length, done: 0, sent: 0, failed: 0 });
+      const failures: SendFailure[] = [];
+      setLastSendSummary(null);
+      setBatchProgress({
+        total: profileIds.length,
+        done: 0,
+        sent: 0,
+        failed: 0,
+        skipped: 0,
+      });
       for (const chunk of chunks) {
         try {
           const res = await sendFn({ data: { profileIds: chunk } });
           sent += res.sent ?? 0;
           failed += res.failed ?? 0;
+          skipped += res.skipped ?? 0;
+          failures.push(...((res.failures ?? []) as SendFailure[]));
         } catch (e) {
+          const reason = e instanceof Error ? e.message : "Falha inesperada no lote.";
           failed += chunk.length;
-          console.error("[postevent-qa] chunk failed", e);
+          failures.push(
+            ...chunk.map((profileId) => {
+              const row = allRows.find((r) => r.profile_id === profileId);
+              return {
+                profileId,
+                email: row?.email ?? null,
+                name: row?.full_name ?? null,
+                reason,
+              };
+            }),
+          );
+          console.error("[postevent-qa] chunk failed", { chunkSize: chunk.length, reason });
         }
         done += chunk.length;
-        setBatchProgress({ total: profileIds.length, done, sent, failed });
+        setBatchProgress({ total: profileIds.length, done, sent, failed, skipped });
       }
-      return { sent, failed };
+      return { total: profileIds.length, sent, failed, skipped, failures };
     },
     onSuccess: (res) => {
-      toast.success(`Enviados: ${res.sent}. Falhas: ${res.failed ?? 0}.`);
+      setLastSendSummary(res);
+      if (res.failed > 0) {
+        toast.warning(
+          `Envio concluído com falhas: ${res.sent} enviados, ${res.failed} falharam.`,
+        );
+      } else {
+        toast.success(`Envio concluído: ${res.sent} enviados.`);
+      }
       setSelected(new Set());
       setBatchProgress(null);
       qc.invalidateQueries({ queryKey: ["postevent-qa-status"] });
@@ -152,6 +199,36 @@ export function PostEventQATab() {
             </Button>
           </div>
         </div>
+        {batchProgress && (
+          <div className="mt-4 rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
+            <p className="font-medium text-foreground">
+              Envio em andamento: {batchProgress.done}/{batchProgress.total}
+            </p>
+            <p>
+              Enviados: {batchProgress.sent} · Falhas: {batchProgress.failed} · Ignorados: {batchProgress.skipped}
+            </p>
+          </div>
+        )}
+        {lastSendSummary && (
+          <div className="mt-4 rounded-md border p-3 text-xs">
+            <p className="font-medium">
+              Último envio: {lastSendSummary.sent} enviados, {lastSendSummary.failed} falhas,
+              {" "}{lastSendSummary.skipped} ignorados de {lastSendSummary.total} selecionados.
+            </p>
+            {lastSendSummary.failures.length > 0 && (
+              <div className="mt-2 space-y-1 text-muted-foreground">
+                {lastSendSummary.failures.slice(0, 8).map((failure) => (
+                  <p key={`${failure.profileId}-${failure.reason}`}>
+                    {failure.name || failure.email || failure.profileId}: {failure.reason}
+                  </p>
+                ))}
+                {lastSendSummary.failures.length > 8 && (
+                  <p>Mais {lastSendSummary.failures.length - 8} falhas omitidas.</p>
+                )}
+              </div>
+            )}
+          </div>
+        )}
         <div className="mt-4 flex flex-wrap items-end gap-3 border-t pt-4">
           <div className="min-w-[240px] flex-1">
             <Label className="text-xs">E-mail de teste</Label>
