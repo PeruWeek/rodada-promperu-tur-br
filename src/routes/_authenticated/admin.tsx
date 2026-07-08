@@ -53,6 +53,7 @@ import { ReviewQueueTab } from "@/components/admin/review-queue-tab";
 import { DedupeRecoveryTab } from "@/components/admin/dedupe-recovery-tab";
 import { LostBookingsTab } from "@/components/admin/lost-bookings-tab";
 import { AgendaCampaignsTab } from "@/components/admin/agenda-campaigns-tab";
+import { PostEventQATab } from "@/components/admin/postevent-qa-tab";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
