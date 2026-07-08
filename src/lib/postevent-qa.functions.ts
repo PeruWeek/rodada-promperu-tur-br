@@ -202,6 +202,47 @@ export const sendPostEventQA = createServerFn({ method: "POST" })
 // PUBLIC: token-authenticated read + write (no auth middleware —
 // the token itself is the bearer, validated server-side).
 // ============================================================
+export const sendPostEventQATest = createServerFn({ method: "POST" })
+  .inputValidator((input) =>
+    z
+      .object({
+        eventId: z.string().uuid().optional(),
+        testEmail: z.string().email(),
+      })
+      .parse(input),
+  )
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    if (!(await isAdminOrStaff(context.userId)))
+      throw new Error("Forbidden: admin/staff only");
+    const eventId = await loadLatestEventId(data.eventId ?? null);
+    const { data: evt } = eventId
+      ? await supabaseAdmin
+          .from("events")
+          .select("id, name")
+          .eq("id", eventId)
+          .maybeSingle()
+      : { data: null as { id: string; name: string } | null };
+
+    const { processTransactionalSend } = await import("@/lib/email-send.server");
+    // Non-functional preview URL: even if clicked, no token exists so no
+    // response can be recorded and no check-in is mutated.
+    const previewUrl = `${SITE_URL}/qa/preview-test-token`;
+    const res = await processTransactionalSend(supabaseAdmin as any, {
+      templateName: "postevent-qa",
+      recipientEmail: data.testEmail,
+      idempotencyKey: `postevent-qa-test:${Date.now()}:${data.testEmail}`,
+      templateData: {
+        language: "pt-BR",
+        visitorName: "(teste)",
+        eventName: evt?.name ?? "Rodada de Negócios PromPerú",
+        qaUrl: previewUrl,
+      },
+    });
+    const ok = res.status === 200 && (res.body as any)?.success;
+    return { ok };
+  });
+
 export const getPostEventQAContext = createServerFn({ method: "POST" })
   .inputValidator((input) => z.object({ token: z.string().min(16).max(128) }).parse(input))
   .handler(async ({ data }) => {
