@@ -341,54 +341,12 @@ export const meetingCheckIn = createServerFn({ method: "POST" })
       if (tbl?.exhibitor_profile_id !== prof.id) throw new Error("Forbidden");
     }
 
-    // Auto-compute late_minutes when marking present after slot start.
-    let lateMinutes = data.lateMinutes ?? null;
-    if (data.status === "present" && lateMinutes == null) {
-      const { data: m } = await supabaseAdmin
-        .from("meetings")
-        .select("slot_id, time_slots!inner(start_at)")
-        .eq("id", data.meetingId)
-        .maybeSingle();
-      const startAt = (m as unknown as { time_slots?: { start_at?: string } })
-        ?.time_slots?.start_at;
-      if (startAt) {
-        const diffMin = Math.floor((Date.now() - new Date(startAt).getTime()) / 60000);
-        if (diffMin > 0) lateMinutes = Math.min(60, diffMin);
-      }
-    }
-
-    // upsert via insert (one check-in per meeting expected)
-    const { data: existing } = await supabaseAdmin
-      .from("meeting_checkins")
-      .select("id")
-      .eq("meeting_id", data.meetingId)
-      .maybeSingle();
-    if (existing) {
-      await supabaseAdmin
-        .from("meeting_checkins")
-        .update({ status: data.status, late_minutes: lateMinutes, by_role: byRole })
-        .eq("id", existing.id);
-      return { id: existing.id, updated: true };
-    }
-    const { data: row, error } = await supabaseAdmin
-      .from("meeting_checkins")
-      .insert({
-        meeting_id: data.meetingId,
-        status: data.status,
-        late_minutes: lateMinutes,
-        by_role: byRole,
-      })
-      .select("id")
-      .single();
-    if (error) throw new Error(error.message);
-
-    // mark meeting completed if present
-    if (data.status === "present" || data.status === "late") {
-      await supabaseAdmin.from("meetings").update({ status: "done" }).eq("id", data.meetingId);
-    } else if (data.status === "no_show") {
-      await supabaseAdmin.from("meetings").update({ status: "no_show" }).eq("id", data.meetingId);
-    }
-    return { id: row.id, updated: false };
+    return await applyMeetingCheckIn({
+      meetingId: data.meetingId,
+      status: data.status,
+      byRole,
+      lateMinutes: data.lateMinutes ?? null,
+    });
   });
 
 // ============================================================
