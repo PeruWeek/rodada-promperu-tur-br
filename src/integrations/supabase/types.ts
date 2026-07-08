@@ -1579,6 +1579,27 @@ export type Database = {
           },
         ]
       }
+      signup_settings: {
+        Row: {
+          enabled: boolean
+          id: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          enabled?: boolean
+          id?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          enabled?: boolean
+          id?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       skills: {
         Row: {
           created_at: string
