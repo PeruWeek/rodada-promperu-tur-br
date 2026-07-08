@@ -387,10 +387,21 @@ export const submitPostEventQA = createServerFn({ method: "POST" })
           .array(
             z.object({
               meetingId: z.string().uuid(),
-              decision: z.enum(["done", "no_show", "skip"]),
+              decision: z.enum(["done", "no_show"]),
             }),
           )
           .max(200),
+        survey: z
+          .object({
+            overallRating: z.number().int().min(1).max(5).nullable().optional(),
+            meetingsQuality: z.number().int().min(1).max(5).nullable().optional(),
+            nextEditionInterest: z
+              .enum(["yes", "maybe", "no"])
+              .nullable()
+              .optional(),
+            comments: z.string().max(2000).nullable().optional(),
+          })
+          .optional(),
       })
       .parse(input),
   )
@@ -433,13 +444,8 @@ export const submitPostEventQA = createServerFn({ method: "POST" })
     );
 
     let recorded = 0;
-    let skipped = 0;
     for (const d of data.decisions) {
       if (!allowed.has(d.meetingId)) continue;
-      if (d.decision === "skip") {
-        skipped++;
-        continue;
-      }
       await applyMeetingCheckIn({
         meetingId: d.meetingId,
         status: d.decision === "done" ? "present" : "no_show",
@@ -448,10 +454,29 @@ export const submitPostEventQA = createServerFn({ method: "POST" })
       recorded++;
     }
 
+    // Persist survey answers separately (idempotent per token).
+    if (data.survey) {
+      const s = data.survey;
+      await (supabaseAdmin as any)
+        .from("postevent_survey_responses")
+        .upsert(
+          {
+            token_id: tok.id,
+            event_id: tok.event_id,
+            profile_id: tok.profile_id,
+            overall_rating: s.overallRating ?? null,
+            meetings_quality: s.meetingsQuality ?? null,
+            next_edition_interest: s.nextEditionInterest ?? null,
+            comments: s.comments ?? null,
+          },
+          { onConflict: "token_id" },
+        );
+    }
+
     await supabaseAdmin
       .from("postevent_qa_tokens")
       .update({ submitted_at: new Date().toISOString() })
       .eq("id", tok.id);
 
-    return { ok: true, recorded, skipped };
+    return { ok: true, recorded };
   });
