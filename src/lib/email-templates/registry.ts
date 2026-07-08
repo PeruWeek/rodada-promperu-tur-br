@@ -15,6 +15,7 @@ import { template as buyerWelcome } from './buyer-welcome'
 import { template as bookingReminder } from './booking-reminder'
 import { template as companyContactInvite } from './company-contact-invite'
 import { template as agendaDelivery } from './agenda-delivery'
+import { template as posteventQa } from './postevent-qa'
 
 export const TEMPLATES: Record<string, TemplateEntry> = {
   'meeting-confirmation': meetingConfirmation,
@@ -23,4 +24,5 @@ export const TEMPLATES: Record<string, TemplateEntry> = {
   'booking-reminder': bookingReminder,
   'company-contact-invite': companyContactInvite,
   'agenda-delivery': agendaDelivery,
+  'postevent-qa': posteventQa,
 }
