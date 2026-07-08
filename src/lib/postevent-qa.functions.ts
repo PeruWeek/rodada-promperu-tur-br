@@ -207,7 +207,7 @@ export const getPostEventQAContext = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const { data: tok } = await supabaseAdmin
       .from("postevent_qa_tokens")
-      .select("id, event_id, profile_id, sent_at, submitted_at, expires_at")
+      .select("id, event_id, profile_id, sent_at, submitted_at, expires_at, first_opened_at")
       .eq("token", data.token)
       .maybeSingle();
     if (!tok) return { ok: false as const, reason: "invalid" as const };
