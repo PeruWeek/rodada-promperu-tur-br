@@ -5,7 +5,14 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 
-type Decision = "done" | "no_show" | "skip";
+type Decision = "done" | "no_show";
+
+type SurveyState = {
+  overallRating: number | null;
+  meetingsQuality: number | null;
+  nextEditionInterest: "yes" | "maybe" | "no" | null;
+  comments: string;
+};
 
 const MOCK_MEETINGS = [
   {
@@ -52,6 +59,12 @@ export const Route = createFileRoute("/qa/preview")({
 
 function PreviewPage() {
   const [decisions, setDecisions] = useState<Record<string, Decision>>({});
+  const [survey, setSurvey] = useState<SurveyState>({
+    overallRating: null,
+    meetingsQuality: null,
+    nextEditionInterest: null,
+    comments: "",
+  });
   const [submitted, setSubmitted] = useState(false);
 
   if (submitted) {
@@ -116,21 +129,84 @@ function PreviewPage() {
                   >
                     Não aconteceu
                   </Button>
-                  <Button
-                    size="sm"
-                    variant={current === "skip" || !current ? "secondary" : "outline"}
-                    onClick={() =>
-                      setDecisions((p) => ({ ...p, [m.meeting_id]: "skip" }))
-                    }
-                  >
-                    Não informar agora
-                  </Button>
                 </div>
               </div>
             </Card>
           );
         })}
       </div>
+
+      <Card className="p-5 space-y-5">
+        <div>
+          <h2 className="text-base font-semibold">Pesquisa sobre o evento</h2>
+          <p className="text-xs text-muted-foreground">Preview — nada é gravado.</p>
+        </div>
+        <div>
+          <p className="text-sm font-medium">1. Nota geral do evento *</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {[1, 2, 3, 4, 5].map((n) => (
+              <Button
+                key={n}
+                size="sm"
+                variant={survey.overallRating === n ? "default" : "outline"}
+                onClick={() => setSurvey((s) => ({ ...s, overallRating: n }))}
+              >
+                {n}
+              </Button>
+            ))}
+          </div>
+        </div>
+        <div>
+          <p className="text-sm font-medium">2. Qualidade das reuniões realizadas *</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {[1, 2, 3, 4, 5].map((n) => (
+              <Button
+                key={n}
+                size="sm"
+                variant={survey.meetingsQuality === n ? "default" : "outline"}
+                onClick={() => setSurvey((s) => ({ ...s, meetingsQuality: n }))}
+              >
+                {n}
+              </Button>
+            ))}
+          </div>
+        </div>
+        <div>
+          <p className="text-sm font-medium">
+            3. Interesse em participar da próxima edição? *
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {[
+              { v: "yes", label: "Sim" },
+              { v: "maybe", label: "Talvez" },
+              { v: "no", label: "Não" },
+            ].map((o) => (
+              <Button
+                key={o.v}
+                size="sm"
+                variant={survey.nextEditionInterest === o.v ? "default" : "outline"}
+                onClick={() =>
+                  setSurvey((s) => ({
+                    ...s,
+                    nextEditionInterest: o.v as SurveyState["nextEditionInterest"],
+                  }))
+                }
+              >
+                {o.label}
+              </Button>
+            ))}
+          </div>
+        </div>
+        <div>
+          <p className="text-sm font-medium">4. Comentários (opcional)</p>
+          <textarea
+            className="mt-2 w-full rounded-md border bg-background p-2 text-sm"
+            rows={3}
+            value={survey.comments}
+            onChange={(e) => setSurvey((s) => ({ ...s, comments: e.target.value }))}
+          />
+        </div>
+      </Card>
 
       <div className="flex justify-end">
         <Button
