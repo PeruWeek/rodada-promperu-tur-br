@@ -26,14 +26,6 @@ async function loadLatestEventId(eventId?: string | null): Promise<string | null
   return data?.id ?? null;
 }
 
-function generateToken(): string {
-  const bytes = new Uint8Array(24);
-  crypto.getRandomValues(bytes);
-  return Array.from(bytes)
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-}
-
 // ============================================================
 // ADMIN: list eligible participants + their Q&A status.
 // Eligible = present in general_checkins for this event.
