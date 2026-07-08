@@ -1463,6 +1463,53 @@ export type Database = {
           },
         ]
       }
+      postevent_survey_responses: {
+        Row: {
+          comments: string | null
+          created_at: string
+          event_id: string
+          id: string
+          meetings_quality: number | null
+          next_edition_interest: string | null
+          overall_rating: number | null
+          profile_id: string
+          token_id: string
+          updated_at: string
+        }
+        Insert: {
+          comments?: string | null
+          created_at?: string
+          event_id: string
+          id?: string
+          meetings_quality?: number | null
+          next_edition_interest?: string | null
+          overall_rating?: number | null
+          profile_id: string
+          token_id: string
+          updated_at?: string
+        }
+        Update: {
+          comments?: string | null
+          created_at?: string
+          event_id?: string
+          id?: string
+          meetings_quality?: number | null
+          next_edition_interest?: string | null
+          overall_rating?: number | null
+          profile_id?: string
+          token_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "postevent_survey_responses_token_id_fkey"
+            columns: ["token_id"]
+            isOneToOne: true
+            referencedRelation: "postevent_qa_tokens"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           auth_user_id: string | null
