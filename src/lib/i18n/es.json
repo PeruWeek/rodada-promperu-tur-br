@@ -598,6 +598,34 @@
           "table": "mesa",
           "block": "bloque"
         }
+      },
+      "meetings": {
+        "title": "Reuniones — check-in operativo",
+        "subtitle": "Marcá cada reunión como realizada, con retraso o no-show. Alimenta el post-evento y el CSV.",
+        "searchPlaceholder": "Buscar por visitante, empresa, expositor o mesa...",
+        "empty": "Sin reuniones en el evento actual.",
+        "risk": "con retraso",
+        "filter": {
+          "all": "Todas",
+          "pending": "Pendientes",
+          "done": "Marcadas"
+        },
+        "status": {
+          "pending": "Pendiente",
+          "present": "Presente",
+          "late": "Tarde",
+          "no_show": "No vino"
+        },
+        "actions": {
+          "present": "Presente",
+          "late": "Tarde",
+          "no_show": "No vino"
+        },
+        "saved": {
+          "present": "Reunión marcada como realizada.",
+          "late": "Reunión marcada como tarde.",
+          "no_show": "Reunión marcada como no-show."
+        }
       }
     },
     "users": {
