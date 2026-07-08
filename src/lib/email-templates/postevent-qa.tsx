@@ -27,6 +27,13 @@ interface Props {
   overrides?: Partial<CopyFields>;
 }
 
+function withoutOldOptionalCopy(value: string | undefined, fallback: string) {
+  if (!value) return fallback;
+  return /não informar agora|nao informar agora|no informar ahora/i.test(value)
+    ? fallback
+    : value;
+}
+
 const PostEventQAEmail = ({
   language = "pt-BR",
   visitorName,
@@ -37,11 +44,20 @@ const PostEventQAEmail = ({
   const lang = language === "es" ? "es" : "pt-BR";
   const defaults = TEMPLATE_COPY_DEFAULTS["postevent-qa"].copy[lang];
   const interpData = { visitorName: visitorName ?? "", eventName };
-  const greeting = interpolate(overrides?.greeting ?? defaults.greeting, interpData);
-  const intro = interpolate(overrides?.intro ?? defaults.intro, interpData);
-  const outro = interpolate(overrides?.outro ?? defaults.outro, interpData);
-  const ctaLabel = interpolate(overrides?.ctaLabel ?? defaults.ctaLabel, interpData);
-  const signature = interpolate(overrides?.signature ?? defaults.signature, interpData);
+  const greeting = interpolate(
+    withoutOldOptionalCopy(overrides?.greeting, defaults.greeting),
+    interpData,
+  );
+  const intro = interpolate(withoutOldOptionalCopy(overrides?.intro, defaults.intro), interpData);
+  const outro = interpolate(withoutOldOptionalCopy(overrides?.outro, defaults.outro), interpData);
+  const ctaLabel = interpolate(
+    withoutOldOptionalCopy(overrides?.ctaLabel, defaults.ctaLabel),
+    interpData,
+  );
+  const signature = interpolate(
+    withoutOldOptionalCopy(overrides?.signature, defaults.signature),
+    interpData,
+  );
   return (
     <Html lang={lang} dir="ltr">
       <Head />
