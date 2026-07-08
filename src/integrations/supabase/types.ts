@@ -1409,6 +1409,60 @@ export type Database = {
           },
         ]
       }
+      postevent_qa_tokens: {
+        Row: {
+          created_at: string
+          event_id: string
+          expires_at: string
+          first_opened_at: string | null
+          id: string
+          profile_id: string
+          sent_at: string | null
+          submitted_at: string | null
+          token: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          event_id: string
+          expires_at?: string
+          first_opened_at?: string | null
+          id?: string
+          profile_id: string
+          sent_at?: string | null
+          submitted_at?: string | null
+          token: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          event_id?: string
+          expires_at?: string
+          first_opened_at?: string | null
+          id?: string
+          profile_id?: string
+          sent_at?: string | null
+          submitted_at?: string | null
+          token?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "postevent_qa_tokens_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "postevent_qa_tokens_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           auth_user_id: string | null
