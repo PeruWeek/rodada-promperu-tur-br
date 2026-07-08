@@ -107,7 +107,7 @@ export const sendPostEventQA = createServerFn({ method: "POST" })
     z
       .object({
         eventId: z.string().uuid().optional(),
-        profileIds: z.array(z.string().uuid()).min(1).max(500),
+        profileIds: z.array(z.string().uuid()).min(1).max(25),
       })
       .parse(input),
   )
