@@ -40,7 +40,14 @@ export const Route = createFileRoute("/qa/$token")({
   ),
 });
 
-type Decision = "done" | "no_show" | "skip";
+type Decision = "done" | "no_show";
+
+type SurveyState = {
+  overallRating: number | null;
+  meetingsQuality: number | null;
+  nextEditionInterest: "yes" | "maybe" | "no" | null;
+  comments: string;
+};
 
 function fmtSlot(s: string | null, e: string | null): string {
   if (!s) return "—";
@@ -74,15 +81,34 @@ function QaPage() {
     [data],
   );
   const [decisions, setDecisions] = useState<Record<string, Decision>>({});
+  const [survey, setSurvey] = useState<SurveyState>({
+    overallRating: null,
+    meetingsQuality: null,
+    nextEditionInterest: null,
+    comments: "",
+  });
   const [submitted, setSubmitted] = useState(false);
 
   const submitMutation = useMutation({
     mutationFn: async () => {
-      const payload = meetings.map((m) => ({
-        meetingId: m.meeting_id,
-        decision: (decisions[m.meeting_id] ?? "skip") as Decision,
-      }));
-      return submitFn({ data: { token, decisions: payload } });
+      const payload = meetings
+        .filter((m) => decisions[m.meeting_id])
+        .map((m) => ({
+          meetingId: m.meeting_id,
+          decision: decisions[m.meeting_id]!,
+        }));
+      return submitFn({
+        data: {
+          token,
+          decisions: payload,
+          survey: {
+            overallRating: survey.overallRating,
+            meetingsQuality: survey.meetingsQuality,
+            nextEditionInterest: survey.nextEditionInterest,
+            comments: survey.comments.trim() || null,
+          },
+        },
+      });
     },
     onSuccess: (res) => {
       toast.success(`Obrigado! ${res.recorded} respostas registradas.`);
@@ -90,6 +116,12 @@ function QaPage() {
     },
     onError: (e: any) => toast.error(e?.message ?? "Falha ao enviar"),
   });
+
+  const missingMeeting = meetings.some((m) => !decisions[m.meeting_id]);
+  const missingSurvey =
+    survey.overallRating == null ||
+    survey.meetingsQuality == null ||
+    survey.nextEditionInterest == null;
 
   if (isLoading) {
     return (
@@ -176,15 +208,6 @@ function QaPage() {
                     >
                       Não aconteceu
                     </Button>
-                    <Button
-                      size="sm"
-                      variant={current === "skip" || !current ? "secondary" : "outline"}
-                      onClick={() =>
-                        setDecisions((p) => ({ ...p, [m.meeting_id]: "skip" }))
-                      }
-                    >
-                      Não informar agora
-                    </Button>
                   </div>
                 </div>
               </Card>
@@ -193,14 +216,111 @@ function QaPage() {
         </div>
       )}
 
+      <Card className="p-5 space-y-5">
+        <div>
+          <h2 className="text-base font-semibold">Pesquisa sobre o evento</h2>
+          <p className="text-xs text-muted-foreground">
+            Suas respostas ajudam a melhorar a próxima edição.
+          </p>
+        </div>
+
+        <div>
+          <p className="text-sm font-medium">
+            1. Nota geral do evento <span className="text-destructive">*</span>
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {[1, 2, 3, 4, 5].map((n) => (
+              <Button
+                key={n}
+                size="sm"
+                variant={survey.overallRating === n ? "default" : "outline"}
+                onClick={() => setSurvey((s) => ({ ...s, overallRating: n }))}
+              >
+                {n}
+              </Button>
+            ))}
+          </div>
+          <p className="mt-1 text-[11px] text-muted-foreground">1 = ruim · 5 = excelente</p>
+        </div>
+
+        <div>
+          <p className="text-sm font-medium">
+            2. Qualidade das reuniões realizadas <span className="text-destructive">*</span>
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {[1, 2, 3, 4, 5].map((n) => (
+              <Button
+                key={n}
+                size="sm"
+                variant={survey.meetingsQuality === n ? "default" : "outline"}
+                onClick={() => setSurvey((s) => ({ ...s, meetingsQuality: n }))}
+              >
+                {n}
+              </Button>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <p className="text-sm font-medium">
+            3. Você teria interesse em participar da próxima edição?{" "}
+            <span className="text-destructive">*</span>
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {[
+              { v: "yes", label: "Sim" },
+              { v: "maybe", label: "Talvez" },
+              { v: "no", label: "Não" },
+            ].map((o) => (
+              <Button
+                key={o.v}
+                size="sm"
+                variant={survey.nextEditionInterest === o.v ? "default" : "outline"}
+                onClick={() =>
+                  setSurvey((s) => ({
+                    ...s,
+                    nextEditionInterest: o.v as SurveyState["nextEditionInterest"],
+                  }))
+                }
+              >
+                {o.label}
+              </Button>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <p className="text-sm font-medium">4. Comentários (opcional)</p>
+          <textarea
+            className="mt-2 w-full rounded-md border bg-background p-2 text-sm"
+            rows={3}
+            maxLength={2000}
+            value={survey.comments}
+            onChange={(e) => setSurvey((s) => ({ ...s, comments: e.target.value }))}
+            placeholder="Sugestões, elogios, o que podemos melhorar…"
+          />
+        </div>
+      </Card>
+
       <div className="flex justify-end">
         <Button
-          disabled={meetings.length === 0 || submitMutation.isPending}
+          disabled={
+            submitMutation.isPending ||
+            (meetings.length > 0 && missingMeeting) ||
+            missingSurvey
+          }
           onClick={() => submitMutation.mutate()}
         >
           Enviar respostas
         </Button>
       </div>
+      {(missingMeeting || missingSurvey) && (
+        <p className="text-right text-xs text-muted-foreground">
+          {missingMeeting
+            ? "Responda todas as reuniões e a pesquisa para enviar."
+            : "Responda as 3 perguntas obrigatórias da pesquisa para enviar."}
+        </p>
+      )}
     </div>
   );
 }
