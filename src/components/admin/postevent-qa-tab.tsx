@@ -42,6 +42,12 @@ export function PostEventQATab() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState("");
   const [testEmail, setTestEmail] = useState("");
+  const [batchProgress, setBatchProgress] = useState<{
+    total: number;
+    done: number;
+    sent: number;
+    failed: number;
+  } | null>(null);
 
   const allRows = useMemo(() => data?.rows ?? [], [data]);
   const rows = useMemo(() => {
@@ -68,15 +74,41 @@ export function PostEventQATab() {
     else setSelected(new Set(rows.map((r) => r.profile_id)));
   };
 
+  const CHUNK_SIZE = 20;
   const sendMutation = useMutation({
-    mutationFn: async (profileIds: string[]) =>
-      sendFn({ data: { profileIds } }),
+    mutationFn: async (profileIds: string[]) => {
+      const chunks: string[][] = [];
+      for (let i = 0; i < profileIds.length; i += CHUNK_SIZE) {
+        chunks.push(profileIds.slice(i, i + CHUNK_SIZE));
+      }
+      let sent = 0;
+      let failed = 0;
+      let done = 0;
+      setBatchProgress({ total: profileIds.length, done: 0, sent: 0, failed: 0 });
+      for (const chunk of chunks) {
+        try {
+          const res = await sendFn({ data: { profileIds: chunk } });
+          sent += res.sent ?? 0;
+          failed += res.failed ?? 0;
+        } catch (e) {
+          failed += chunk.length;
+          console.error("[postevent-qa] chunk failed", e);
+        }
+        done += chunk.length;
+        setBatchProgress({ total: profileIds.length, done, sent, failed });
+      }
+      return { sent, failed };
+    },
     onSuccess: (res) => {
       toast.success(`Enviados: ${res.sent}. Falhas: ${res.failed ?? 0}.`);
       setSelected(new Set());
+      setBatchProgress(null);
       qc.invalidateQueries({ queryKey: ["postevent-qa-status"] });
     },
-    onError: (e: any) => toast.error(e?.message ?? "Falha ao enviar"),
+    onError: (e: any) => {
+      setBatchProgress(null);
+      toast.error(e?.message ?? "Falha ao enviar");
+    },
   });
 
   const testMutation = useMutation({
@@ -113,7 +145,10 @@ export function PostEventQATab() {
               disabled={selected.size === 0 || sendMutation.isPending}
               onClick={() => sendMutation.mutate(Array.from(selected))}
             >
-              <Send size={14} /> Enviar Q&amp;A ({selected.size})
+              <Send size={14} />
+              {sendMutation.isPending && batchProgress
+                ? `Enviando ${batchProgress.done}/${batchProgress.total}…`
+                : `Enviar Pesquisa (${selected.size})`}
             </Button>
           </div>
         </div>
