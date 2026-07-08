@@ -43,7 +43,10 @@ function AuthenticatedLayout() {
     if (buyerSuccessPending && pathname === "/onboarding") return;
 
     // Route gating by primary role
-    const adminStaffForbidden = ["/explore", "/agenda", "/table-agenda", "/dashboard", "/onboarding", "/pending-exhibitor"];
+    // /table-agenda stays accessible to admin/staff so they can operate the
+    // per-table meeting check-in flow (present/late/no_show) alongside
+    // exhibitors, not only in the Admin > Credenciamento panel.
+    const adminStaffForbidden = ["/explore", "/agenda", "/dashboard", "/onboarding", "/pending-exhibitor"];
     // Cliente has read-only access to /explore and /exhibitor/* — keep the rest blocked.
     const clienteForbidden = ["/agenda", "/table-agenda", "/dashboard", "/onboarding", "/pending-exhibitor"];
     if (primaryRole === "admin" || primaryRole === "staff" || primaryRole === "cliente") {

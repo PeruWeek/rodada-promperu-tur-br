@@ -33,6 +33,7 @@ import { generalCheckIn, listCheckinEligible } from "@/lib/checkin.functions";
 import { LiveOpsPanel } from "@/components/admin/checkin/live-ops-panel";
 import { FillinQueue } from "@/components/admin/checkin/fillin-queue";
 import { PostEventSummary } from "@/components/admin/checkin/postevent-summary";
+import { MeetingsOpsPanel } from "@/components/admin/checkin/meetings-ops-panel";
 import { listExhibitorRequests, reviewExhibitorRequest } from "@/lib/exhibitor-requests.functions";
 import { listBulkAgendas } from "@/lib/staff-exports.functions";
 import { buildConsolidatedAgendaPdf, downloadAgendaZip } from "@/lib/exports/bulk-agenda";
@@ -615,6 +616,7 @@ function CheckinTab() {
       <TabsList className="flex flex-wrap">
         <TabsTrigger value="arrivals">{t("admin.checkin.tabs.arrivals")}</TabsTrigger>
         <TabsTrigger value="live">{t("admin.checkin.tabs.live")}</TabsTrigger>
+        <TabsTrigger value="meetings">{t("admin.checkin.tabs.meetings")}</TabsTrigger>
         <TabsTrigger value="fillin">{t("admin.checkin.tabs.fillin")}</TabsTrigger>
         <TabsTrigger value="post">{t("admin.checkin.tabs.post")}</TabsTrigger>
       </TabsList>
@@ -623,6 +625,9 @@ function CheckinTab() {
       </TabsContent>
       <TabsContent value="live" className="mt-3">
         <LiveOpsPanel />
+      </TabsContent>
+      <TabsContent value="meetings" className="mt-3">
+        <MeetingsOpsPanel />
       </TabsContent>
       <TabsContent value="fillin" className="mt-3">
         <FillinQueue />

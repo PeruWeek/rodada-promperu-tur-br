@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
-import { Check, Download, Table2, User, X } from "lucide-react";
+import { Check, Clock, Download, Table2, User, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { formatSlotFull } from "@/components/booking-dialog";
@@ -33,7 +33,7 @@ function TableAgendaPage() {
   });
 
   const mut = useMutation({
-    mutationFn: async (v: { meetingId: string; status: "present" | "no_show" }) =>
+    mutationFn: async (v: { meetingId: string; status: "present" | "late" | "no_show" }) =>
       checkInFn({ data: { meetingId: v.meetingId, status: v.status } }),
     onSuccess: () => {
       toast.success(t("tableAgenda.checkinSaved"));
@@ -134,6 +134,14 @@ function TableAgendaPage() {
                       disabled={mut.isPending}
                     >
                       <X size={14} /> {t("tableAgenda.noShow")}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => mut.mutate({ meetingId: m.meeting_id, status: "late" })}
+                      disabled={mut.isPending}
+                    >
+                      <Clock size={14} /> {t("tableAgenda.late")}
                     </Button>
                     <Button
                       size="sm"
