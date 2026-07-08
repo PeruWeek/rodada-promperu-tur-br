@@ -1,0 +1,1 @@
+CREATE POLICY "email_logs recipient can view own" ON public.email_delivery_logs FOR SELECT TO authenticated USING (recipient_profile_id IN (SELECT id FROM public.profiles WHERE auth_user_id = auth.uid()));
