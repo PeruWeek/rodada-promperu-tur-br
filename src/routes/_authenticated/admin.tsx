@@ -54,6 +54,7 @@ import { DedupeRecoveryTab } from "@/components/admin/dedupe-recovery-tab";
 import { LostBookingsTab } from "@/components/admin/lost-bookings-tab";
 import { AgendaCampaignsTab } from "@/components/admin/agenda-campaigns-tab";
 import { PostEventQATab } from "@/components/admin/postevent-qa-tab";
+import { PostEventSurveyReportTab } from "@/components/admin/postevent-survey-report-tab";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -177,6 +178,7 @@ function AdminPage() {
             <TabsTrigger value="dedupeRecovery">Reacomodação</TabsTrigger>
             <TabsTrigger value="lostBookings">Histórico de perdas</TabsTrigger>
             <TabsTrigger value="posteventQa">Pesquisa do evento</TabsTrigger>
+            <TabsTrigger value="posteventSurveyReport">Relatório da Pesquisa do evento</TabsTrigger>
           </TabsList>
           <TabsContent value="dashboard" className="mt-4"><PipelineDashboard isAdmin /></TabsContent>
           <TabsContent value="tables" className="mt-4"><TablesTab /></TabsContent>
@@ -201,6 +203,7 @@ function AdminPage() {
           <TabsContent value="dedupeRecovery" className="mt-4"><DedupeRecoveryTab /></TabsContent>
             <TabsContent value="lostBookings" className="mt-4"><LostBookingsTab /></TabsContent>
           <TabsContent value="posteventQa" className="mt-4"><PostEventQATab /></TabsContent>
+          <TabsContent value="posteventSurveyReport" className="mt-4"><PostEventSurveyReportTab /></TabsContent>
         </Tabs>
       )}
     </div>
