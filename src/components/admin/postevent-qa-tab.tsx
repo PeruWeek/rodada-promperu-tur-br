@@ -40,6 +40,14 @@ type SendSummary = {
   failures: SendFailure[];
 };
 
+function describeChunkError(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error || "");
+  if (/load fail|timeout|timed out|network/i.test(message)) {
+    return "Este lote não respondeu a tempo. O envio continuou nos próximos lotes; tente reenviar apenas estes participantes depois.";
+  }
+  return message || "Falha inesperada no lote.";
+}
+
 function fmt(dt: string | null): string {
   if (!dt) return "—";
   return new Date(dt).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
@@ -119,7 +127,7 @@ export function PostEventQATab() {
           skipped += res.skipped ?? 0;
           failures.push(...((res.failures ?? []) as SendFailure[]));
         } catch (e) {
-          const reason = e instanceof Error ? e.message : "Falha inesperada no lote.";
+          const reason = describeChunkError(e);
           failed += chunk.length;
           failures.push(
             ...chunk.map((profileId) => {
