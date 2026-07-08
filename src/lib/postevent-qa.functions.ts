@@ -225,9 +225,9 @@ export const sendPostEventQATest = createServerFn({ method: "POST" })
       : { data: null as { id: string; name: string } | null };
 
     const { processTransactionalSend } = await import("@/lib/email-send.server");
-    // Non-functional preview URL: even if clicked, no token exists so no
-    // response can be recorded and no check-in is mutated.
-    const previewUrl = `${SITE_URL}/qa/preview-test-token`;
+    // Static, dedicated preview route (takes precedence over /qa/$token).
+    // Renders a mocked form; no server calls, no token validation, no writes.
+    const previewUrl = `${SITE_URL}/qa/preview`;
     const res = await processTransactionalSend(supabaseAdmin as any, {
       templateName: "postevent-qa",
       recipientEmail: data.testEmail,
