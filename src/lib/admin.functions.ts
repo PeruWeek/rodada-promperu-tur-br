@@ -147,12 +147,12 @@ export const createEventWithSetup = createServerFn({ method: "POST" })
     });
     if (rErr) throw new Error(`Evento criado, mas falhou ao gerar slots: ${rErr.message}`);
 
+    const actorProfileId = await getActorProfileId(context.userId);
     await supabaseAdmin.from("audit_logs").insert({
-      actor_user_id: context.userId,
+      actor_profile_id: actorProfileId,
       action: "admin.event_created",
-      entity_type: "event",
-      entity_id: eventId,
-      metadata: {
+      event_id: eventId,
+      payload: {
         name: data.name,
         event_date: data.eventDate,
         slot_minutes: data.slotMinutes,
