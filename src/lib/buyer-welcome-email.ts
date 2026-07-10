@@ -1,7 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
 
-const AGENDA_URL = "https://rodada.promperu.tur.br/agenda";
-
 type EnsureOpts = {
   userId: string;
   email: string;
@@ -26,6 +24,12 @@ export async function ensureBuyerWelcomeEmail(opts: EnsureOpts): Promise<void> {
     const accessToken = sess.session?.access_token;
     if (!accessToken) return;
     const firstName = (opts.fullName ?? "").trim().split(/\s+/)[0] ?? "";
+    // Same-origin canonical URL — the server pipeline also injects the
+    // white-label `siteUrl` default, but we pass a concrete `agendaUrl` so
+    // the template renders the correct absolute link even when the site
+    // is served under a preview host.
+    const origin =
+      typeof window !== "undefined" ? window.location.origin : "";
     const res = await fetch("/lovable/email/transactional/send", {
       method: "POST",
       headers: {
@@ -38,7 +42,7 @@ export async function ensureBuyerWelcomeEmail(opts: EnsureOpts): Promise<void> {
         idempotencyKey: `buyer-welcome-${opts.userId}`,
         templateData: {
           visitorName: firstName,
-          agendaUrl: AGENDA_URL,
+          agendaUrl: `${origin}/agenda`,
         },
       }),
     });
