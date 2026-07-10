@@ -11,7 +11,6 @@ import {
   getPostEventQAContext,
   submitPostEventQA,
 } from "@/lib/postevent-qa.functions";
-import { useSiteContext } from "@/lib/site-context";
 
 export const Route = createFileRoute("/qa/$token")({
   head: () => ({
