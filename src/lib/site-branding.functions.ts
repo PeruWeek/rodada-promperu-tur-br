@@ -279,6 +279,13 @@ export const deleteAdminSiteConfig = createServerFn({ method: "POST" })
       .maybeSingle();
     if (!row) throw new Error("Site não encontrado.");
     if (row.is_default) throw new Error("Não é possível excluir o site padrão. Defina outro site como padrão antes.");
+    const { count, error: countErr } = await supabaseAdmin
+      .from("site_configs")
+      .select("id", { count: "exact", head: true });
+    if (countErr) throw new Error(countErr.message);
+    if ((count ?? 0) <= 1) {
+      throw new Error("Não é possível excluir o único site existente. Crie outro site antes.");
+    }
     const { error } = await supabaseAdmin.from("site_configs").delete().eq("id", data.id);
     if (error) throw new Error(error.message);
     return { ok: true };
