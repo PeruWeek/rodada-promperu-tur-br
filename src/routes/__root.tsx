@@ -115,7 +115,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       meta.push({ property: "og:image:height", content: "630" });
       meta.push({ name: "twitter:image", content: site.ogImageUrl });
     }
-    const links = [
+    const links: Array<React.LinkHTMLAttributes<HTMLLinkElement>> = [
       { rel: "stylesheet", href: appCss },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
