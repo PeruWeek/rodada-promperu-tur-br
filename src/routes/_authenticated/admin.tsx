@@ -670,15 +670,18 @@ function CheckinTab() {
 function ArrivalsPanel() {
   const { t, i18n } = useTranslation();
   const qc = useQueryClient();
+  const { eventId: adminEventId } = useAdminEvent();
   const [q, setQ] = useState("");
   const checkInFn = useServerFn(generalCheckIn);
   const listEligibleFn = useServerFn(listCheckinEligible);
 
   const { data, isLoading } = useQuery({
-    queryKey: ["admin-checkin", q],
+    queryKey: ["admin-checkin", q, adminEventId],
     queryFn: async () => {
-      const { data: event } = await supabase
-        .from("events").select("id, name").order("created_at", { ascending: false }).limit(1).maybeSingle();
+      const eventQuery = adminEventId
+        ? supabase.from("events").select("id, name").eq("id", adminEventId).maybeSingle()
+        : supabase.from("events").select("id, name").order("event_date", { ascending: false, nullsFirst: false }).limit(1).maybeSingle();
+      const { data: event } = await eventQuery;
       if (!event) return { event: null, profiles: [], checks: new Map<string, { at: string; byName: string | null }>() };
       const [{ profiles: profs }, { data: checks }] = await Promise.all([
         listEligibleFn({ data: { eventId: event.id, q } }),
