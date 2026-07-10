@@ -78,6 +78,91 @@ export const assignExhibitorToTable = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+// ============================================================
+// Create a new event from the Admin UI (no manual SQL).
+// Persists in `events`, optionally seeds `event_tables`, and calls the
+// canonical `rebuild_event_time_slots` RPC so the event is operational
+// as soon as it is saved.
+// ============================================================
+const timeString = z
+  .string()
+  .regex(/^\d{2}:\d{2}(:\d{2})?$/, "Formato HH:MM")
+  .transform((v) => (v.length === 5 ? `${v}:00` : v));
+
+export const createEventWithSetup = createServerFn({ method: "POST" })
+  .inputValidator((input) =>
+    z
+      .object({
+        name: z.string().trim().min(2),
+        eventDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        meetingsStart: timeString,
+        meetingsEnd: timeString,
+        lunchStart: timeString.optional().nullable(),
+        lunchEnd: timeString.optional().nullable(),
+        meetings2Start: timeString.optional().nullable(),
+        meetings2End: timeString.optional().nullable(),
+        slotMinutes: z.number().int().min(5).max(120),
+        tablesCount: z.number().int().min(0).max(500),
+        languageDefault: z.enum(["pt-BR", "es"]).default("pt-BR"),
+      })
+      .parse(input),
+  )
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    await assertAdminStrict(context.userId);
+
+    const { data: created, error } = await supabaseAdmin
+      .from("events")
+      .insert({
+        name: data.name,
+        event_date: data.eventDate,
+        meetings_start: data.meetingsStart,
+        meetings_end: data.meetingsEnd,
+        lunch_start: data.lunchStart ?? null,
+        lunch_end: data.lunchEnd ?? null,
+        meetings2_start: data.meetings2Start ?? null,
+        meetings2_end: data.meetings2End ?? null,
+        slot_minutes: data.slotMinutes,
+        tables_count: data.tablesCount,
+        language_default: data.languageDefault,
+      })
+      .select("id")
+      .single();
+    if (error || !created) throw new Error(error?.message ?? "Falha ao criar evento");
+
+    const eventId = created.id;
+
+    if (data.tablesCount > 0) {
+      const rows = Array.from({ length: data.tablesCount }, (_, i) => ({
+        event_id: eventId,
+        table_number: i + 1,
+      }));
+      const { error: tErr } = await supabaseAdmin.from("event_tables").insert(rows);
+      if (tErr) throw new Error(`Evento criado, mas falhou ao criar mesas: ${tErr.message}`);
+    }
+
+    const { error: rErr } = await supabaseAdmin.rpc("rebuild_event_time_slots", {
+      p_event_id: eventId,
+      p_deactivate_previous: true,
+    });
+    if (rErr) throw new Error(`Evento criado, mas falhou ao gerar slots: ${rErr.message}`);
+
+    await supabaseAdmin.from("audit_logs").insert({
+      actor_user_id: context.userId,
+      action: "admin.event_created",
+      entity_type: "event",
+      entity_id: eventId,
+      metadata: {
+        name: data.name,
+        event_date: data.eventDate,
+        slot_minutes: data.slotMinutes,
+        tables_count: data.tablesCount,
+      } as JsonObject,
+    });
+
+    return { ok: true, eventId };
+  });
+
 export const setUserRole = createServerFn({ method: "POST" })
   .inputValidator((input) =>
     z
