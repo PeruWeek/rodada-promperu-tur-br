@@ -4,8 +4,7 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { applyMeetingCheckIn } from "@/lib/checkin.functions";
-
-const SITE_URL = "https://rodada.promperu.tur.br";
+import { resolveSiteContext, siteUrl as buildSiteUrlServer } from "@/lib/site-context.server";
 
 async function isAdminOrStaff(userId: string) {
   const { data } = await supabaseAdmin
