@@ -7,15 +7,9 @@ import { Button } from "@/components/ui/button";
 import { useSignupOpen } from "@/hooks/use-signup-open";
 
 export const Route = createFileRoute("/")({
-  head: () => ({
-    meta: [
-      { title: "PERU MICE Networking Evento — Matchmaking MICE Peru × Brasil" },
-      {
-        name: "description",
-        content: "Plataforma oficial de matchmaking e agendamento da PERU MICE Networking Evento — Peru × Brasil.",
-      },
-    ],
-  }),
+  // Head content comes from the white-label __root loader (site_configs).
+  // Leaving this empty means the root title/description apply — which is
+  // exactly the site-branded copy for the landing page.
   component: LandingPage,
 });
 
