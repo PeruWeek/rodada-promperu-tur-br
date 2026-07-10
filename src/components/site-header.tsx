@@ -12,9 +12,11 @@ import { useSignupOpen } from "@/hooks/use-signup-open";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import promperuLogo from "@/assets/promperu-logo.png";
+import { useSiteContext } from "@/lib/site-context";
 
 export function SiteHeader() {
   const { t } = useTranslation();
+  const site = useSiteContext();
   const { user, loading } = useAuth();
   const { data: profile, isLoading: profileLoading } = useProfile();
   const navigate = useNavigate();
@@ -77,8 +79,12 @@ export function SiteHeader() {
     <header className="sticky top-0 z-40 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4">
         <Link to="/" className="flex items-center gap-2 font-bold text-foreground">
-          <img src={promperuLogo} alt="PromPerú" className="h-8 w-8 rounded-sm object-contain" />
-          <span className="text-sm sm:text-base">{t("common.appName")}</span>
+          <img
+            src={site.logoUrl || promperuLogo}
+            alt={site.name}
+            className="h-8 w-8 rounded-sm object-contain"
+          />
+          <span className="text-sm sm:text-base">{site.name || t("common.appName")}</span>
         </Link>
 
         <nav className="hidden md:flex items-center gap-1">
