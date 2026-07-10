@@ -131,7 +131,8 @@ export const sendPostEventQA = createServerFn({ method: "POST" })
         .map((b) => b.toString(16).padStart(2, "0"))
         .join("");
     };
-    const siteUrl = "https://rodada.promperu.tur.br";
+    const site = await resolveSiteContext();
+    const siteBaseUrl = site.siteUrl || "";
     const describeSendFailure = (res: { status: number; body?: unknown }) => {
       const body = (res.body ?? {}) as Record<string, unknown>;
       if (body.reason === "email_suppressed") {
@@ -315,7 +316,8 @@ export const sendPostEventQATest = createServerFn({ method: "POST" })
     const { processTransactionalSend } = await import("@/lib/email-send.server");
     // Static, dedicated preview route (takes precedence over /qa/$token).
     // Renders a mocked form; no server calls, no token validation, no writes.
-    const previewUrl = `${SITE_URL}/qa/preview`;
+    const previewUrl = await buildSiteUrlServer("/qa/preview");
+    const site = await resolveSiteContext();
     const res = await processTransactionalSend(supabaseAdmin as any, {
       templateName: "postevent-qa",
       recipientEmail: data.testEmail,
@@ -323,7 +325,7 @@ export const sendPostEventQATest = createServerFn({ method: "POST" })
       templateData: {
         language: "pt-BR",
         visitorName: "(teste)",
-        eventName: evt?.name ?? "Rodada de Negócios PromPerú",
+        eventName: evt?.name ?? site.eventDisplayName ?? site.name,
         qaUrl: previewUrl,
       },
     });
