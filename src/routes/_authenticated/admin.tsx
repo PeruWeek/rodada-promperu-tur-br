@@ -201,6 +201,7 @@ function AdminPage() {
             <TabsTrigger value="posteventQa">Pesquisa do evento</TabsTrigger>
             <TabsTrigger value="posteventSurveyReport">Relatório da Pesquisa do evento</TabsTrigger>
             <TabsTrigger value="branding">Configuração do site</TabsTrigger>
+            <TabsTrigger value="sites">Sites & URLs</TabsTrigger>
           </TabsList>
           <TabsContent value="dashboard" className="mt-4"><PipelineDashboard isAdmin /></TabsContent>
           <TabsContent value="tables" className="mt-4"><TablesTab /></TabsContent>
@@ -227,6 +228,7 @@ function AdminPage() {
           <TabsContent value="posteventQa" className="mt-4"><PostEventQATab /></TabsContent>
           <TabsContent value="posteventSurveyReport" className="mt-4"><PostEventSurveyReportTab /></TabsContent>
           <TabsContent value="branding" className="mt-4"><BrandingTab /></TabsContent>
+          <TabsContent value="sites" className="mt-4"><SitesTab /></TabsContent>
         </Tabs>
       )}
     </div>
