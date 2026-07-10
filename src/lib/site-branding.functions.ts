@@ -29,7 +29,7 @@ export const listAdminSiteConfigs = createServerFn({ method: "GET" })
     await assertAdmin(context.userId);
     const { data, error } = await supabaseAdmin
       .from("site_configs")
-      .select("id, slug, name, hostname, is_default")
+      .select("id, slug, name, hostname, alt_hostnames, site_url, is_default, active_event_id")
       .order("is_default", { ascending: false })
       .order("name");
     if (error) throw new Error(error.message);
