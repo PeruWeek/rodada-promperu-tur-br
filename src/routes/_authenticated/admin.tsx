@@ -345,16 +345,23 @@ function TablesTab({ readOnly = false }: { readOnly?: boolean } = {}) {
   const updateTblFn = useServerFn(updateEventTable);
   const deleteFn = useServerFn(deleteEventTable);
   const bulkFn = useServerFn(listBulkAgendas);
+  const { eventId: adminEventId } = useAdminEvent();
   const [renumberId, setRenumberId] = useState<string | null>(null);
   const [renumberValue, setRenumberValue] = useState<string>("");
   const [deleteId, setDeleteId] = useState<{ id: string; n: number } | null>(null);
   const [bulkLoading, setBulkLoading] = useState<null | "pdf" | "zip">(null);
 
   const { data, isLoading } = useQuery({
-    queryKey: ["admin-tables"],
+    queryKey: ["admin-tables", adminEventId],
     queryFn: async () => {
+      // Event is resolved from the global Admin selector; the previous
+      // `order(created_at).limit(1)` implicit "last event" was removed
+      // to support white-label multi-event operation.
+      const eventQuery = adminEventId
+        ? supabase.from("events").select("id, name").eq("id", adminEventId).maybeSingle()
+        : supabase.from("events").select("id, name").order("event_date", { ascending: false, nullsFirst: false }).limit(1).maybeSingle();
       const [{ data: event }, { data: tables }, { data: exhProfiles }] = await Promise.all([
-        supabase.from("events").select("id, name").order("created_at").limit(1).maybeSingle(),
+        eventQuery,
         supabase.from("event_tables").select("id, table_number, exhibitor_profile_id, event_id").order("table_number"),
         supabase
           .from("exhibitor_profiles")
