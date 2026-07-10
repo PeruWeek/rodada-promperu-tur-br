@@ -11,6 +11,7 @@ import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import type { Database } from "@/integrations/supabase/types";
 import { isSafeCssColor } from "@/lib/site-theme";
 
 async function assertAdmin(userId: string) {
@@ -76,7 +77,7 @@ export const updateAdminSiteConfig = createServerFn({ method: "POST" })
     await assertAdmin(context.userId);
     const { id, theme_tokens, content_overrides, ...rest } = data;
 
-    const patch: Record<string, unknown> = { ...rest };
+    const patch: Database["public"]["Tables"]["site_configs"]["Update"] = { ...rest };
 
     if (theme_tokens) {
       const clean: Record<string, string> = {};
