@@ -1705,6 +1705,7 @@ export type Database = {
         Row: {
           active_event_id: string | null
           alt_hostnames: string[]
+          content_overrides: Json
           created_at: string
           email_from_address: string | null
           email_from_name: string | null
@@ -1725,11 +1726,13 @@ export type Database = {
           site_url: string
           slug: string
           tagline: string | null
+          theme_tokens: Json
           updated_at: string
         }
         Insert: {
           active_event_id?: string | null
           alt_hostnames?: string[]
+          content_overrides?: Json
           created_at?: string
           email_from_address?: string | null
           email_from_name?: string | null
@@ -1750,11 +1753,13 @@ export type Database = {
           site_url: string
           slug: string
           tagline?: string | null
+          theme_tokens?: Json
           updated_at?: string
         }
         Update: {
           active_event_id?: string | null
           alt_hostnames?: string[]
+          content_overrides?: Json
           created_at?: string
           email_from_address?: string | null
           email_from_name?: string | null
@@ -1775,6 +1780,7 @@ export type Database = {
           site_url?: string
           slug?: string
           tagline?: string | null
+          theme_tokens?: Json
           updated_at?: string
         }
         Relationships: [
