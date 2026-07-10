@@ -5,6 +5,7 @@ import { ArrowRight, Calendar, FileText, Users2, Briefcase, Clock, MapPin } from
 import { SiteHeader } from "@/components/site-header";
 import { Button } from "@/components/ui/button";
 import { useSignupOpen } from "@/hooks/use-signup-open";
+import { useSiteContext } from "@/lib/site-context";
 
 export const Route = createFileRoute("/")({
   // Head content comes from the white-label __root loader (site_configs).
@@ -16,6 +17,7 @@ export const Route = createFileRoute("/")({
 function LandingPage() {
   const { t } = useTranslation();
   const { enabled: signupOpen } = useSignupOpen();
+  const site = useSiteContext();
 
   const steps = [
     { icon: Users2, title: t("landing.step1Title"), body: t("landing.step1Body") },
