@@ -45,7 +45,7 @@ function paragraphs(raw: string): string[] {
 
 const AgendaDeliveryEmail = ({
   visitorName,
-  eventName = "Rodada de Negócios PromPerú",
+  eventName = "",
   bodyText = "",
   buttonLabel = "Baixar minha agenda",
   buttonUrl = "#",
@@ -95,10 +95,10 @@ export const template = {
   displayName: "Entrega de agenda (campanha admin)",
   previewData: {
     visitorName: "Maria",
-    eventName: "Rodada de Negócios PromPerú",
+    eventName: "Networking Event",
     bodyText:
       "Sua agenda pessoal está pronta.\n\nClique no botão abaixo para baixar o PDF com todos os seus horários confirmados.",
     buttonLabel: "Baixar minha agenda",
-    buttonUrl: "https://rodada.promperu.tur.br/api/public/agenda-download/xxx/yyy",
+    buttonUrl: "https://example.com/api/public/agenda-download/xxx/yyy",
   },
 } satisfies TemplateEntry;

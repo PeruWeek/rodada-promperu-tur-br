@@ -52,7 +52,7 @@ const MeetingCancelledEmail = ({
   tableNumber = "—",
   slotStart,
   slotEnd,
-  exploreUrl = "https://rodada.promperu.tur.br/explore",
+  exploreUrl = "#",
   overrides,
 }: Props) => {
   const lang = language === "es" ? "es" : "pt-BR";
@@ -116,6 +116,6 @@ export const template = {
     tableNumber: 12,
     slotStart: "2026-07-08T13:00:00Z",
     slotEnd: "2026-07-08T13:15:00Z",
-    exploreUrl: "https://rodada.promperu.tur.br/explore",
+    exploreUrl: "https://example.com/explore",
   },
 } satisfies TemplateEntry;

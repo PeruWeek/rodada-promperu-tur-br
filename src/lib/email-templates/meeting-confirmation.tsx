@@ -52,7 +52,7 @@ const MeetingConfirmationEmail = ({
   tableNumber = "—",
   slotStart,
   slotEnd,
-  agendaUrl = "https://rodada.promperu.tur.br/agenda",
+  agendaUrl = "#",
   overrides,
 }: Props) => {
   const lang = language === "es" ? "es" : "pt-BR";
@@ -116,6 +116,6 @@ export const template = {
     tableNumber: 12,
     slotStart: "2026-07-08T13:00:00Z",
     slotEnd: "2026-07-08T13:15:00Z",
-    agendaUrl: "https://rodada.promperu.tur.br/agenda",
+    agendaUrl: "https://example.com/agenda",
   },
 } satisfies TemplateEntry;

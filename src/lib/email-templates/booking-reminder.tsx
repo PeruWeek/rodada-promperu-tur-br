@@ -58,8 +58,8 @@ interface Props {
 const BookingReminderEmail = ({
   language = "pt-BR",
   visitorName,
-  agendaUrl = "https://rodada.promperu.tur.br/agenda",
-  forgotPasswordUrl = "https://rodada.promperu.tur.br/forgot-password",
+  agendaUrl = "#",
+  forgotPasswordUrl = "#",
   overrides,
 }: Props) => {
   const lang = language === "es" ? "es" : "pt-BR";
@@ -147,7 +147,7 @@ export const template = {
   previewData: {
     language: "pt-BR",
     visitorName: "Maria",
-    agendaUrl: "https://rodada.promperu.tur.br/agenda",
-    forgotPasswordUrl: "https://rodada.promperu.tur.br/forgot-password",
+    agendaUrl: "https://example.com/agenda",
+    forgotPasswordUrl: "https://example.com/forgot-password",
   },
 } satisfies TemplateEntry;
