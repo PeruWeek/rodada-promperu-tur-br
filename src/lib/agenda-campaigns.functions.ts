@@ -130,7 +130,8 @@ export const sendTestAgendaCampaign = createServerFn({ method: "POST" })
     // link is not registered anywhere — pure preview to the admin's test
     // address. The admin should still be able to click the download button
     // on a REAL campaign afterwards.
-    const origin = getOrigin();
+    const origin = await getOrigin();
+    const site = await resolveSiteContext();
     const buttonUrl = `${origin}/agenda`;
 
     const idempotencyKey = `agenda-test-${context.userId}-${Date.now()}`;
@@ -140,7 +141,7 @@ export const sendTestAgendaCampaign = createServerFn({ method: "POST" })
       idempotencyKey,
       templateData: {
         visitorName: sample.fullName,
-        eventName: "Rodada de Negócios PromPerú",
+        eventName: site.eventDisplayName ?? site.name,
         bodyText: data.body_md,
         buttonLabel: data.buttonLabel,
         buttonUrl,
@@ -210,7 +211,8 @@ export const createAndSendAgendaCampaign = createServerFn({ method: "POST" })
       }
     }
 
-    const origin = getOrigin();
+    const origin = await getOrigin();
+    const site = await resolveSiteContext();
     let sentCount = 0;
     let failedCount = 0;
     let suppressedCount = 0;
@@ -276,7 +278,7 @@ export const createAndSendAgendaCampaign = createServerFn({ method: "POST" })
         idempotencyKey,
         templateData: {
           visitorName: rec.fullName,
-          eventName: "Rodada de Negócios PromPerú",
+          eventName: site.eventDisplayName ?? site.name,
           bodyText: data.body_md,
           buttonLabel: data.buttonLabel,
           buttonUrl,
