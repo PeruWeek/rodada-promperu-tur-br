@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { useSiteContext } from "@/lib/site-context";
 
 type FailureReason =
   | "missing_token"
@@ -17,8 +18,6 @@ type State =
   | { kind: "already"; emailMasked: string }
   | { kind: "done"; emailMasked: string }
   | { kind: "failure"; reason: FailureReason };
-
-const SUPPORT_EMAIL = "rodada@promperu.tur.br";
 
 const FAILURE_COPY: Record<
   FailureReason,
@@ -88,6 +87,10 @@ export const Route = createFileRoute("/unsubscribe")({
 
 function UnsubscribePage() {
   const { token } = Route.useSearch();
+  const site = useSiteContext();
+  const siteName = site.eventDisplayName || site.name;
+  const SUPPORT_EMAIL =
+    site.emailReplyTo || site.emailFromAddress || "";
   const [state, setState] = useState<State>({ kind: "loading" });
   const [submitting, setSubmitting] = useState(false);
 
@@ -159,7 +162,7 @@ function UnsubscribePage() {
   const supportHref = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(
     "Cancelar inscrição da lista de e-mails",
   )}&body=${encodeURIComponent(
-    "Olá, gostaria de cancelar minha inscrição da lista de e-mails da Rodada de Negócios PromPerú. Meu e-mail cadastrado é: ",
+    `Olá, gostaria de cancelar minha inscrição da lista de e-mails de ${siteName}. Meu e-mail cadastrado é: `,
   )}`;
 
   return (
@@ -176,7 +179,7 @@ function UnsubscribePage() {
           {state.kind === "valid" && (
             <div className="space-y-4 text-center">
               <p>
-                Deseja parar de receber e-mails da Rodada de Negócios PromPerú
+                Deseja parar de receber e-mails de {siteName}
                 {state.emailMasked ? (
                   <>
                     {" "}no endereço{" "}
@@ -218,7 +221,7 @@ function UnsubscribePage() {
                 ) : (
                   "informado"
                 )}{" "}
-                não receberá mais e-mails da Rodada de Negócios PromPerú.
+                não receberá mais e-mails de {siteName}.
               </p>
             </div>
           )}
@@ -237,7 +240,7 @@ function UnsubscribePage() {
                 ) : (
                   "seu endereço"
                 )}{" "}
-                da lista de e-mails da Rodada de Negócios PromPerú. Você não
+                da lista de e-mails de {siteName}. Você não
                 receberá mais comunicações desta lista.
               </p>
             </div>
