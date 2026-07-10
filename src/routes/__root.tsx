@@ -4,6 +4,7 @@ import {
   Link,
   createRootRouteWithContext,
   useRouter,
+  useRouteContext,
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
@@ -11,13 +12,14 @@ import { useEffect, type ReactNode, type LinkHTMLAttributes } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
-import "@/lib/i18n";
+import i18n from "@/lib/i18n";
 import { supabase } from "@/integrations/supabase/client";
 import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
 import { consumeAuthHashError } from "@/lib/auth-hash-error";
 import { getSiteContext } from "@/lib/site-context.functions";
 import { FALLBACK_SITE_CONTEXT, type SiteContext } from "@/lib/site-context";
+import { applyContentOverrides, buildThemeCss } from "@/lib/site-theme";
 
 function NotFoundComponent() {
   return (
@@ -134,10 +136,17 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 });
 
 function RootShell({ children }: { children: ReactNode }) {
+  const ctx = useRouteContext({ from: "__root__" }) as { site?: SiteContext };
+  const themeCss = buildThemeCss(ctx.site?.themeTokens);
   return (
     <html lang="en">
       <head>
         <HeadContent />
+        {themeCss ? (
+          // White-label palette override. Rendered here (not in head()) so
+          // it ships with SSR and applies before first paint — no FOUC.
+          <style dangerouslySetInnerHTML={{ __html: themeCss }} />
+        ) : null}
       </head>
       <body>
         {children}
@@ -163,7 +172,14 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  const { site } = Route.useRouteContext() as { site?: SiteContext; queryClient: QueryClient };
   const router = useRouter();
+
+  // Apply per-site copy overrides on top of the bundled i18n bundles.
+  // Reapplied whenever the site context changes (admin edits, host swap).
+  useEffect(() => {
+    applyContentOverrides(i18n, site?.contentOverrides);
+  }, [site?.contentOverrides]);
 
   useEffect(() => {
     let lastUserId: string | null | undefined;

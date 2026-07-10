@@ -55,6 +55,7 @@ import { LostBookingsTab } from "@/components/admin/lost-bookings-tab";
 import { AgendaCampaignsTab } from "@/components/admin/agenda-campaigns-tab";
 import { PostEventQATab } from "@/components/admin/postevent-qa-tab";
 import { PostEventSurveyReportTab } from "@/components/admin/postevent-survey-report-tab";
+import { BrandingTab } from "@/components/admin/branding-tab";
 import { AdminEventProvider, useAdminEvent } from "@/hooks/use-admin-event";
 import { AdminEventSelector } from "@/components/admin/admin-event-selector";
 import { NewEventDialog } from "@/components/admin/new-event-dialog";
@@ -198,6 +199,7 @@ function AdminPage() {
             <TabsTrigger value="lostBookings">Histórico de perdas</TabsTrigger>
             <TabsTrigger value="posteventQa">Pesquisa do evento</TabsTrigger>
             <TabsTrigger value="posteventSurveyReport">Relatório da Pesquisa do evento</TabsTrigger>
+            <TabsTrigger value="branding">Configuração do site</TabsTrigger>
           </TabsList>
           <TabsContent value="dashboard" className="mt-4"><PipelineDashboard isAdmin /></TabsContent>
           <TabsContent value="tables" className="mt-4"><TablesTab /></TabsContent>
@@ -223,6 +225,7 @@ function AdminPage() {
             <TabsContent value="lostBookings" className="mt-4"><LostBookingsTab /></TabsContent>
           <TabsContent value="posteventQa" className="mt-4"><PostEventQATab /></TabsContent>
           <TabsContent value="posteventSurveyReport" className="mt-4"><PostEventSurveyReportTab /></TabsContent>
+          <TabsContent value="branding" className="mt-4"><BrandingTab /></TabsContent>
         </Tabs>
       )}
     </div>
