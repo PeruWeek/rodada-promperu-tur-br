@@ -10,14 +10,17 @@ import { MagicLinkEmail } from '@/lib/email-templates/magic-link'
 import { RecoveryEmail } from '@/lib/email-templates/recovery'
 import { EmailChangeEmail } from '@/lib/email-templates/email-change'
 import { ReauthenticationEmail } from '@/lib/email-templates/reauthentication'
+import { resolveSiteContext } from '@/lib/site-context.server'
 
-const EMAIL_SUBJECTS: Record<string, string> = {
-  signup: 'Confirme seu e-mail',
-  invite: 'Você foi convidado para a Rodada de Negócios Promperu 2026',
-  magiclink: 'Seu link de acesso',
-  recovery: 'Redefinir senha',
-  email_change: 'Confirme seu novo e-mail',
-  reauthentication: 'Seu código de verificação',
+function buildEmailSubjects(siteName: string): Record<string, string> {
+  return {
+    signup: 'Confirme seu e-mail',
+    invite: `Você foi convidado para ${siteName}`,
+    magiclink: 'Seu link de acesso',
+    recovery: 'Redefinir senha',
+    email_change: 'Confirme seu novo e-mail',
+    reauthentication: 'Seu código de verificação',
+  }
 }
 
 // Template mapping
@@ -29,12 +32,6 @@ const EMAIL_TEMPLATES: Record<string, React.ComponentType<any>> = {
   email_change: EmailChangeEmail,
   reauthentication: ReauthenticationEmail,
 }
-
-// Configuration
-const SITE_NAME = "Rodada de Negócios Peru Mice Experience 2026"
-const SENDER_DOMAIN = "rsvp.promperu.tur.br"
-const ROOT_DOMAIN = "promperu.tur.br"
-const FROM_ADDRESS = "rodada@promperu.tur.br"
 
 function redactEmail(email: string | null | undefined): string {
   if (!email) return '***'
@@ -131,16 +128,30 @@ export const Route = createFileRoute("/lovable/email/auth/webhook")({
           )
         }
 
+        // Resolve the active site (per Host header, env slug or default).
+        const site = await resolveSiteContext()
+        const siteName = site.name
+        const siteUrl = site.siteUrl || `https://${site.hostname}`
+        const fromAddress = site.emailFromAddress
+        if (!fromAddress) {
+          console.error('Site missing emailFromAddress', { slug: site.slug })
+          return Response.json({ error: 'Site email not configured' }, { status: 500 })
+        }
+        // Derive the delegated sender subdomain from the from address.
+        const senderDomain = fromAddress.split('@')[1] || site.hostname
+
         // Build template props from payload.data (HookData structure)
         const templateProps = {
-          siteName: SITE_NAME,
-          siteUrl: `https://${ROOT_DOMAIN}`,
+          siteName,
+          siteUrl,
           recipient: payload.data.email,
           confirmationUrl: payload.data.url,
           token: payload.data.token,
           email: payload.data.email,
           oldEmail: payload.data.old_email,
           newEmail: payload.data.new_email,
+          loginUrl: `${siteUrl.replace(/\/+$/, '')}/login`,
+          eventName: site.eventDisplayName || siteName,
         }
 
         // Render React Email to HTML and plain text
@@ -177,9 +188,9 @@ export const Route = createFileRoute("/lovable/email/auth/webhook")({
             run_id,
             message_id: messageId,
             to: payload.data.email,
-            from: `${SITE_NAME} <${FROM_ADDRESS}>`,
-            sender_domain: SENDER_DOMAIN,
-            subject: EMAIL_SUBJECTS[emailType] || 'Notification',
+            from: `${site.emailFromName || siteName} <${fromAddress}>`,
+            sender_domain: senderDomain,
+            subject: buildEmailSubjects(siteName)[emailType] || 'Notification',
             html,
             text,
             purpose: 'transactional',
