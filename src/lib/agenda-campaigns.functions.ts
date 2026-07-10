@@ -8,6 +8,7 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { assertAdminRole } from "@/lib/role-server";
 import { processTransactionalSend } from "@/lib/email-send.server";
 import { listEligibleRecipients } from "@/lib/agenda-campaigns.server";
+import { resolveSiteContext } from "@/lib/site-context.server";
 
 const CategorySchema = z.enum(["visitor", "exhibitor"]);
 
@@ -53,14 +54,15 @@ async function resolveAdminProfileId(userId: string): Promise<string | null> {
   return (data?.id as string | undefined) ?? null;
 }
 
-function getOrigin(): string {
-  const req = getRequest();
-  if (!req) return "https://rodada.promperu.tur.br";
+async function getOrigin(): Promise<string> {
   try {
-    return new URL(req.url).origin;
+    const req = getRequest();
+    if (req) return new URL(req.url).origin;
   } catch {
-    return "https://rodada.promperu.tur.br";
+    /* fall through */
   }
+  const site = await resolveSiteContext();
+  return site.siteUrl || "";
 }
 
 /* -------------------------------------------------------------------------- */
