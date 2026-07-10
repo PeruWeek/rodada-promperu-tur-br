@@ -56,6 +56,7 @@ import { AgendaCampaignsTab } from "@/components/admin/agenda-campaigns-tab";
 import { PostEventQATab } from "@/components/admin/postevent-qa-tab";
 import { PostEventSurveyReportTab } from "@/components/admin/postevent-survey-report-tab";
 import { BrandingTab } from "@/components/admin/branding-tab";
+import { SitesTab } from "@/components/admin/sites-tab";
 import { AdminEventProvider, useAdminEvent } from "@/hooks/use-admin-event";
 import { AdminEventSelector } from "@/components/admin/admin-event-selector";
 import { NewEventDialog } from "@/components/admin/new-event-dialog";
