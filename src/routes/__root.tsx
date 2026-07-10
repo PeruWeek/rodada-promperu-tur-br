@@ -16,6 +16,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
 import { consumeAuthHashError } from "@/lib/auth-hash-error";
+import { getSiteContext } from "@/lib/site-context.functions";
+import { FALLBACK_SITE_CONTEXT, type SiteContext } from "@/lib/site-context";
 
 function NotFoundComponent() {
   return (
@@ -78,37 +80,53 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
 }
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
-  head: () => ({
-    meta: [
+  // Resolve the white-label site once per request and expose it to every
+  // route via router context. `head()` reads from context so branding, SEO
+  // meta, OG image and favicon come from `site_configs` instead of hardcoded
+  // PromPerú values.
+  beforeLoad: async (): Promise<{ site: SiteContext }> => {
+    try {
+      const site = await getSiteContext({ data: {} });
+      return { site };
+    } catch {
+      return { site: FALLBACK_SITE_CONTEXT };
+    }
+  },
+  head: (ctx) => {
+    const site = (ctx.match.context as { site?: SiteContext } | undefined)?.site ?? FALLBACK_SITE_CONTEXT;
+    const title = site.tagline ? `${site.name} — ${site.tagline}` : site.name;
+    const description = site.metaDescription ?? "";
+    const meta = [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "PERU MICE Networking Evento — Peru × Brasil" },
-      { name: "description", content: "Plataforma oficial de matchmaking e agendamento da PERU MICE Networking Evento — Peru × Brasil. 08 de julho de 2026." },
-      { name: "author", content: "PromPerú" },
-      { property: "og:title", content: "PERU MICE Networking Evento — Peru × Brasil" },
-      { property: "og:description", content: "Plataforma oficial de matchmaking e agendamento da PERU MICE Networking Evento — Peru × Brasil. 08 de julho de 2026." },
+      { title },
+      { name: "description", content: description },
+      { property: "og:title", content: title },
+      { property: "og:description", content: description },
       { property: "og:type", content: "website" },
-      { name: "twitter:title", content: "PERU MICE Networking Evento — Peru × Brasil" },
-      { name: "twitter:description", content: "Plataforma oficial de matchmaking e agendamento da PERU MICE Networking Evento — Peru × Brasil. 08 de julho de 2026." },
-      { property: "og:image", content: "https://rodada.promperu.tur.br/whatsapp-og.png" },
-      { property: "og:image:width", content: "1200" },
-      { property: "og:image:height", content: "630" },
+      { name: "twitter:title", content: title },
+      { name: "twitter:description", content: description },
       { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:image", content: "https://rodada.promperu.tur.br/whatsapp-og.png" },
-    ],
-    links: [
-      {
-        rel: "stylesheet",
-        href: appCss,
-      },
+    ];
+    if (site.emailFromName) meta.push({ name: "author", content: site.emailFromName });
+    if (site.ogImageUrl) {
+      meta.push({ property: "og:image", content: site.ogImageUrl });
+      meta.push({ property: "og:image:width", content: "1200" });
+      meta.push({ property: "og:image:height", content: "630" });
+      meta.push({ name: "twitter:image", content: site.ogImageUrl });
+    }
+    const links = [
+      { rel: "stylesheet", href: appCss },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
       {
         rel: "stylesheet",
         href: "https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700;900&display=swap",
       },
-    ],
-  }),
+    ];
+    if (site.faviconUrl) links.push({ rel: "icon", href: site.faviconUrl });
+    return { meta, links };
+  },
   shellComponent: RootShell,
   component: RootComponent,
   notFoundComponent: NotFoundComponent,
