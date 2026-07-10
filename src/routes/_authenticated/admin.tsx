@@ -57,6 +57,7 @@ import { PostEventQATab } from "@/components/admin/postevent-qa-tab";
 import { PostEventSurveyReportTab } from "@/components/admin/postevent-survey-report-tab";
 import { AdminEventProvider, useAdminEvent } from "@/hooks/use-admin-event";
 import { AdminEventSelector } from "@/components/admin/admin-event-selector";
+import { NewEventDialog } from "@/components/admin/new-event-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -136,7 +137,10 @@ function AdminPage() {
           <h1 className="text-3xl font-bold">{t("admin.title")}</h1>
           <p className="mt-1 text-sm text-muted-foreground">{t("admin.subtitle")}</p>
         </div>
-        <AdminEventSelector />
+        <div className="flex items-center gap-2">
+          <AdminEventSelector />
+          {isAdmin ? <NewEventDialog /> : null}
+        </div>
       </div>
 
       {isClienteOnly ? (
