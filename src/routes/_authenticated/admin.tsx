@@ -55,6 +55,8 @@ import { LostBookingsTab } from "@/components/admin/lost-bookings-tab";
 import { AgendaCampaignsTab } from "@/components/admin/agenda-campaigns-tab";
 import { PostEventQATab } from "@/components/admin/postevent-qa-tab";
 import { PostEventSurveyReportTab } from "@/components/admin/postevent-survey-report-tab";
+import { AdminEventProvider, useAdminEvent } from "@/hooks/use-admin-event";
+import { AdminEventSelector } from "@/components/admin/admin-event-selector";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -90,8 +92,16 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 
 export const Route = createFileRoute("/_authenticated/admin")({
-  component: AdminPage,
+  component: AdminPageWithProvider,
 });
+
+function AdminPageWithProvider() {
+  return (
+    <AdminEventProvider>
+      <AdminPage />
+    </AdminEventProvider>
+  );
+}
 
 function AdminPage() {
   const { t } = useTranslation();
@@ -121,8 +131,13 @@ function AdminPage() {
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 sm:py-10">
-      <h1 className="text-3xl font-bold">{t("admin.title")}</h1>
-      <p className="mt-1 text-sm text-muted-foreground">{t("admin.subtitle")}</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-3xl font-bold">{t("admin.title")}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{t("admin.subtitle")}</p>
+        </div>
+        <AdminEventSelector />
+      </div>
 
       {isClienteOnly ? (
         <Tabs defaultValue="overview" className="mt-6">
