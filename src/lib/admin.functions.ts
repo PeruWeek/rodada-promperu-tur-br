@@ -89,6 +89,19 @@ const timeString = z
   .regex(/^\d{2}:\d{2}(:\d{2})?$/, "Formato HH:MM")
   .transform((v) => (v.length === 5 ? `${v}:00` : v));
 
+/**
+ * `events.meetings_*` are TIMESTAMPTZ columns — Postgres rejects bare
+ * "HH:MM:SS" strings with `invalid input syntax for type timestamp with
+ * time zone`. Build a full ISO timestamp (UTC) from the event's date and
+ * the wall-clock time provided by the form.
+ */
+function composeTimestamp(eventDate: string, time: string | null | undefined): string | null {
+  if (!time) return null;
+  const t = time.length === 5 ? `${time}:00` : time;
+  if (!/^\d{2}:\d{2}:\d{2}$/.test(t) || t === "00:00:00") return null;
+  return `${eventDate}T${t}+00:00`;
+}
+
 export const createEventWithSetup = createServerFn({ method: "POST" })
   .inputValidator((input) =>
     z
@@ -105,23 +118,57 @@ export const createEventWithSetup = createServerFn({ method: "POST" })
         tablesCount: z.number().int().min(0).max(500),
         languageDefault: z.enum(["pt-BR", "es"]).default("pt-BR"),
       })
+      .superRefine((v, ctx) => {
+        if (v.meetingsEnd <= v.meetingsStart) {
+          ctx.addIssue({ code: "custom", message: "Bloco 1: fim deve ser após o início", path: ["meetingsEnd"] });
+        }
+        // Lunch: both or neither.
+        const lunchOn = !!(v.lunchStart || v.lunchEnd);
+        if (lunchOn && (!v.lunchStart || !v.lunchEnd)) {
+          ctx.addIssue({ code: "custom", message: "Informe início e fim do almoço", path: ["lunchStart"] });
+        }
+        if (v.lunchStart && v.lunchEnd && v.lunchEnd <= v.lunchStart) {
+          ctx.addIssue({ code: "custom", message: "Almoço: fim deve ser após o início", path: ["lunchEnd"] });
+        }
+        // Block 2: both or neither.
+        const b2On = !!(v.meetings2Start || v.meetings2End);
+        if (b2On && (!v.meetings2Start || !v.meetings2End)) {
+          ctx.addIssue({ code: "custom", message: "Informe início e fim do Bloco 2", path: ["meetings2Start"] });
+        }
+        if (v.meetings2Start && v.meetings2End && v.meetings2End <= v.meetings2Start) {
+          ctx.addIssue({ code: "custom", message: "Bloco 2: fim deve ser após o início", path: ["meetings2End"] });
+        }
+      })
       .parse(input),
   )
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
     await assertAdminStrict(context.userId);
 
+    const meetingsStartTs = composeTimestamp(data.eventDate, data.meetingsStart);
+    const meetingsEndTs = composeTimestamp(data.eventDate, data.meetingsEnd);
+    if (!meetingsStartTs || !meetingsEndTs) {
+      throw new Error("Bloco 1 de reuniões é obrigatório");
+    }
+    const lunchStartTs = composeTimestamp(data.eventDate, data.lunchStart ?? null);
+    const lunchEndTs = composeTimestamp(data.eventDate, data.lunchEnd ?? null);
+    const meetings2StartTs = composeTimestamp(data.eventDate, data.meetings2Start ?? null);
+    const meetings2EndTs = composeTimestamp(data.eventDate, data.meetings2End ?? null);
+
     const { data: created, error } = await supabaseAdmin
       .from("events")
       .insert({
         name: data.name,
         event_date: data.eventDate,
-        meetings_start: data.meetingsStart,
-        meetings_end: data.meetingsEnd,
-        lunch_start: data.lunchStart ?? null,
-        lunch_end: data.lunchEnd ?? null,
-        meetings2_start: data.meetings2Start ?? null,
-        meetings2_end: data.meetings2End ?? null,
+        meetings_start: meetingsStartTs,
+        meetings_end: meetingsEndTs,
+        // Both-or-neither enforced in the validator, so lunch/block2 land as
+        // (start, end) pairs or (null, null) — never a partial timestamp
+        // that would crash `rebuild_event_time_slots`.
+        lunch_start: lunchStartTs,
+        lunch_end: lunchEndTs,
+        meetings2_start: meetings2StartTs,
+        meetings2_end: meetings2EndTs,
         slot_minutes: data.slotMinutes,
         tables_count: data.tablesCount,
         language_default: data.languageDefault,
