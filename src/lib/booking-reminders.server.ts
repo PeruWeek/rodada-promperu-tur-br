@@ -1,8 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { processTransactionalSend } from "@/lib/email-send.server";
+import { siteUrl } from "@/lib/site-context.server";
 
-const AGENDA_URL = "https://rodada.promperu.tur.br/agenda";
-const FORGOT_URL = "https://rodada.promperu.tur.br/forgot-password";
 const MIN_SIGNUP_AGE_HOURS = 24;
 
 export type BookingReminderMode = "auto" | "manual";
@@ -376,6 +375,8 @@ export async function runBookingReminders(
     }
 
     try {
+      const agendaUrl = await siteUrl("/agenda");
+      const forgotUrl = await siteUrl("/forgot-password");
       const result = await processTransactionalSend(supabaseAdmin, {
         templateName: "booking-reminder",
         recipientEmail: p.email as string,
@@ -383,8 +384,8 @@ export async function runBookingReminders(
         templateData: {
           language,
           visitorName: firstName,
-          agendaUrl: AGENDA_URL,
-          forgotPasswordUrl: FORGOT_URL,
+          agendaUrl,
+          forgotPasswordUrl: forgotUrl,
         },
       });
       if (result.status >= 200 && result.status < 300) {

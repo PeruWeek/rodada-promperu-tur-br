@@ -414,7 +414,7 @@ export const bookMeeting = createServerFn({ method: "POST" })
           tableNumber: tableRow?.table_number ?? "—",
           slotStart: slot.start_at,
           slotEnd: slot.end_at,
-          agendaUrl: "https://rodada.promperu.tur.br/agenda",
+          agendaUrl: await (await import("@/lib/site-context.server")).siteUrl("/agenda"),
         },
       });
     }
