@@ -251,7 +251,7 @@ export const sendPostEventQA = createServerFn({ method: "POST" })
         tokenRowId = inserted.id as string;
       }
 
-      const qaUrl = `${siteUrl}/qa/${token}`;
+      const qaUrl = siteBaseUrl ? `${siteBaseUrl}/qa/${token}` : `/qa/${token}`;
       const res = await processTransactionalSend(supabaseAdmin as any, {
         templateName: "postevent-qa",
         recipientEmail: p.email,
