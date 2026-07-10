@@ -41,6 +41,9 @@ function rowToContext(row: Database["public"]["Tables"]["site_configs"]["Row"]):
     footerText: row.footer_text,
     eventDisplayName: row.event_display_name,
     eventDisplayDate: row.event_display_date,
+    themeTokens: (row.theme_tokens as Record<string, string> | null) ?? {},
+    contentOverrides:
+      (row.content_overrides as Record<string, Record<string, string>> | null) ?? {},
   };
 }
 
