@@ -12,7 +12,7 @@
  * publishable client, no bearer needed.
  */
 import { createServerFn } from "@tanstack/react-start";
-import { getHeaders } from "@tanstack/react-start/server";
+import { getRequest } from "@tanstack/react-start/server";
 import { createClient } from "@supabase/supabase-js";
 
 import type { Database } from "@/integrations/supabase/types";
@@ -65,8 +65,10 @@ export const getSiteContext = createServerFn({ method: "GET" })
     let host = normalizeHost(data.hostname);
     if (!host) {
       try {
-        const headers = getHeaders();
-        host = normalizeHost(headers.host ?? headers["x-forwarded-host"] ?? null);
+        const req = getRequest();
+        host = normalizeHost(
+          req.headers.get("x-forwarded-host") ?? req.headers.get("host"),
+        );
       } catch {
         // running outside a request scope (build time)
         host = null;
