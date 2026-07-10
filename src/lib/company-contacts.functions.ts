@@ -136,7 +136,7 @@ export const addCompanyContact = createServerFn({ method: "POST" })
         templateData: {
           contactName: firstName,
           companyName: company.trade_name ?? company.legal_name ?? "",
-          signupUrl: "https://rodada.promperu.tur.br/signup",
+          signupUrl: await (await import("@/lib/site-context.server")).siteUrl("/signup"),
         },
       });
       inviteSent = result.status >= 200 && result.status < 300 && result.body?.success !== false;

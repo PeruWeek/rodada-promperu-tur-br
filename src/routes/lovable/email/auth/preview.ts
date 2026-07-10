@@ -7,6 +7,7 @@ import { MagicLinkEmail } from '@/lib/email-templates/magic-link'
 import { RecoveryEmail } from '@/lib/email-templates/recovery'
 import { EmailChangeEmail } from '@/lib/email-templates/email-change'
 import { ReauthenticationEmail } from '@/lib/email-templates/reauthentication'
+import { resolveSiteContext } from '@/lib/site-context.server'
 
 const EMAIL_TEMPLATES: Record<string, React.ComponentType<any>> = {
   signup: SignupEmail,
@@ -17,47 +18,26 @@ const EMAIL_TEMPLATES: Record<string, React.ComponentType<any>> = {
   reauthentication: ReauthenticationEmail,
 }
 
-// Configuration
-const SITE_NAME = "rodada-promperu-tur-br"
-const ROOT_DOMAIN = "promperu.tur.br"
-
-// Sample data for preview mode ONLY (not used in actual email sending).
-// URLs are baked in at scaffold time from the project's real data.
-// The sample email uses a fixed placeholder (RFC 6761 .test TLD) so the Go backend
-// can always find-and-replace it with the actual recipient when sending test emails,
-// even if the project's domain has changed since the template was scaffolded.
-const SAMPLE_PROJECT_URL = "https://rodada-promperu-tur-br.lovable.app"
+// Sample e-mail (RFC 6761 .test TLD) — Go backend rewrites this at test send.
 const SAMPLE_EMAIL = "user@example.test"
-const SAMPLE_DATA: Record<string, object> = {
-  signup: {
-    siteName: SITE_NAME,
-    siteUrl: SAMPLE_PROJECT_URL,
-    recipient: SAMPLE_EMAIL,
-    confirmationUrl: SAMPLE_PROJECT_URL,
-  },
-  magiclink: {
-    siteName: SITE_NAME,
-    confirmationUrl: SAMPLE_PROJECT_URL,
-  },
-  recovery: {
-    siteName: SITE_NAME,
-    confirmationUrl: SAMPLE_PROJECT_URL,
-  },
-  invite: {
-    siteName: SITE_NAME,
-    siteUrl: SAMPLE_PROJECT_URL,
-    confirmationUrl: SAMPLE_PROJECT_URL,
-  },
-  email_change: {
-    siteName: SITE_NAME,
-    oldEmail: SAMPLE_EMAIL,
-    email: SAMPLE_EMAIL,
-    newEmail: SAMPLE_EMAIL,
-    confirmationUrl: SAMPLE_PROJECT_URL,
-  },
-  reauthentication: {
-    token: '123456',
-  },
+
+function sampleDataFor(type: string, siteName: string, siteUrl: string): object {
+  switch (type) {
+    case 'signup':
+      return { siteName, siteUrl, recipient: SAMPLE_EMAIL, confirmationUrl: siteUrl, loginUrl: `${siteUrl}/login` }
+    case 'magiclink':
+      return { siteName, confirmationUrl: siteUrl }
+    case 'recovery':
+      return { siteName, confirmationUrl: siteUrl }
+    case 'invite':
+      return { siteName, siteUrl, confirmationUrl: siteUrl }
+    case 'email_change':
+      return { siteName, oldEmail: SAMPLE_EMAIL, email: SAMPLE_EMAIL, newEmail: SAMPLE_EMAIL, confirmationUrl: siteUrl }
+    case 'reauthentication':
+      return { token: '123456' }
+    default:
+      return {}
+  }
 }
 
 export const Route = createFileRoute("/lovable/email/auth/preview")({
@@ -99,7 +79,9 @@ export const Route = createFileRoute("/lovable/email/auth/preview")({
           )
         }
 
-        const sampleData = SAMPLE_DATA[type] || {}
+        const site = await resolveSiteContext()
+        const siteUrl = (site.siteUrl || `https://${site.hostname}`).replace(/\/+$/, '')
+        const sampleData = sampleDataFor(type, site.name, siteUrl)
         const html = await render(React.createElement(EmailTemplate, sampleData))
 
         return new Response(html, {

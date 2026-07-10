@@ -3,12 +3,13 @@ import { render } from '@react-email/components'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { TEMPLATES } from '@/lib/email-templates/registry'
 import { resolveTemplateOverrides } from '@/lib/email-templates/overrides.server'
+import { resolveSiteContext } from '@/lib/site-context.server'
+import type { SiteContext } from '@/lib/site-context'
 
-// SendGrid sender (verified Single Sender / Authenticated Domain).
-const FROM_EMAIL = 'rodada@promperu.tur.br'
-const FROM_NAME = 'Rodada de Negócios PromPerú'
-const REPLY_TO_EMAIL = 'rodada@promperu.tur.br'
-const SITE_URL = 'https://rodada.promperu.tur.br'
+// Sender defaults come from site_configs (per-tenant). The constants below
+// are last-resort fallbacks used only when the current site has NO email
+// sender configured — never for hardcoded PromPerú values.
+const FALLBACK_FROM_NAME = 'Networking'
 
 function redactEmail(email: string | null | undefined): string {
   if (!email) return '***'
@@ -25,16 +26,25 @@ function generateToken(): string {
     .join('')
 }
 
-function buildUnsubscribeUrl(token: string) {
-  return `${SITE_URL}/unsubscribe?token=${encodeURIComponent(token)}`
+function buildUnsubscribeUrl(site: SiteContext, token: string) {
+  const base = (site.siteUrl || '').replace(/\/+$/, '')
+  const suffix = `/unsubscribe?token=${encodeURIComponent(token)}`
+  return base ? `${base}${suffix}` : suffix
 }
 
-function appendUnsubscribeFooter(html: string, text: string, unsubscribeUrl: string) {
-  const htmlFooter = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:24px;border-top:1px solid #e5e7eb;padding-top:16px;font-family:Arial,sans-serif;font-size:12px;color:#6b7280;text-align:center;"><tr><td>Você está recebendo este e-mail porque participa da Rodada de Negócios PromPerú.<br/><a href="${unsubscribeUrl}" style="color:#6b7280;text-decoration:underline;">Cancelar inscrição</a></td></tr></table>`
+function appendUnsubscribeFooter(
+  site: SiteContext,
+  html: string,
+  text: string,
+  unsubscribeUrl: string,
+) {
+  const label = site.eventDisplayName || site.name
+  const line = site.footerText || `Você está recebendo este e-mail porque participa de ${label}.`
+  const htmlFooter = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:24px;border-top:1px solid #e5e7eb;padding-top:16px;font-family:Arial,sans-serif;font-size:12px;color:#6b7280;text-align:center;"><tr><td>${line}<br/><a href="${unsubscribeUrl}" style="color:#6b7280;text-decoration:underline;">Cancelar inscrição</a></td></tr></table>`
   const htmlOut = html.includes('</body>')
     ? html.replace('</body>', `${htmlFooter}</body>`)
     : html + htmlFooter
-  const textOut = `${text}\n\n---\nCancelar inscrição: ${unsubscribeUrl}\n`
+  const textOut = `${text}\n\n---\n${line}\nCancelar inscrição: ${unsubscribeUrl}\n`
   return { html: htmlOut, text: textOut }
 }
 
@@ -47,16 +57,18 @@ async function sendViaSendGrid(payload: {
   templateName: string
   messageId: string
   fromName?: string
+  fromEmail: string
+  replyToEmail: string
 }): Promise<{ ok: true; sgMessageId: string | null } | { ok: false; status: number; error: string }> {
   const apiKey = process.env.SENDGRID_API_KEY
   if (!apiKey) {
     return { ok: false, status: 500, error: 'SENDGRID_API_KEY not configured' }
   }
-  const fromName = payload.fromName?.trim() || FROM_NAME
+  const fromName = payload.fromName?.trim() || FALLBACK_FROM_NAME
   const body = {
     personalizations: [{ to: [{ email: payload.to }], subject: payload.subject }],
-    from: { email: FROM_EMAIL, name: fromName },
-    reply_to: { email: REPLY_TO_EMAIL, name: fromName },
+    from: { email: payload.fromEmail, name: fromName },
+    reply_to: { email: payload.replyToEmail, name: fromName },
     content: [
       { type: 'text/plain', value: payload.text },
       { type: 'text/html', value: payload.html },
@@ -113,6 +125,13 @@ export async function processTransactionalSend(
   supabase: SupabaseClient<any>,
   input: ProcessSendInput,
 ): Promise<ProcessSendResult> {
+  const site = await resolveSiteContext()
+  const fromEmail = site.emailFromAddress
+  if (!fromEmail) {
+    return { status: 500, body: { error: 'Site is missing email_from_address in site_configs' } }
+  }
+  const replyToEmail = site.emailReplyTo || fromEmail
+
   const templateName = input.templateName
   if (!templateName) return { status: 400, body: { error: 'templateName is required' } }
 
@@ -225,12 +244,20 @@ export async function processTransactionalSend(
 
   const language = templateData.language === 'es' ? 'es' : 'pt-BR'
   const overrides = await resolveTemplateOverrides(templateName, language)
-  const componentProps = { ...templateData, overrides: overrides.copy }
+  // Inject site-derived defaults into every template render so a template
+  // that receives no explicit URL still points at the right white-label
+  // host. Explicit caller-provided values always win.
+  const siteDefaults: Record<string, any> = {
+    siteName: site.name,
+    siteUrl: site.siteUrl,
+    eventName: site.eventDisplayName || site.name,
+  }
+  const componentProps = { ...siteDefaults, ...templateData, overrides: overrides.copy }
   const element = React.createElement(template.component as any, componentProps)
   const renderedHtml = await render(element)
   const renderedText = await render(element, { plainText: true })
-  const unsubscribeUrl = buildUnsubscribeUrl(unsubscribeToken)
-  const { html, text } = appendUnsubscribeFooter(renderedHtml, renderedText, unsubscribeUrl)
+  const unsubscribeUrl = buildUnsubscribeUrl(site, unsubscribeToken)
+  const { html, text } = appendUnsubscribeFooter(site, renderedHtml, renderedText, unsubscribeUrl)
 
   const subjectData = { ...templateData, overrideSubject: overrides.subjectTemplate }
   const resolvedSubject =
@@ -251,7 +278,9 @@ export async function processTransactionalSend(
     unsubscribeUrl,
     templateName,
     messageId,
-    fromName: overrides.fromName,
+    fromName: overrides.fromName ?? site.emailFromName ?? undefined,
+    fromEmail,
+    replyToEmail,
   })
 
   if (!result.ok) {

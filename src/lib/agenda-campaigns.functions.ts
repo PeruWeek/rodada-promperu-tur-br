@@ -8,6 +8,7 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { assertAdminRole } from "@/lib/role-server";
 import { processTransactionalSend } from "@/lib/email-send.server";
 import { listEligibleRecipients } from "@/lib/agenda-campaigns.server";
+import { resolveSiteContext } from "@/lib/site-context.server";
 
 const CategorySchema = z.enum(["visitor", "exhibitor"]);
 
@@ -53,14 +54,15 @@ async function resolveAdminProfileId(userId: string): Promise<string | null> {
   return (data?.id as string | undefined) ?? null;
 }
 
-function getOrigin(): string {
-  const req = getRequest();
-  if (!req) return "https://rodada.promperu.tur.br";
+async function getOrigin(): Promise<string> {
   try {
-    return new URL(req.url).origin;
+    const req = getRequest();
+    if (req) return new URL(req.url).origin;
   } catch {
-    return "https://rodada.promperu.tur.br";
+    /* fall through */
   }
+  const site = await resolveSiteContext();
+  return site.siteUrl || "";
 }
 
 /* -------------------------------------------------------------------------- */
@@ -128,7 +130,8 @@ export const sendTestAgendaCampaign = createServerFn({ method: "POST" })
     // link is not registered anywhere — pure preview to the admin's test
     // address. The admin should still be able to click the download button
     // on a REAL campaign afterwards.
-    const origin = getOrigin();
+    const origin = await getOrigin();
+    const site = await resolveSiteContext();
     const buttonUrl = `${origin}/agenda`;
 
     const idempotencyKey = `agenda-test-${context.userId}-${Date.now()}`;
@@ -138,7 +141,7 @@ export const sendTestAgendaCampaign = createServerFn({ method: "POST" })
       idempotencyKey,
       templateData: {
         visitorName: sample.fullName,
-        eventName: "Rodada de Negócios PromPerú",
+        eventName: site.eventDisplayName ?? site.name,
         bodyText: data.body_md,
         buttonLabel: data.buttonLabel,
         buttonUrl,
@@ -208,7 +211,8 @@ export const createAndSendAgendaCampaign = createServerFn({ method: "POST" })
       }
     }
 
-    const origin = getOrigin();
+    const origin = await getOrigin();
+    const site = await resolveSiteContext();
     let sentCount = 0;
     let failedCount = 0;
     let suppressedCount = 0;
@@ -274,7 +278,7 @@ export const createAndSendAgendaCampaign = createServerFn({ method: "POST" })
         idempotencyKey,
         templateData: {
           visitorName: rec.fullName,
-          eventName: "Rodada de Negócios PromPerú",
+          eventName: site.eventDisplayName ?? site.name,
           bodyText: data.body_md,
           buttonLabel: data.buttonLabel,
           buttonUrl,

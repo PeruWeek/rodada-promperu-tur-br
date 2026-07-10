@@ -1,3 +1,4 @@
+import { useSiteContext } from "@/lib/site-context";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -50,7 +51,7 @@ function fmtSlot(s: string, e: string): string {
 export const Route = createFileRoute("/qa/preview")({
   head: () => ({
     meta: [
-      { title: "Pesquisa pós-evento (preview) — Rodada de Negócios PromPerú" },
+      { title: "Pesquisa pós-evento (preview)" },
       { name: "robots", content: "noindex, nofollow" },
     ],
   }),
@@ -58,6 +59,8 @@ export const Route = createFileRoute("/qa/preview")({
 });
 
 function PreviewPage() {
+  const site = useSiteContext();
+  const eventName = site.eventDisplayName || site.name;
   const [decisions, setDecisions] = useState<Record<string, Decision>>({});
   const [survey, setSurvey] = useState<SurveyState>({
     overallRating: null,
@@ -93,7 +96,7 @@ function PreviewPage() {
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Confirme abaixo com quais empresas você realmente se reuniu no evento
-          “Rodada de Negócios PromPerú”.
+          {eventName ? ` “${eventName}”` : ""}.
         </p>
       </div>
 

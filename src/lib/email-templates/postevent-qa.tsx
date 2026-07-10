@@ -37,8 +37,8 @@ function withoutOldOptionalCopy(value: string | undefined, fallback: string) {
 const PostEventQAEmail = ({
   language = "pt-BR",
   visitorName,
-  qaUrl = "https://rodada.promperu.tur.br",
-  eventName = "Rodada de Negócios PromPerú",
+  qaUrl = "#",
+  eventName = "",
   overrides,
 }: Props) => {
   const lang = language === "es" ? "es" : "pt-BR";
@@ -98,7 +98,7 @@ export const template = {
   previewData: {
     language: "pt-BR",
     visitorName: "Maria",
-    qaUrl: "https://rodada.promperu.tur.br/qa/example-token",
-    eventName: "Rodada de Negócios PromPerú",
+    qaUrl: "https://example.com/qa/example-token",
+    eventName: "Networking Event",
   },
 } satisfies TemplateEntry;

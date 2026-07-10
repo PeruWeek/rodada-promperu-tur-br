@@ -327,7 +327,7 @@ export async function performMeetingCancellation(input: {
           tableNumber: tableRow?.table_number ?? "—",
           slotStart: slot.start_at,
           slotEnd: slot.end_at,
-          exploreUrl: "https://rodada.promperu.tur.br/explore",
+          exploreUrl: await (await import("@/lib/site-context.server")).siteUrl("/explore"),
         },
       });
     } catch (e) {

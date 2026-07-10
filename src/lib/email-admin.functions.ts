@@ -102,13 +102,14 @@ export const resendBuyerWelcome = createServerFn({ method: "POST" })
     // Call the send pipeline directly (avoids worker loopback HTTP fetch,
     // which can drop the Authorization header and yield spurious 401s).
     const { processTransactionalSend } = await import("@/lib/email-send.server");
+    const { siteUrl } = await import("@/lib/site-context.server");
     const result = await processTransactionalSend(supabaseAdmin, {
       templateName: "buyer-welcome",
       recipientEmail: targetEmail,
       idempotencyKey,
       templateData: {
         visitorName: firstName,
-        agendaUrl: "https://rodada.promperu.tur.br/agenda",
+        agendaUrl: await siteUrl("/agenda"),
       },
     });
 

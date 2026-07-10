@@ -17,6 +17,7 @@ import {
   type BuildParticipantAgendaResult,
 } from "@/lib/participant-agenda.server";
 import { buildAgendaPdf } from "@/lib/pdf";
+import { resolveSiteContext } from "@/lib/site-context.server";
 
 export type EligibleRecipient = {
   profileId: string;
@@ -96,9 +97,12 @@ export async function renderAgendaPdfFor(opts: {
   const generatedAt = new Date().toLocaleString("pt-BR", {
     timeZone: "America/Sao_Paulo",
   });
+  const site = await resolveSiteContext();
   const doc = buildAgendaPdf({
     title: "Minha agenda",
-    subtitle: "Rodada de Negócios PromPerú",
+    subtitle: site.eventDisplayName || site.name,
+    footerSiteText: site.name,
+    footerSiteUrl: site.siteUrl || "",
     ownerName: data.profileName,
     generatedLabel: `Gerado em ${generatedAt}`,
     rows: data.rows,

@@ -13,14 +13,17 @@ import {
 import type { TemplateEntry } from "./registry";
 import { button, container, footer, h1, main, small, text } from "./_shared";
 
+import { PRIMARY } from './_shared'
 interface Props {
   visitorName?: string;
   agendaUrl?: string;
+  forgotPasswordUrl?: string;
 }
 
 const BuyerWelcomeEmail = ({
   visitorName,
-  agendaUrl = "https://rodada.promperu.tur.br/agenda",
+  agendaUrl = "#",
+  forgotPasswordUrl = "#",
 }: Props) => {
   const greeting = visitorName ? `Olá, ${visitorName}!` : "Olá!";
   return (
@@ -56,7 +59,7 @@ const BuyerWelcomeEmail = ({
             Caso não se recorde da sua senha, utilize o botão abaixo para redefinir seu acesso:
           </Text>
           <Section style={{ textAlign: "center", margin: "8px 0 24px" }}>
-            <Button href="https://rodada.promperu.tur.br/forgot-password" style={button}>
+            <Button href={forgotPasswordUrl} style={button}>
               Recuperar minha senha
             </Button>
           </Section>
@@ -77,6 +80,7 @@ export const template = {
   displayName: "Buyer welcome",
   previewData: {
     visitorName: "Maria",
-    agendaUrl: "https://rodada.promperu.tur.br/agenda",
+    agendaUrl: "https://example.com/agenda",
+    forgotPasswordUrl: "https://example.com/forgot-password",
   },
 } satisfies TemplateEntry;

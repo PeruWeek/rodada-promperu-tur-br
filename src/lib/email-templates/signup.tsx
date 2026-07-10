@@ -9,9 +9,9 @@ interface SignupEmailProps {
   siteUrl: string
   recipient: string
   confirmationUrl: string
+  loginUrl?: string
+  eventName?: string
 }
-
-const LOGIN_URL = 'https://rodada.promperu.tur.br/login'
 
 const secondaryButton = {
   ...button,
@@ -20,7 +20,14 @@ const secondaryButton = {
   border: `2px solid ${PRIMARY}`,
 }
 
-export const SignupEmail = ({ siteName, siteUrl, recipient, confirmationUrl }: SignupEmailProps) => (
+export const SignupEmail = ({
+  siteName,
+  siteUrl,
+  recipient,
+  confirmationUrl,
+  loginUrl,
+  eventName,
+}: SignupEmailProps) => (
   <Html lang="pt-BR" dir="ltr">
     <Head />
     <Preview>Cadastro recebido — confirme seu e-mail e agende suas reuniões</Preview>
@@ -35,12 +42,12 @@ export const SignupEmail = ({ siteName, siteUrl, recipient, confirmationUrl }: S
         <Text style={{ ...text, marginTop: '16px' }}>
           Depois de confirmar, entre com o e-mail e a senha cadastrados para agendar suas reuniões na rodada de negocios.
         </Text>
-        <Button style={secondaryButton} href={LOGIN_URL}>Entrar e ver minha agenda</Button>
+        <Button style={secondaryButton} href={loginUrl || `${siteUrl.replace(/\/+$/, '')}/login`}>Entrar e ver minha agenda</Button>
         <Text style={{ ...text, marginTop: '16px', fontSize: '13px', color: '#666' }}>
           Se você não criou esta conta, pode ignorar este e-mail com segurança.
         </Text>
 
-        <Text style={footer}>Rodada de Negócios MICE · Peru × Brasil — 08/07/2026</Text>
+        <Text style={footer}>{eventName || siteName}</Text>
       </Container>
     </Body>
   </Html>

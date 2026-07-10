@@ -13,24 +13,23 @@ export type CompanyAgendaPdfRow = AgendaPdfRow & {
   contactName: string;
 };
 
-const FOOTER_LINKS = {
-  rodada: {
-    text: "rodada.tur.br",
-    url: "https://rodada.promperu.tur.br/",
-  },
-  iautonoma: {
-    text: "IAutonoma.com.br",
-    url: "https://iautonoma.com.br/",
-  },
+const DEFAULT_TECH_FOOTER = {
+  text: "IAutonoma.com.br",
+  url: "https://iautonoma.com.br/",
 } as const;
 
-function drawFooterOnAllPages(doc: jsPDF) {
+function drawFooterOnAllPages(
+  doc: jsPDF,
+  opts: { siteText?: string; siteUrl?: string } = {},
+) {
   const W = doc.internal.pageSize.getWidth();
   const H = doc.internal.pageSize.getHeight();
   const pageCount = doc.getNumberOfPages();
   const y = H - 24;
 
-  const prefix1 = "Sistema de Rodada de Negócios Promperu - ";
+  const siteText = (opts.siteText || "").trim();
+  const siteUrl = (opts.siteUrl || "").trim();
+  const prefix1 = siteText ? `Sistema de ${siteText} - ` : "";
   const mid = " - Suporte WhatsApp (11) 99367-0633 - by ";
 
   doc.setFont("helvetica", "normal");
@@ -40,27 +39,32 @@ function drawFooterOnAllPages(doc: jsPDF) {
     doc.setPage(i);
 
     const w1 = doc.getTextWidth(prefix1);
-    const wLink1 = doc.getTextWidth(FOOTER_LINKS.rodada.text);
+    const link1Text = siteUrl.replace(/^https?:\/\//, "").replace(/\/+$/, "") || "";
+    const wLink1 = link1Text ? doc.getTextWidth(link1Text) : 0;
     const w2 = doc.getTextWidth(mid);
-    const wLink2 = doc.getTextWidth(FOOTER_LINKS.iautonoma.text);
+    const wLink2 = doc.getTextWidth(DEFAULT_TECH_FOOTER.text);
 
     const totalW = w1 + wLink1 + w2 + wLink2;
     let x = (W - totalW) / 2;
 
     doc.setTextColor(110);
-    doc.text(prefix1, x, y);
-    x += w1;
+    if (prefix1) {
+      doc.text(prefix1, x, y);
+      x += w1;
+    }
 
-    doc.setTextColor(0, 102, 204);
-    doc.textWithLink(FOOTER_LINKS.rodada.text, x, y, { url: FOOTER_LINKS.rodada.url });
-    x += wLink1;
+    if (link1Text) {
+      doc.setTextColor(0, 102, 204);
+      doc.textWithLink(link1Text, x, y, { url: siteUrl });
+      x += wLink1;
+    }
 
     doc.setTextColor(110);
     doc.text(mid, x, y);
     x += w2;
 
     doc.setTextColor(0, 102, 204);
-    doc.textWithLink(FOOTER_LINKS.iautonoma.text, x, y, { url: FOOTER_LINKS.iautonoma.url });
+    doc.textWithLink(DEFAULT_TECH_FOOTER.text, x, y, { url: DEFAULT_TECH_FOOTER.url });
   }
 
   doc.setTextColor(0);
@@ -72,6 +76,8 @@ export function buildAgendaPdf(opts: {
   ownerName: string;
   rows: AgendaPdfRow[];
   generatedLabel: string;
+  footerSiteText?: string;
+  footerSiteUrl?: string;
 }) {
   const doc = new jsPDF({ unit: "pt", format: "a4" });
   const W = doc.internal.pageSize.getWidth();
@@ -125,7 +131,7 @@ export function buildAgendaPdf(opts: {
     },
   });
 
-  drawFooterOnAllPages(doc);
+  drawFooterOnAllPages(doc, { siteText: opts.footerSiteText, siteUrl: opts.footerSiteUrl });
   return doc;
 }
 
@@ -144,6 +150,8 @@ export function buildCompanyAgendaPdf(opts: {
   rows: CompanyAgendaPdfRow[];
   generatedLabel: string;
   totalLabel: string;
+  footerSiteText?: string;
+  footerSiteUrl?: string;
 }) {
   const doc = new jsPDF({ unit: "pt", format: "a4" });
   const W = doc.internal.pageSize.getWidth();
@@ -199,7 +207,7 @@ export function buildCompanyAgendaPdf(opts: {
     },
   });
 
-  drawFooterOnAllPages(doc);
+  drawFooterOnAllPages(doc, { siteText: opts.footerSiteText, siteUrl: opts.footerSiteUrl });
   return doc;
 }
 

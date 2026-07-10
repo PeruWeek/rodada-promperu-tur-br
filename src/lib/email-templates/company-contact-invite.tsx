@@ -22,7 +22,7 @@ interface Props {
 const CompanyContactInviteEmail = ({
   contactName,
   companyName,
-  signupUrl = "https://rodada.promperu.tur.br/signup",
+  signupUrl = "#",
 }: Props) => {
   const greeting = contactName ? `Olá, ${contactName}!` : "Olá!";
   const company = companyName ? ` da empresa ${companyName}` : "";
@@ -65,6 +65,6 @@ export const template = {
   previewData: {
     contactName: "Maria",
     companyName: "ACME Turismo",
-    signupUrl: "https://rodada.promperu.tur.br/signup",
+    signupUrl: "https://example.com/signup",
   },
 } satisfies TemplateEntry;

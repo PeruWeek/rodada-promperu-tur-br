@@ -15,11 +15,11 @@ import {
 export const Route = createFileRoute("/qa/$token")({
   head: () => ({
     meta: [
-      { title: "Q&A pós-evento — Rodada de Negócios PromPerú" },
+      { title: "Pesquisa pós-evento" },
       {
         name: "description",
         content:
-          "Confirme com quais empresas você realmente se reuniu durante a Rodada de Negócios.",
+          "Confirme com quais empresas você realmente se reuniu durante o evento.",
       },
       { name: "robots", content: "noindex, nofollow" },
     ],
