@@ -33,6 +33,20 @@ export type SiteContext = {
   footerText: string | null;
   eventDisplayName: string | null;
   eventDisplayDate: string | null;
+  /**
+   * Free-form palette overrides applied on top of the default design
+   * tokens defined in `styles.css`. Keys map to CSS variable names via
+   * `buildThemeCss()`; values must be valid CSS colors (hex, rgb, hsl,
+   * oklch). Edited by admins in Admin > Branding.
+   */
+  themeTokens: Record<string, string>;
+  /**
+   * Per-language i18n overrides. Shape:
+   *   { "pt-BR": { "landing.heroTitle": "..." }, "es": {...} }
+   * Applied at runtime via i18n.addResourceBundle so components using
+   * `t()` keep working; fallback is the bundled default translation.
+   */
+  contentOverrides: Record<string, Record<string, string>>;
 };
 
 /**
@@ -61,6 +75,8 @@ export const FALLBACK_SITE_CONTEXT: SiteContext = {
   footerText: null,
   eventDisplayName: null,
   eventDisplayDate: null,
+  themeTokens: {},
+  contentOverrides: {},
 };
 
 /**
