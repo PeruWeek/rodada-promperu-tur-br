@@ -1701,6 +1701,92 @@ export type Database = {
         }
         Relationships: []
       }
+      site_configs: {
+        Row: {
+          active_event_id: string | null
+          alt_hostnames: string[]
+          created_at: string
+          email_from_address: string | null
+          email_from_name: string | null
+          email_reply_to: string | null
+          event_display_date: string | null
+          event_display_name: string | null
+          favicon_url: string | null
+          footer_text: string | null
+          hostname: string
+          id: string
+          is_default: boolean
+          logo_url: string | null
+          meta_description: string | null
+          name: string
+          og_image_url: string | null
+          primary_color: string | null
+          secondary_color: string | null
+          site_url: string
+          slug: string
+          tagline: string | null
+          updated_at: string
+        }
+        Insert: {
+          active_event_id?: string | null
+          alt_hostnames?: string[]
+          created_at?: string
+          email_from_address?: string | null
+          email_from_name?: string | null
+          email_reply_to?: string | null
+          event_display_date?: string | null
+          event_display_name?: string | null
+          favicon_url?: string | null
+          footer_text?: string | null
+          hostname: string
+          id?: string
+          is_default?: boolean
+          logo_url?: string | null
+          meta_description?: string | null
+          name: string
+          og_image_url?: string | null
+          primary_color?: string | null
+          secondary_color?: string | null
+          site_url: string
+          slug: string
+          tagline?: string | null
+          updated_at?: string
+        }
+        Update: {
+          active_event_id?: string | null
+          alt_hostnames?: string[]
+          created_at?: string
+          email_from_address?: string | null
+          email_from_name?: string | null
+          email_reply_to?: string | null
+          event_display_date?: string | null
+          event_display_name?: string | null
+          favicon_url?: string | null
+          footer_text?: string | null
+          hostname?: string
+          id?: string
+          is_default?: boolean
+          logo_url?: string | null
+          meta_description?: string | null
+          name?: string
+          og_image_url?: string | null
+          primary_color?: string | null
+          secondary_color?: string | null
+          site_url?: string
+          slug?: string
+          tagline?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "site_configs_active_event_id_fkey"
+            columns: ["active_event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       skills: {
         Row: {
           created_at: string
