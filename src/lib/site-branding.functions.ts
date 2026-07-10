@@ -29,7 +29,7 @@ export const listAdminSiteConfigs = createServerFn({ method: "GET" })
     await assertAdmin(context.userId);
     const { data, error } = await supabaseAdmin
       .from("site_configs")
-      .select("id, slug, name, hostname, is_default")
+      .select("id, slug, name, hostname, alt_hostnames, site_url, is_default, active_event_id")
       .order("is_default", { ascending: false })
       .order("name");
     if (error) throw new Error(error.message);
@@ -111,4 +111,188 @@ export const updateAdminSiteConfig = createServerFn({ method: "POST" })
       .maybeSingle();
     if (error) throw new Error(error.message);
     return row;
+  });
+
+/* ────────────────────────────────────────────────────────────────────── */
+/* Structural CRUD: URL/domain + event binding                             */
+/* ────────────────────────────────────────────────────────────────────── */
+
+const HOSTNAME_RE = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$/i;
+const SLUG_RE = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
+
+function normalizeHostname(h: string): string {
+  const trimmed = h.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "");
+  return trimmed;
+}
+
+function normalizeAltHostnames(list: string[] | undefined | null): string[] {
+  if (!list) return [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of list) {
+    const h = normalizeHostname(raw ?? "");
+    if (!h) continue;
+    if (!HOSTNAME_RE.test(h)) throw new Error(`Hostname alternativo inválido: ${raw}`);
+    if (!seen.has(h)) {
+      seen.add(h);
+      out.push(h);
+    }
+  }
+  return out;
+}
+
+const structuralInput = z.object({
+  slug: z.string().min(1).max(60).transform((v) => v.trim().toLowerCase()),
+  name: z.string().min(1).max(120),
+  hostname: z.string().min(3).max(253).transform(normalizeHostname),
+  alt_hostnames: z.array(z.string()).optional(),
+  site_url: z.string().url().max(300),
+  active_event_id: z.string().uuid().nullable().optional(),
+  is_default: z.boolean().optional(),
+});
+
+function validateStructural(input: z.infer<typeof structuralInput>) {
+  if (!SLUG_RE.test(input.slug)) {
+    throw new Error("Slug inválido: use letras minúsculas, números e hífens.");
+  }
+  if (!HOSTNAME_RE.test(input.hostname)) {
+    throw new Error(`Hostname inválido: ${input.hostname}`);
+  }
+  try {
+    // eslint-disable-next-line no-new
+    new URL(input.site_url);
+  } catch {
+    throw new Error("site_url deve ser uma URL absoluta (https://...).");
+  }
+  return normalizeAltHostnames(input.alt_hostnames);
+}
+
+async function assertHostnameFree(hostname: string, ignoreId?: string) {
+  const q = supabaseAdmin.from("site_configs").select("id, hostname, alt_hostnames");
+  const { data, error } = await q;
+  if (error) throw new Error(error.message);
+  for (const row of data ?? []) {
+    if (ignoreId && row.id === ignoreId) continue;
+    if (row.hostname === hostname) throw new Error(`Hostname já em uso: ${hostname}`);
+    if ((row.alt_hostnames ?? []).includes(hostname))
+      throw new Error(`Hostname já em uso como alternativo em outro site: ${hostname}`);
+  }
+}
+
+async function assertAltHostnamesFree(alts: string[], ignoreId?: string) {
+  if (!alts.length) return;
+  const { data, error } = await supabaseAdmin
+    .from("site_configs")
+    .select("id, hostname, alt_hostnames");
+  if (error) throw new Error(error.message);
+  for (const row of data ?? []) {
+    if (ignoreId && row.id === ignoreId) continue;
+    for (const a of alts) {
+      if (row.hostname === a || (row.alt_hostnames ?? []).includes(a)) {
+        throw new Error(`Hostname alternativo já em uso em outro site: ${a}`);
+      }
+    }
+  }
+}
+
+async function clearDefaultsExcept(id: string | null) {
+  const q = supabaseAdmin.from("site_configs").update({ is_default: false }).eq("is_default", true);
+  const { error } = id ? await q.neq("id", id) : await q;
+  if (error) throw new Error(error.message);
+}
+
+export const createAdminSiteConfig = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) => structuralInput.parse(input))
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.userId);
+    const alts = validateStructural(data);
+    await assertHostnameFree(data.hostname);
+    await assertAltHostnamesFree(alts);
+
+    const insert: Database["public"]["Tables"]["site_configs"]["Insert"] = {
+      slug: data.slug,
+      name: data.name,
+      hostname: data.hostname,
+      alt_hostnames: alts,
+      site_url: data.site_url.replace(/\/+$/, ""),
+      active_event_id: data.active_event_id ?? null,
+      is_default: data.is_default ?? false,
+    };
+
+    if (insert.is_default) await clearDefaultsExcept(null);
+
+    const { data: row, error } = await supabaseAdmin
+      .from("site_configs")
+      .insert(insert)
+      .select("*")
+      .single();
+    if (error) {
+      if (error.code === "23505") throw new Error(`Slug ou hostname já existe.`);
+      throw new Error(error.message);
+    }
+    return row;
+  });
+
+export const updateAdminSiteStructure = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) =>
+    structuralInput.extend({ id: z.string().uuid() }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.userId);
+    const alts = validateStructural(data);
+    await assertHostnameFree(data.hostname, data.id);
+    await assertAltHostnamesFree(alts, data.id);
+
+    if (data.is_default) await clearDefaultsExcept(data.id);
+
+    const patch: Database["public"]["Tables"]["site_configs"]["Update"] = {
+      slug: data.slug,
+      name: data.name,
+      hostname: data.hostname,
+      alt_hostnames: alts,
+      site_url: data.site_url.replace(/\/+$/, ""),
+      active_event_id: data.active_event_id ?? null,
+      is_default: data.is_default ?? false,
+    };
+
+    const { data: row, error } = await supabaseAdmin
+      .from("site_configs")
+      .update(patch)
+      .eq("id", data.id)
+      .select("*")
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return row;
+  });
+
+export const deleteAdminSiteConfig = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) => z.object({ id: z.string().uuid() }).parse(input))
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.userId);
+    const { data: row } = await supabaseAdmin
+      .from("site_configs")
+      .select("id, is_default")
+      .eq("id", data.id)
+      .maybeSingle();
+    if (!row) throw new Error("Site não encontrado.");
+    if (row.is_default) throw new Error("Não é possível excluir o site padrão. Defina outro site como padrão antes.");
+    const { error } = await supabaseAdmin.from("site_configs").delete().eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+export const listAdminEventsForSites = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await assertAdmin(context.userId);
+    const { data, error } = await supabaseAdmin
+      .from("events")
+      .select("id, name, event_date")
+      .order("event_date", { ascending: false, nullsFirst: false })
+      .order("created_at", { ascending: false });
+    if (error) throw new Error(error.message);
+    return data ?? [];
   });
