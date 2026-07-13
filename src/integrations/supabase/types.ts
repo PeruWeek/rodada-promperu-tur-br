@@ -2396,6 +2396,7 @@ export type Database = {
         }
         Returns: Json
       }
+      user_in_event: { Args: { _event_id: string }; Returns: boolean }
     }
     Enums: {
       agent_base_url_mode: "api" | "free"
