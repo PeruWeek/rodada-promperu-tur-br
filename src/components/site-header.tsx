@@ -83,6 +83,12 @@ export function SiteHeader() {
             src={site.logoUrl || promperuLogo}
             alt={site.name}
             className="h-8 w-8 rounded-sm object-contain"
+            onError={(e) => {
+              const img = e.currentTarget;
+              if (img.src !== promperuLogo && !img.src.endsWith(promperuLogo)) {
+                img.src = promperuLogo;
+              }
+            }}
           />
           <span className="text-sm sm:text-base">{site.name || t("common.appName")}</span>
         </Link>
