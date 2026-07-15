@@ -158,3 +158,6 @@
     letter-spacing: -0.01em;
   }
 }
+#lovable-badge {
+display: none !important;
+}
